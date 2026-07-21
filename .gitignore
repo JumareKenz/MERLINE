@@ -1,0 +1,17 @@
+node_modules/
+vendor/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+*.log
+dist/
+build/
+.next/
+.turbo/
+coverage/
+.idea/
+.vscode/
+*.sqlite
+*.sqlite3
+storage/

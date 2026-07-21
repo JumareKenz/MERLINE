@@ -1,0 +1,175 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary-50: 174 41% 94%;
+    --color-primary-100: 174 41% 84%;
+    --color-primary-200: 174 41% 74%;
+    --color-primary-300: 174 41% 64%;
+    --color-primary-400: 174 41% 53%;
+    --color-primary-500: 174 80% 26%;
+    --color-primary-600: 174 80% 21%;
+    --color-primary-700: 174 80% 16%;
+    --color-primary-800: 174 80% 12%;
+    --color-primary-900: 174 80% 7%;
+
+    --color-secondary-50: 237 100% 97%;
+    --color-secondary-100: 236 100% 93%;
+    --color-secondary-500: 239 74% 59%;
+    --color-secondary-600: 240 69% 51%;
+    --color-secondary-700: 241 67% 41%;
+
+    --color-success: 138 63% 31%;
+    --color-success-bg: 138 63% 95%;
+    --color-warning: 41 100% 27%;
+    --color-warning-bg: 41 100% 95%;
+    --color-error: 0 73% 42%;
+    --color-error-bg: 0 73% 96%;
+    --color-info: 207 75% 41%;
+    --color-info-bg: 207 75% 96%;
+
+    --color-neutral-50: 210 17% 98%;
+    --color-neutral-100: 210 17% 95%;
+    --color-neutral-150: 210 16% 91%;
+    --color-neutral-200: 210 14% 86%;
+    --color-neutral-300: 210 13% 80%;
+    --color-neutral-400: 210 11% 70%;
+    --color-neutral-500: 210 9% 58%;
+    --color-neutral-600: 210 9% 45%;
+    --color-neutral-700: 210 10% 33%;
+    --color-neutral-800: 210 10% 23%;
+    --color-neutral-900: 210 11% 15%;
+    --color-neutral-950: 210 11% 10%;
+
+    --bg-page: 0 0% 100%;
+    --bg-surface: 210 17% 97%;
+    --bg-elevated: 0 0% 100%;
+    --bg-inset: 210 17% 95%;
+    --bg-hover: 0 0% 0% / 0.04;
+    --bg-active: 0 0% 0% / 0.08;
+    --bg-tooltip: 210 11% 15%;
+
+    --text-primary: 0 0% 10%;
+    --text-secondary: 0 0% 35%;
+    --text-tertiary: 210 9% 58%;
+    --text-inverse: 0 0% 100%;
+    --text-link: 207 75% 41%;
+    --text-success: 138 63% 31%;
+    --text-warning: 41 100% 27%;
+    --text-error: 0 73% 42%;
+
+    --border-subtle: 210 16% 91%;
+    --border-default: 210 14% 86%;
+    --border-strong: 210 13% 77%;
+    --border-focus: 174 80% 26%;
+    --border-error: 0 73% 42%;
+
+    --shadow-color: 0 0% 0%;
+
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+    --radius-full: 9999px;
+
+    --font-normal: 400;
+    --font-medium: 500;
+    --font-semibold: 600;
+    --font-bold: 700;
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    --color-primary-50: 174 80% 11%;
+    --color-primary-100: 174 80% 18%;
+    --color-primary-200: 174 80% 25%;
+    --color-primary-300: 174 80% 32%;
+    --color-primary-400: 174 80% 39%;
+    --color-primary-500: 174 45% 51%;
+    --color-primary-600: 174 45% 60%;
+    --color-primary-700: 174 45% 67%;
+    --color-primary-800: 174 45% 74%;
+    --color-primary-900: 174 45% 81%;
+
+    --color-secondary-50: 245 45% 20%;
+    --color-secondary-100: 244 47% 34%;
+    --color-secondary-500: 239 74% 74%;
+    --color-secondary-600: 237 75% 85%;
+    --color-secondary-700: 234 78% 92%;
+
+    --color-success: 140 67% 56%;
+    --color-success-bg: 140 67% 11%;
+    --color-warning: 41 74% 56%;
+    --color-warning-bg: 41 74% 11%;
+    --color-error: 0 74% 60%;
+    --color-error-bg: 0 74% 11%;
+    --color-info: 210 74% 64%;
+    --color-info-bg: 210 74% 11%;
+
+    --color-neutral-50: 210 10% 11%;
+    --color-neutral-100: 210 10% 14%;
+    --color-neutral-150: 210 10% 17%;
+    --color-neutral-200: 210 10% 21%;
+    --color-neutral-300: 210 10% 25%;
+    --color-neutral-400: 210 10% 30%;
+    --color-neutral-500: 210 10% 36%;
+    --color-neutral-600: 210 10% 43%;
+    --color-neutral-700: 210 10% 54%;
+    --color-neutral-800: 210 10% 69%;
+    --color-neutral-900: 210 10% 83%;
+    --color-neutral-950: 210 10% 91%;
+
+    --bg-page: 210 10% 10%;
+    --bg-surface: 210 10% 13%;
+    --bg-elevated: 210 10% 17%;
+    --bg-inset: 210 10% 11%;
+    --bg-hover: 0 0% 100% / 0.06;
+    --bg-active: 0 0% 100% / 0.10;
+    --bg-tooltip: 210 10% 91%;
+
+    --text-primary: 210 10% 91%;
+    --text-secondary: 210 10% 69%;
+    --text-tertiary: 210 10% 36%;
+    --text-inverse: 210 10% 10%;
+    --text-link: 210 74% 64%;
+    --text-success: 140 67% 56%;
+    --text-warning: 41 74% 56%;
+    --text-error: 0 74% 60%;
+
+    --border-subtle: 210 10% 17%;
+    --border-default: 210 10% 21%;
+    --border-strong: 210 10% 25%;
+    --border-focus: 174 45% 51%;
+    --border-error: 0 74% 60%;
+
+    --shadow-color: 0 0% 0%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .focus-ring {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}

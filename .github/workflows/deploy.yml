@@ -1,0 +1,292 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-1
+  EKS_CLUSTER_DEV: merline-dev
+  EKS_CLUSTER_STAGING: merline-staging
+  EKS_CLUSTER_PROD: merline-prod
+  GHCR_REGISTRY: ghcr.io/${{ github.repository }}
+
+jobs:
+  # ─── Docker Build & Push ───
+  docker-build:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api-tag: ${{ steps.meta.outputs.api-tag }}
+      frontend-tag: ${{ steps.meta.outputs.frontend-tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: meta
+        run: |
+          SHORT_SHA=${GITHUB_SHA::8}
+          TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+          echo "api-tag=${SHORT_SHA}-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "frontend-tag=${SHORT_SHA}-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "api-tags=ghcr.io/${{ github.repository }}/api:${SHORT_SHA}-${TIMESTAMP},ghcr.io/${{ github.repository }}/api:main" >> $GITHUB_OUTPUT
+          echo "frontend-tags=ghcr.io/${{ github.repository }}/frontend:${SHORT_SHA}-${TIMESTAMP},ghcr.io/${{ github.repository }}/frontend:main" >> $GITHUB_OUTPUT
+
+      - name: Build & Push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/backend-nestjs
+          file: apps/backend-nestjs/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.api-tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/frontend/Dockerfile
+          target: runner
+          push: true
+          tags: ${{ steps.meta.outputs.frontend-tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Deploy to Development ───
+  deploy-dev:
+    name: Deploy to Development
+    needs: [docker-build]
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_DEV }}
+
+      - name: Deploy API
+        run: |
+          helm upgrade --install merline-api ./charts/merline-api \
+            --namespace dev \
+            --values ./charts/merline-api/values/dev.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.api-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/api \
+            --wait --timeout 10m
+
+      - name: Deploy Frontend
+        run: |
+          helm upgrade --install merline-frontend ./charts/merline-frontend \
+            --namespace dev \
+            --values ./charts/merline-frontend/values/dev.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.frontend-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/frontend \
+            --wait --timeout 10m
+
+      - name: Run database migrations
+        run: |
+          kubectl exec -n dev deployment/merline-api -- npx prisma migrate deploy
+
+  # ─── Post-Deploy Smoke Tests (Dev) ───
+  smoke-tests-dev:
+    name: Smoke Tests (Dev)
+    needs: [deploy-dev]
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Health check API
+        run: |
+          curl -f --retry 10 --retry-delay 15 https://dev.merline.app/api/health
+      - name: Health check Frontend
+        run: |
+          curl -f --retry 5 --retry-delay 10 https://dev.merline.app/api/health
+
+  # ─── Deploy to Staging ───
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [smoke-tests-dev, docker-build]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-staging
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_STAGING }}
+
+      - name: Deploy API
+        run: |
+          helm upgrade --install merline-api ./charts/merline-api \
+            --namespace staging \
+            --values ./charts/merline-api/values/staging.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.api-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/api \
+            --wait --timeout 10m
+
+      - name: Deploy Frontend
+        run: |
+          helm upgrade --install merline-frontend ./charts/merline-frontend \
+            --namespace staging \
+            --values ./charts/merline-frontend/values/staging.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.frontend-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/frontend \
+            --wait --timeout 10m
+
+      - name: Run database migrations
+        run: |
+          kubectl exec -n staging deployment/merline-api -- npx prisma migrate deploy
+
+  # ─── Staging Smoke Tests ───
+  smoke-tests-staging:
+    name: Smoke Tests (Staging)
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Health check API
+        run: |
+          curl -f --retry 10 --retry-delay 15 https://staging.merline.app/api/health
+      - name: Health check Frontend
+        run: |
+          curl -f --retry 5 --retry-delay 10 https://staging.merline.app/api/health
+
+  # ─── Manual Approval Gate ───
+  approval:
+    name: Production Approval Gate
+    needs: [smoke-tests-staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Await manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: ${{ vars.PRODUCTION_APPROVERS }}
+
+  # ─── Canary Deploy to Production ───
+  deploy-production:
+    name: Canary Deploy to Production
+    needs: [approval, docker-build]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-prod
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_PROD }}
+
+      # Phase 1: 10% canary
+      - name: Deploy canary (10%)
+        run: |
+          helm upgrade --install merline-api ./charts/merline-api \
+            --namespace production \
+            --values ./charts/merline-api/values/prod.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.api-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/api \
+            --set canary.enabled=true \
+            --set canary.weight=10 \
+            --wait --timeout 15m
+
+      - name: Monitor canary (5 min)
+        run: sleep 300
+
+      # Phase 2: 50% canary
+      - name: Promote to 50%
+        run: |
+          helm upgrade --install merline-api ./charts/merline-api \
+            --namespace production \
+            --values ./charts/merline-api/values/prod.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.api-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/api \
+            --set canary.weight=50 \
+            --wait --timeout 15m
+
+      - name: Monitor canary (5 min)
+        run: sleep 300
+
+      # Phase 3: 100% rollout
+      - name: Promote to 100%
+        run: |
+          helm upgrade --install merline-api ./charts/merline-api \
+            --namespace production \
+            --values ./charts/merline-api/values/prod.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.api-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/api \
+            --set canary.enabled=false \
+            --wait --timeout 15m
+
+      - name: Deploy Frontend to production
+        run: |
+          helm upgrade --install merline-frontend ./charts/merline-frontend \
+            --namespace production \
+            --values ./charts/merline-frontend/values/prod.yaml \
+            --set image.tag=${{ needs.docker-build.outputs.frontend-tag }} \
+            --set image.repository=${{ env.GHCR_REGISTRY }}/frontend \
+            --wait --timeout 10m
+
+      - name: Run database migrations
+        run: |
+          kubectl exec -n production deployment/merline-api -- npx prisma migrate deploy
+
+  # ─── Post-Deploy Validation ───
+  post-deploy:
+    name: Post-Deploy Validation
+    needs: [deploy-production]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Smoke test production API
+        run: |
+          curl -f --retry 10 --retry-delay 30 https://merline.app/api/health
+      - name: Smoke test production Frontend
+        run: |
+          curl -f --retry 10 --retry-delay 30 https://merline.app/api/health
+      - name: Check critical endpoints
+        run: |
+          curl -f --retry 3 --retry-delay 10 https://merline.app/api/v1/status
+      - name: Send deployment notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: '#deployments'
+          slack-message: |
+            :rocket: Production deployment complete
+            Service: merline-api + merline-frontend
+            Version: ${{ github.sha }}
+            By: ${{ github.actor }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

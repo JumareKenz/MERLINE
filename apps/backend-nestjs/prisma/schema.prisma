@@ -1,0 +1,865 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StudyStatus {
+  DRAFT
+  PLANNED
+  IN_DESIGN
+  DESIGN_REVIEW
+  APPROVED
+  DATA_COLLECTION
+  DATA_CLEANING
+  ANALYSIS
+  REPORTING
+  COMPLETED
+  ARCHIVED
+}
+
+enum StudyType {
+  BASELINE
+  ENDLINE
+  MIDLINE
+  KAP
+  LOT_QUALITY_ASSURANCE
+  RAPID_ASSESSMENT
+  SENTINEL_SURVEILLANCE
+  CENSUS
+  SAMPLING_SURVEY
+  ROUTINE_DATA
+  QUALITATIVE
+  CASE_STUDY
+  FOCUS_GROUP
+  KEY_INFORMANT
+  OBSERVATIONAL
+  EXPERIMENTAL
+  QUASI_EXPERIMENTAL
+  LONGITUDINAL
+  CROSS_SECTIONAL
+  RETROSPECTIVE
+  PROSPECTIVE
+  MIXED_METHODS
+}
+
+enum SubmissionStatus {
+  DRAFT
+  COMPLETED
+  SYNCED
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  APPROVED
+  REJECTED
+}
+
+enum MediaType {
+  IMAGE
+  AUDIO
+  VIDEO
+  FILE
+  SIGNATURE
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SyncAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  settings    Json     @default("{}")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  users       User[]
+  roles       Role[]
+  permissions Permission[]
+  workspaces  Workspace[]
+  projects    Project[]
+  studies     Study[]
+
+  @@map("organizations")
+}
+
+model User {
+  id                            String    @id @default(uuid())
+  email                         String    @unique
+  passwordHash                  String    @map("password_hash")
+  firstName                     String    @map("first_name")
+  lastName                      String    @map("last_name")
+  phone                         String?
+  avatarUrl                     String?   @map("avatar_url")
+  locale                        String    @default("en")
+  isActive                      Boolean   @default(true) @map("is_active")
+  emailVerifiedAt               DateTime? @map("email_verified_at")
+  emailVerificationToken        String?   @map("email_verification_token")
+  emailVerificationTokenExpiresAt DateTime? @map("email_verification_token_expires_at")
+  resetPasswordToken            String?   @map("reset_password_token")
+  resetPasswordTokenExpiresAt   DateTime? @map("reset_password_token_expires_at")
+  tokenVersion                  Int       @default(0) @map("token_version")
+  lastLoginAt                   DateTime? @map("last_login_at")
+  organizationId                String    @map("organization_id")
+  createdAt                     DateTime  @default(now()) @map("created_at")
+  updatedAt                     DateTime  @updatedAt @map("updated_at")
+  deletedAt                     DateTime? @map("deleted_at")
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  roles           RoleUser[]
+  auditLogs       AuditLog[]
+  assignments     Assignment[]
+  submissions     Submission[]
+  projectsCreated Project[]    @relation("ProjectCreator")
+  studyTeams      StudyTeam[]
+  projectTeams    ProjectTeam[]
+
+  @@map("users")
+}
+
+model Role {
+  id             String       @id @default(uuid())
+  name           String
+  slug           String
+  description    String?
+  organizationId String       @map("organization_id")
+  isSystem       Boolean      @default(false) @map("is_system")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  users          RoleUser[]
+  permissions    PermissionRole[]
+
+  @@unique([slug, organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id             String       @id @default(uuid())
+  name           String
+  slug           String
+  module         String
+  organizationId String       @map("organization_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  roles          PermissionRole[]
+
+  @@unique([slug, organizationId])
+  @@map("permissions")
+}
+
+model RoleUser {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("role_user")
+}
+
+model PermissionRole {
+  permissionId String @map("permission_id")
+  roleId       String @map("role_id")
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([permissionId, roleId])
+  @@map("permission_role")
+}
+
+model Workspace {
+  id             String       @id @default(uuid())
+  name           String
+  description    String?
+  organizationId String       @map("organization_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  projects       Project[]
+
+  @@map("workspaces")
+}
+
+model Project {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  status      String     @default("active")
+  startDate   DateTime?  @map("start_date")
+  endDate     DateTime?  @map("end_date")
+  settings    Json       @default("{}")
+  workspaceId String?    @map("workspace_id")
+  organizationId String @map("organization_id")
+  createdById String     @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy   User       @relation("ProjectCreator", fields: [createdById], references: [id])
+  studies     Study[]
+  teams       ProjectTeam[]
+  projectTags ProjectTag[]
+  tags        ProjectProjectTag[]
+  activities  ProjectActivity[]
+
+  @@map("projects")
+}
+
+model ProjectTeam {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  userId    String   @map("user_id")
+  role      String   @default("member")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_teams")
+}
+
+model ProjectTag {
+  id        String             @id @default(uuid())
+  name      String
+  color     String?
+  projectId String             @map("project_id")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projects  ProjectProjectTag[]
+
+  @@map("project_tags")
+}
+
+model ProjectProjectTag {
+  projectId String @map("project_id")
+  tagId     String @map("tag_id")
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag       ProjectTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, tagId])
+  @@map("project_project_tag")
+}
+
+model ProjectActivity {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  type      String
+  message   String
+  meta      Json     @default("{}")
+  userId    String?  @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_activities")
+}
+
+model Study {
+  id             String       @id @default(uuid())
+  title          String
+  code           String?
+  description    String?
+  status         StudyStatus  @default(DRAFT)
+  type           StudyType?
+  studyDesign    Json?        @map("study_design")
+  location       Json?        @default("{}")
+  targetDetails  Json?        @map("target_details")
+  startDate      DateTime?    @map("start_date")
+  endDate        DateTime?    @map("end_date")
+  isLocked       Boolean      @default(false) @map("is_locked")
+  lockedAt       DateTime?    @map("locked_at")
+  lockedById     String?      @map("locked_by_id")
+  settings       Json         @default("{}")
+  projectId      String       @map("project_id")
+  organizationId String       @map("organization_id")
+  createdById    String       @map("created_by_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  project        Project      @relation(fields: [projectId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  teams          StudyTeam[]
+  questionnaires Questionnaire[]
+  assignments    Assignment[]
+  indicators     Indicator[]
+  submissions    Submission[]
+  reports        Report[]
+
+  @@map("studies")
+}
+
+model StudyTeam {
+  id        String   @id @default(uuid())
+  studyId   String   @map("study_id")
+  userId    String   @map("user_id")
+  role      String   @default("member")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  study     Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([studyId, userId])
+  @@map("study_teams")
+}
+
+model Indicator {
+  id                 String           @id @default(uuid())
+  name               String
+  description        String?
+  type               String
+  unit               String?
+  calculation        String?
+  baseline           Float?
+  target             Float?
+  dataSource         String?          @map("data_source")
+  frequency          String?
+  disaggregation     Json?            @default("[]")
+  thresholdWarning   Float?           @map("threshold_warning")
+  thresholdCritical  Float?           @map("threshold_critical")
+  isApproved         Boolean          @default(false) @map("is_approved")
+  approvedById       String?          @map("approved_by_id")
+  approvedAt         DateTime?        @map("approved_at")
+  supersededById     String?          @map("superseded_by_id")
+  studyId            String           @map("study_id")
+  organizationId     String           @map("organization_id")
+  createdById        String           @map("created_by_id")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  deletedAt          DateTime?        @map("deleted_at")
+
+  study              Study            @relation(fields: [studyId], references: [id])
+  values             IndicatorValue[]
+  targets            IndicatorTarget[]
+
+  @@map("indicators")
+}
+
+model IndicatorValue {
+  id          String   @id @default(uuid())
+  value       Float
+  date        DateTime
+  note        String?
+  indicatorId String   @map("indicator_id")
+  recordedById String  @map("recorded_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@map("indicator_values")
+}
+
+model IndicatorTarget {
+  id          String   @id @default(uuid())
+  value       Float
+  deadline    DateTime
+  note        String?
+  indicatorId String   @map("indicator_id")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@map("indicator_targets")
+}
+
+model Questionnaire {
+  id            String      @id @default(uuid())
+  title         String
+  description   String?
+  version       Int         @default(1)
+  status        String      @default("draft")
+  locale        String      @default("en")
+  studyId       String      @map("study_id")
+  organizationId String     @map("organization_id")
+  createdById   String      @map("created_by_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+
+  study         Study       @relation(fields: [studyId], references: [id])
+  sections      Section[]
+
+  @@map("questionnaires")
+}
+
+model Section {
+  id               String       @id @default(uuid())
+  title            String
+  description      String?
+  sortOrder        Int          @map("sort_order")
+  questionnaireId  String       @map("questionnaire_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  questionnaire    Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  questions        Question[]
+
+  @@map("sections")
+}
+
+model Question {
+  id              String             @id @default(uuid())
+  text            String
+  description     String?
+  type            String
+  sortOrder       Int                @map("sort_order")
+  isRequired      Boolean            @default(false) @map("is_required")
+  sectionId       String             @map("section_id")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  section         Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options         QuestionOption[]
+  skipLogic       SkipLogic[]
+  validations     QuestionValidation[]
+  translations    QuestionTranslation[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id          String   @id @default(uuid())
+  text        String
+  value       String
+  sortOrder   Int      @map("sort_order")
+  questionId  String   @map("question_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_options")
+}
+
+model SkipLogic {
+  id         String   @id @default(uuid())
+  condition  Json
+  action     String
+  targetId   String?  @map("target_id")
+  questionId String   @map("question_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("skip_logic")
+}
+
+model QuestionValidation {
+  id         String   @id @default(uuid())
+  rule       String
+  value      String?
+  message    String?
+  questionId String   @map("question_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_validations")
+}
+
+model QuestionTranslation {
+  id         String   @id @default(uuid())
+  locale     String
+  text       String
+  description String?
+  questionId String   @map("question_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, locale])
+  @@map("question_translations")
+}
+
+model Assignment {
+  id              String           @id @default(uuid())
+  status          AssignmentStatus @default(ASSIGNED)
+  notes           String?
+  assignedAt      DateTime         @default(now()) @map("assigned_at")
+  startedAt       DateTime?        @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+  enumeratorId    String           @map("enumerator_id")
+  studyId         String           @map("study_id")
+  organizationId  String           @map("organization_id")
+  createdById     String           @map("created_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  enumerator      User             @relation(fields: [enumeratorId], references: [id])
+  study           Study            @relation(fields: [studyId], references: [id])
+  submissions     Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id             String           @id @default(uuid())
+  status         SubmissionStatus @default(DRAFT)
+  answers        Json             @default("{}")
+  location       Json?            @default("{}")
+  startedAt      DateTime?        @map("started_at")
+  completedAt    DateTime?        @map("completed_at")
+  syncedAt       DateTime?        @map("synced_at")
+  deviceId       String?          @map("device_id")
+  notes          String?
+  qualityScore   Float?           @map("quality_score")
+  reviewedById   String?          @map("reviewed_by_id")
+  reviewedAt     DateTime?        @map("reviewed_at")
+  assignmentId   String?          @map("assignment_id")
+  studyId        String           @map("study_id")
+  questionnaireId String?         @map("questionnaire_id")
+  enumeratorId   String?          @map("enumerator_id")
+  organizationId String           @map("organization_id")
+  createdById    String           @map("created_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  deletedAt      DateTime?        @map("deleted_at")
+
+  assignment     Assignment?      @relation(fields: [assignmentId], references: [id])
+  study          Study            @relation(fields: [studyId], references: [id])
+  enumerator     User?            @relation(fields: [enumeratorId], references: [id])
+  media          Media[]
+
+  @@map("submissions")
+}
+
+model Media {
+  id              String          @id @default(uuid())
+  filename        String
+  originalName    String          @map("original_name")
+  mimeType        String          @map("mime_type")
+  size            Int
+  type            MediaType
+  processingStatus ProcessingStatus @default(PENDING) @map("processing_status")
+  path            String
+  thumbnailPath   String?         @map("thumbnail_path")
+  checksum        String?
+  metadata        Json            @default("{}")
+  submissionId    String?         @map("submission_id")
+  uploadedById    String          @map("uploaded_by_id")
+  organizationId  String          @map("organization_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  submission      Submission?     @relation(fields: [submissionId], references: [id])
+  chunks          MediaChunk[]
+
+  @@map("media")
+}
+
+model MediaChunk {
+  id         String   @id @default(uuid())
+  identifier String
+  index      Int
+  size       Int
+  checksum   String?
+  mediaId    String?  @map("media_id")
+  uploadedById String @map("uploaded_by_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  media      Media?   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@map("media_chunks")
+}
+
+model SyncLog {
+  id             String     @id @default(uuid())
+  action         SyncAction
+  entityType     String     @map("entity_type")
+  entityId       String     @map("entity_id")
+  payload        Json
+  status         SyncStatus @default(PENDING)
+  conflict       Json?      @default("{}")
+  deviceId       String?    @map("device_id")
+  organizationId String     @map("organization_id")
+  userId         String     @map("user_id")
+  syncedAt       DateTime?  @map("synced_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  @@map("sync_logs")
+}
+
+model SyncBatch {
+  id             String   @id @default(uuid())
+  batchId        String   @map("batch_id")
+  entityType     String   @map("entity_type")
+  totalItems     Int      @map("total_items")
+  processedItems Int      @default(0) @map("processed_items")
+  failedItems    Int      @default(0) @map("failed_items")
+  status         String   @default("in_progress")
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  startedAt      DateTime @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("sync_batches")
+}
+
+model DashboardAlert {
+  id             String              @id @default(uuid())
+  title          String
+  message        String
+  severity       String              @default("info")
+  type           String
+  meta           Json                @default("{}")
+  isResolved     Boolean             @default(false) @map("is_resolved")
+  resolvedAt     DateTime?           @map("resolved_at")
+  resolvedById   String?             @map("resolved_by_id")
+  organizationId String              @map("organization_id")
+  createdById    String              @map("created_by_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  logs           DashboardAlertLog[]
+
+  @@map("dashboard_alerts")
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  type           String
+  title          String
+  message        String
+  isRead         Boolean  @default(false) @map("is_read")
+  meta           Json     @default("{}")
+  userId         String   @map("user_id")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("notifications")
+}
+
+model DashboardAlertLog {
+  id        String   @id @default(uuid())
+  action    String
+  meta      Json     @default("{}")
+  alertId   String   @map("alert_id")
+  userId    String?  @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  alert     DashboardAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@map("dashboard_alert_logs")
+}
+
+model DashboardWidget {
+  id             String   @id @default(uuid())
+  type           String
+  title          String
+  config         Json     @default("{}")
+  sortOrder      Int      @default(0) @map("sort_order")
+  isVisible      Boolean  @default(true) @map("is_visible")
+  organizationId String   @map("organization_id")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("dashboard_widgets")
+}
+
+model UserDashboardPreference {
+  id             String   @id @default(uuid())
+  layout         Json     @default("[]")
+  userId         String   @map("user_id")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId])
+  @@map("user_dashboard_preferences")
+}
+
+model Report {
+  id             String          @id @default(uuid())
+  title          String
+  description    String?
+  type           String
+  config         Json            @default("{}")
+  data           Json?           @default("{}")
+  status         String          @default("draft")
+  studyId        String?         @map("study_id")
+  templateId     String?         @map("template_id")
+  organizationId String          @map("organization_id")
+  createdById    String          @map("created_by_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+
+  study          Study?          @relation(fields: [studyId], references: [id])
+  schedules      ReportSchedule[]
+
+  @@map("reports")
+}
+
+model ReportTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  config      Json     @default("{}")
+  category    String?
+  isPublic    Boolean  @default(false) @map("is_public")
+  organizationId String @map("organization_id")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("report_templates")
+}
+
+model ReportSchedule {
+  id          String   @id @default(uuid())
+  cron        String
+  config      Json     @default("{}")
+  isActive    Boolean  @default(true) @map("is_active")
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime? @map("next_run_at")
+  reportId    String   @map("report_id")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("report_schedules")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  event          String
+  auditableType  String   @map("auditable_type")
+  auditableId    String   @map("auditable_id")
+  oldValues      Json?    @map("old_values")
+  newValues      Json?    @map("new_values")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  tags           String?
+  checksum       String?
+  userId         String?  @map("user_id")
+  organizationId String?  @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user           User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model AiSession {
+  id             String       @id @default(uuid())
+  title          String?
+  context        Json         @default("{}")
+  metadata       Json         @default("{}")
+  isActive       Boolean      @default(true) @map("is_active")
+  organizationId String       @map("organization_id")
+  userId         String       @map("user_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  messages       AiMessage[]
+
+  @@map("ai_sessions")
+}
+
+model AiMessage {
+  id          String    @id @default(uuid())
+  role        String
+  content     String
+  meta        Json      @default("{}")
+  sessionId   String    @map("session_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  session     AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("ai_messages")
+}
+
+model AiInference {
+  id             String   @id @default(uuid())
+  model          String
+  provider       String
+  inputTokens    Int      @map("input_tokens")
+  outputTokens   Int      @map("output_tokens")
+  cost           Float
+  latencyMs      Int      @map("latency_ms")
+  promptId       String?  @map("prompt_id")
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("ai_inferences")
+}
+
+model AiPrompt {
+  id             String   @id @default(uuid())
+  name           String
+  content        String
+  version        Int      @default(1)
+  model          String?
+  temperature    Float?
+  maxTokens      Int?     @map("max_tokens")
+  isActive       Boolean  @default(true) @map("is_active")
+  organizationId String   @map("organization_id")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("prompts")
+}
+
+model DocumentChunk {
+  id             String   @id @default(uuid())
+  content        String
+  embedding      Unsupported("vector(1536)")?
+  metadata       Json     @default("{}")
+  source         String?
+  documentId     String?  @map("document_id")
+  organizationId String   @map("organization_id")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("document_chunks")
+}
