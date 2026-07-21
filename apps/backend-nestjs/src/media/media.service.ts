@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { MediaType, ProcessingStatus } from '@prisma/client';
 import { createReadStream } from 'fs';
 
-const UPLOADS_ROOT = path.resolve(process.env.UPLOADS_DIR || 'uploads');
+const UPLOADS_ROOT = path.resolve(process.env.UPLOADS_DIR || (process.env.VERCEL ? '/tmp/uploads' : 'uploads'));
 
 const ALLOWED_MIME_TYPES: Record<string, MediaType> = {
   'image/jpeg': MediaType.IMAGE,
@@ -41,8 +41,12 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024;
 export class MediaService extends BaseService {
   constructor(prisma: PrismaService) {
     super(prisma);
-    if (!fs.existsSync(UPLOADS_ROOT)) {
-      fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
+    try {
+      if (!fs.existsSync(UPLOADS_ROOT)) {
+        fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
+      }
+    } catch {
+      console.warn(`Cannot create uploads directory at ${UPLOADS_ROOT}, uploads may fail`);
     }
   }
 
