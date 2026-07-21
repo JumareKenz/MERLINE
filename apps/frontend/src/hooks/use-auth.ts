@@ -18,13 +18,13 @@ export function useRegister() {
   return useMutation({
     mutationFn: (data: RegisterDto) =>
       register({
-        first_name: data.first_name,
-        last_name: data.last_name,
+        first_name: data.firstName,
+        last_name: data.lastName,
         email: data.email,
         password: data.password,
-        organization_name: data.organization_name,
-        organization_type: data.organization_type,
-        country: data.country,
+        organization_name: data.orgName,
+        organization_type: '',
+        country: '',
       }),
   });
 }

@@ -34,11 +34,9 @@ export interface LoginDto {
 export interface RegisterDto {
   email: string;
   password: string;
-  first_name: string;
-  last_name: string;
-  organization_name: string;
-  organization_type: string;
-  country: string;
+  firstName: string;
+  lastName: string;
+  orgName: string;
 }
 
 export interface ForgotPasswordDto {

@@ -92,7 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     organization_type: string;
     country: string;
   }) => {
-    const response = await API.auth.register(data);
+    const response = await API.auth.register({
+      firstName: data.first_name,
+      lastName: data.last_name,
+      email: data.email,
+      password: data.password,
+      orgName: data.organization_name,
+    });
     const { user: authUser, token: authToken } = response.data.data;
     setAuthCookie(authToken);
     storeLogin(authUser, authToken);
