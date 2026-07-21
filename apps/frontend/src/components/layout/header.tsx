@@ -56,7 +56,7 @@ export function Header() {
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
               <Avatar className="h-8 w-8">
                 <AvatarFallback>
-                  {user ? getInitials(user.first_name, user.last_name) : 'U'}
+                  {user ? getInitials(user.firstName, user.lastName) : 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -65,7 +65,7 @@ export function Header() {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">
-                  {user?.first_name} {user?.last_name}
+                  {user?.firstName} {user?.lastName}
                 </p>
                 <p className="text-xs leading-none text-foreground-secondary">{user?.email}</p>
               </div>

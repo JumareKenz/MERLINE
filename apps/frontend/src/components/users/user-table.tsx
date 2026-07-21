@@ -34,10 +34,10 @@ export function UserTable({ data, isLoading, isError, error, onRetry, onEdit, on
           return (
             <div className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
-                <AvatarFallback>{getInitials(user.first_name, user.last_name)}</AvatarFallback>
+                <AvatarFallback>{getInitials(user.firstName, user.lastName)}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-medium text-sm">{user.first_name} {user.last_name}</p>
+                <p className="font-medium text-sm">{user.firstName} {user.lastName}</p>
                 <p className="text-xs text-foreground-secondary">{user.email}</p>
               </div>
             </div>

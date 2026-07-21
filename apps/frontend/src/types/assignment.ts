@@ -18,7 +18,7 @@ export interface Assignment {
   approved_by?: { id: string; name: string };
   rejection_reason?: string;
   questionnaire?: { id: string; title: string };
-  enumerator?: { id: string; first_name: string; last_name: string };
+  enumerator?: { id: string; firstName: string; lastName: string };
   study?: { id: string; title: string };
   progress_percentage: number;
   created_at: string;

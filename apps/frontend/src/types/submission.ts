@@ -19,7 +19,7 @@ export interface Submission {
   reviewed_by?: { id: string; name: string };
   reviewed_at?: string;
   notes?: string;
-  enumerator?: { id: string; first_name: string; last_name: string };
+  enumerator?: { id: string; firstName: string; lastName: string };
   questionnaire?: { id: string; title: string };
   answer_count: number;
   created_at: string;

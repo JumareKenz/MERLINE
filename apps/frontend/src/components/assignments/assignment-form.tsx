@@ -12,7 +12,7 @@ import type { CreateAssignmentDto } from '@/types/assignment';
 interface AssignmentFormProps {
   studies?: { id: string; title: string }[];
   questionnaires?: { id: string; title: string }[];
-  enumerators?: { id: string; first_name: string; last_name: string }[];
+  enumerators?: { id: string; firstName: string; lastName: string }[];
   onSubmit: (data: CreateAssignmentDto) => void;
   isSubmitting?: boolean;
   initialData?: Partial<CreateAssignmentDto>;
@@ -94,7 +94,7 @@ export function AssignmentForm({
             >
               <option value="">Select enumerator...</option>
               {enumerators.map((e) => (
-                <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>
+                <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
               ))}
             </select>
           </div>

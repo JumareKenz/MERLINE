@@ -25,7 +25,7 @@ export function AssignmentCard({ assignment }: AssignmentCardProps) {
               {assignment.enumerator && (
                 <div className="flex items-center gap-1 text-sm text-foreground-secondary">
                   <User className="h-3 w-3" />
-                  <span>{getInitials(assignment.enumerator.first_name, assignment.enumerator.last_name)}</span>
+                  <span>{getInitials(assignment.enumerator.firstName, assignment.enumerator.lastName)}</span>
                 </div>
               )}
             </div>

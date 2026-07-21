@@ -11,7 +11,7 @@ import type { BatchAssignDto } from '@/types/assignment';
 interface AssignmentBatchFormProps {
   studies?: { id: string; title: string }[];
   questionnaires?: { id: string; title: string }[];
-  enumerators?: { id: string; first_name: string; last_name: string }[];
+  enumerators?: { id: string; firstName: string; lastName: string }[];
   onSubmit: (data: BatchAssignDto) => void;
   isSubmitting?: boolean;
 }
@@ -101,7 +101,7 @@ export function AssignmentBatchForm({
                       : 'bg-background text-foreground-secondary border-border hover:border-primary'
                   }`}
                 >
-                  {e.first_name} {e.last_name}
+                  {e.firstName} {e.lastName}
                   {selectedEnumerators.includes(e.id) && <X className="h-3 w-3" />}
                 </button>
               ))}

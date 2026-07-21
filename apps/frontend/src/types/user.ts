@@ -3,8 +3,8 @@ import type { Role } from './role';
 export interface User {
   id: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
   avatar_url?: string;
   status: 'active' | 'inactive' | 'suspended';
   email_verified_at?: string;
@@ -17,16 +17,16 @@ export interface User {
 
 export interface CreateUserDto {
   email: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
   role_id: string;
   password?: string;
   send_invite?: boolean;
 }
 
 export interface UpdateUserDto {
-  first_name?: string;
-  last_name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   role_id?: string;
   status?: 'active' | 'inactive' | 'suspended';

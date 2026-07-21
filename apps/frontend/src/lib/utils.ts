@@ -42,8 +42,10 @@ export function formatRelativeTime(date: string | Date): string {
   return formatDate(date);
 }
 
-export function getInitials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+export function getInitials(firstName?: string | null, lastName?: string | null): string {
+  const first = (firstName ?? '')[0] ?? '';
+  const last = (lastName ?? '')[0] ?? '';
+  return (first + last).toUpperCase() || 'U';
 }
 
 export function truncate(str: string, length: number): string {

@@ -28,8 +28,8 @@ export interface ProjectTeam {
   role: 'manager' | 'contributor' | 'viewer';
   user?: {
     id: string;
-    first_name: string;
-    last_name: string;
+    firstName: string;
+    lastName: string;
     email: string;
     avatar_url?: string;
   };

@@ -23,7 +23,7 @@ export function SubmissionCard({ submission }: SubmissionCardProps) {
               </p>
               {submission.enumerator && (
                 <p className="text-sm font-medium">
-                  {submission.enumerator.first_name} {submission.enumerator.last_name}
+                  {submission.enumerator.firstName} {submission.enumerator.lastName}
                 </p>
               )}
               {submission.questionnaire && (

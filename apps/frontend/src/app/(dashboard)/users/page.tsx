@@ -34,8 +34,8 @@ export default function UsersPage() {
       orgId: '',
       data: {
         email: data.email,
-        first_name: data.first_name,
-        last_name: data.last_name,
+        firstName: data.first_name,
+        lastName: data.last_name,
         role_id: data.role_id,
         send_invite: data.send_invite,
       },
@@ -115,7 +115,7 @@ export default function UsersPage() {
         open={showDelete}
         onOpenChange={setShowDelete}
         title="Remove User"
-        description={`Are you sure you want to remove ${selectedUser?.user?.first_name} ${selectedUser?.user?.last_name} from the organization? This action cannot be undone.`}
+        description={`Are you sure you want to remove ${selectedUser?.user?.firstName} ${selectedUser?.user?.lastName} from the organization? This action cannot be undone.`}
         variant="danger"
         confirmLabel="Remove"
         loading={deleteUser.isPending}

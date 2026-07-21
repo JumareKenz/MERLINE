@@ -37,7 +37,7 @@ export function UserRoleSelector({ open, onOpenChange, user, roles, onSave }: Us
         <DialogHeader>
           <DialogTitle>Change User Role</DialogTitle>
           <DialogDescription>
-            Update role for {user?.user?.first_name} {user?.user?.last_name}
+            Update role for {user?.user?.firstName} {user?.user?.lastName}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-4">

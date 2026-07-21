@@ -18,7 +18,7 @@ const COLUMNS: ColumnDef<Submission>[] = [
     header: 'Enumerator',
     cell: ({ row }) => {
       const e = row.original.enumerator;
-      return <span>{e ? `${e.first_name} ${e.last_name}` : '—'}</span>;
+      return <span>{e ? `${e.firstName} ${e.lastName}` : '—'}</span>;
     },
   },
   {

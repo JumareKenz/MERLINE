@@ -67,7 +67,7 @@ export default function AssignmentDetailPage() {
             <div>
               <p className="text-sm font-medium">
                 {assignment.enumerator
-                  ? `${assignment.enumerator.first_name} ${assignment.enumerator.last_name}`
+                  ? `${assignment.enumerator.firstName} ${assignment.enumerator.lastName}`
                   : '—'}
               </p>
               <p className="text-xs text-foreground-secondary">Enumerator</p>

@@ -15,7 +15,7 @@ const COLUMNS: ColumnDef<Assignment>[] = [
     cell: ({ row }) => {
       const e = row.original.enumerator;
       if (!e) return <span className="text-foreground-tertiary">—</span>;
-      return <span className="font-medium">{getInitials(e.first_name, e.last_name)}</span>;
+      return <span className="font-medium">{getInitials(e.firstName, e.lastName)}</span>;
     },
   },
   {

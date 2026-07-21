@@ -48,12 +48,12 @@ export function ProjectTeamList({ members, isLoading }: ProjectTeamListProps) {
         <div key={member.id} className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
             <div className="flex h-full w-full items-center justify-center bg-primary-50 text-primary text-sm font-medium">
-              {member.user?.first_name?.charAt(0)}{member.user?.last_name?.charAt(0)}
+              {member.user?.firstName?.charAt(0)}{member.user?.lastName?.charAt(0)}
             </div>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">
-              {member.user?.first_name} {member.user?.last_name}
+              {member.user?.firstName} {member.user?.lastName}
             </p>
             <p className="text-xs text-foreground-secondary truncate">{member.user?.email}</p>
           </div>

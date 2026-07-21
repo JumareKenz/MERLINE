@@ -26,10 +26,10 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-primary text-xl font-bold">
-              {user.first_name.charAt(0)}{user.last_name.charAt(0)}
+              {user.firstName.charAt(0)}{user.lastName.charAt(0)}
             </div>
             <div>
-              <p className="text-lg font-semibold">{user.first_name} {user.last_name}</p>
+              <p className="text-lg font-semibold">{user.firstName} {user.lastName}</p>
               <p className="text-sm text-foreground-secondary">{user.email}</p>
             </div>
           </div>
@@ -39,7 +39,7 @@ export default function ProfilePage() {
               <User className="h-4 w-4 text-foreground-tertiary" />
               <div>
                 <p className="text-sm text-foreground-secondary">Name</p>
-                <p className="font-medium">{user.first_name} {user.last_name}</p>
+                <p className="font-medium">{user.firstName} {user.lastName}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

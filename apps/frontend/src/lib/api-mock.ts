@@ -23,8 +23,8 @@ const wrapPaginated = <T>(data: T[], page = 1, perPage = 25, total?: number) => 
 const DEMO_USER = {
   id: 'user-001',
   email: 'admin@merline.org',
-  first_name: 'Jane',
-  last_name: 'Mwangi',
+  firstName: 'Jane',
+  lastName: 'Mwangi',
   avatar_url: '',
   email_verified_at: pdate(30),
   created_at: pdate(90),
@@ -57,7 +57,7 @@ const DEMO_PROJECTS = Array.from({ length: 8 }, (_, i) => ({
   tags: [pick(['baseline', 'evaluation', 'monitoring', 'research']), pick(['quantitative', 'qualitative', 'mixed-method'])],
   team_count: num(3, 12),
   study_count: num(1, 5),
-  created_by: { id: DEMO_USER.id, name: `${DEMO_USER.first_name} ${DEMO_USER.last_name}` },
+  created_by: { id: DEMO_USER.id, name: `${DEMO_USER.firstName} ${DEMO_USER.lastName}` },
   created_at: pdate(num(30, 180)),
   updated_at: pdate(num(1, 10)),
 }));
@@ -194,8 +194,8 @@ const DEMO_REPORTS = Array.from({ length: 5 }, (_, i) => ({
 const DEMO_USERS = Array.from({ length: 10 }, (_, i) => ({
   id: `user-${String(i + 1).padStart(3, '0')}`,
   email: `${['alice', 'brian', 'carol', 'david', 'esther', 'frank', 'grace', 'henry', 'irene', 'james'][i]}@merline.org`,
-  first_name: ['Alice', 'Brian', 'Carol', 'David', 'Esther', 'Frank', 'Grace', 'Henry', 'Irene', 'James'][i],
-  last_name: ['Kamau', 'Otieno', 'Wanjiku', 'Ochieng', 'Nyambura', 'Mwangi', 'Akinyi', 'Kiprop', 'Wambui', 'Njoroge'][i],
+  firstName: ['Alice', 'Brian', 'Carol', 'David', 'Esther', 'Frank', 'Grace', 'Henry', 'Irene', 'James'][i],
+  lastName: ['Kamau', 'Otieno', 'Wanjiku', 'Ochieng', 'Nyambura', 'Mwangi', 'Akinyi', 'Kiprop', 'Wambui', 'Njoroge'][i],
   email_verified_at: pdate(num(1, 60)),
   avatar_url: '',
   created_at: pdate(num(10, 90)),
@@ -275,7 +275,7 @@ const DEMO_ACTIVITIES = Array.from({ length: 20 }, () => ({
     'Modified indicator targets', 'Published questionnaire',
   ]),
   event: pick(['created', 'updated', 'approved', 'submitted', 'generated']),
-  causer: { id: pick(DEMO_USERS).id, name: `${pick(DEMO_USERS).first_name} ${pick(DEMO_USERS).last_name}` },
+  causer: { id: pick(DEMO_USERS).id, name: `${pick(DEMO_USERS).firstName} ${pick(DEMO_USERS).lastName}` },
   created_at: pdate(num(0, 30)),
 }));
 
@@ -441,7 +441,7 @@ r('POST', '/studies/:id/transitions', () => wrap({ ...DEMO_STUDIES[0], status: p
 r('GET', '/studies/:id/lifecycle', () => wrap(
   Array.from({ length: 5 }, (_, i) => ({
     id: `lc-${uid()}`, from_status: statuses[i], to_status: statuses[i + 1],
-    transition: 'approved', user: { id: DEMO_USER.id, name: `${DEMO_USER.first_name} ${DEMO_USER.last_name}` },
+    transition: 'approved', user: { id: DEMO_USER.id, name: `${DEMO_USER.firstName} ${DEMO_USER.lastName}` },
     created_at: pdate(num(i * 5, (i + 1) * 5)),
   }))
 ));
@@ -592,7 +592,7 @@ r('GET', '/submissions/:id', (cfg, p) => wrap({
   flagged_answers: [],
   audit: Array.from({ length: 3 }, () => ({
     action: pick(['created', 'updated', 'completed', 'approved']),
-    user: `${pick(DEMO_USERS).first_name} ${pick(DEMO_USERS).last_name}`,
+    user: `${pick(DEMO_USERS).firstName} ${pick(DEMO_USERS).lastName}`,
     created_at: pdate(num(0, 5)),
   })),
 }));

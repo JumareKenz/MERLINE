@@ -51,7 +51,7 @@ export function SubmissionDetailView({ submission }: SubmissionDetailViewProps) 
             {submission.enumerator && (
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-foreground-tertiary" />
-                <span className="text-sm">{submission.enumerator.first_name} {submission.enumerator.last_name}</span>
+                <span className="text-sm">{submission.enumerator.firstName} {submission.enumerator.lastName}</span>
               </div>
             )}
             {submission.questionnaire && (
