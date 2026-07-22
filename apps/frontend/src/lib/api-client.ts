@@ -176,7 +176,7 @@ export const API = {
     },
     studies: {
       list: (projectId: string, params?: import('@/types/api').StudyFilterParams) =>
-        apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/study').Study>>(`/projects/${projectId}/studies`, { params }),
+        apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/study').Study>>('/studies', { params: { ...params, projectId } }),
     },
   },
   studies: {
@@ -375,7 +375,7 @@ export const API = {
   },
   dashboard: {
     executive: (params?: import('@/types/api').DashboardFilterParams) =>
-      apiClient.get<{ data: import('@/types/dashboard').DashboardSummary }>('/dashboard/executive', { params }),
+      apiClient.get<{ data: import('@/types/dashboard').DashboardSummary }>('/dashboards/executive', { params }),
     study: (studyId: string, params?: import('@/types/api').DashboardFilterParams) =>
       apiClient.get<{ data: import('@/types/dashboard').StudyDashboardData }>(`/dashboards/study/${studyId}`, { params }),
     alerts: (params?: import('@/types/api').DashboardFilterParams) =>

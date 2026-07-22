@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
-import { usePermissions } from '@/hooks/use-permissions';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
@@ -66,10 +65,7 @@ const SETTINGS_ITEMS: NavItem[] = [
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
-  const { hasAnyPermission } = usePermissions();
   const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-
-  if (item.module && !hasAnyPermission(item.module)) return null;
 
   return (
     <Link
