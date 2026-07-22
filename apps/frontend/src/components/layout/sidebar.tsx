@@ -31,36 +31,35 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  module?: Parameters<ReturnType<typeof usePermissions>['hasAnyPermission']>[0];
   badge?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'AI Assistant', href: '/ai', icon: Sparkles },
-  { label: 'Projects', href: '/projects', icon: FolderKanban, module: 'projects' },
-  { label: 'Studies', href: '/studies', icon: FlaskConical, module: 'studies' },
-  { label: 'Questionnaires', href: '/questionnaires', icon: ClipboardList, module: 'questionnaires' },
-  { label: 'Indicators', href: '/indicators', icon: BarChart3, module: 'indicators' },
-  { label: 'Reports', href: '/reports', icon: FileText, module: 'reports' },
+  { label: 'Projects', href: '/projects', icon: FolderKanban },
+  { label: 'Studies', href: '/studies', icon: FlaskConical },
+  { label: 'Questionnaires', href: '/questionnaires', icon: ClipboardList },
+  { label: 'Indicators', href: '/indicators', icon: BarChart3 },
+  { label: 'Reports', href: '/reports', icon: FileText },
 ];
 
 const DATA_COLLECTION_ITEMS: NavItem[] = [
-  { label: 'Assignments', href: '/assignments', icon: ClipboardList, module: 'data_collection' },
-  { label: 'Submissions', href: '/submissions', icon: FileCheck, module: 'data_collection' },
+  { label: 'Assignments', href: '/assignments', icon: ClipboardList },
+  { label: 'Submissions', href: '/submissions', icon: FileCheck },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
   { label: 'AI Settings', href: '/admin/ai', icon: Cpu },
-  { label: 'Users', href: '/admin/users', icon: Users, module: 'users' },
-  { label: 'Roles', href: '/admin/roles', icon: Shield, module: 'roles' },
+  { label: 'Users', href: '/admin/users', icon: Users },
+  { label: 'Roles', href: '/admin/roles', icon: Shield },
 ];
 
 const SETTINGS_ITEMS: NavItem[] = [
-  { label: 'Organizations', href: '/organizations', icon: Building2, module: 'organizations' },
-  { label: 'Workspaces', href: '/workspaces', icon: Layers, module: 'workspaces' },
-  { label: 'Settings', href: '/admin/settings', icon: Settings, module: 'settings' },
-  { label: 'Activity Log', href: '/admin/activity-log', icon: Activity, module: 'activity_log' },
+  { label: 'Organizations', href: '/organizations', icon: Building2 },
+  { label: 'Workspaces', href: '/workspaces', icon: Layers },
+  { label: 'Settings', href: '/admin/settings', icon: Settings },
+  { label: 'Activity Log', href: '/admin/activity-log', icon: Activity },
 ];
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
