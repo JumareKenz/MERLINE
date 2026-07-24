@@ -23,6 +23,7 @@ import { StudyDashboard } from '@/components/dashboard/study-dashboard';
 import { useReports } from '@/hooks/use-reports';
 import { ReportTable } from '@/components/reports/report-table';
 import { DataCollectionOverview } from '@/components/data-collection/data-collection-overview';
+import { TheoryOfChangeBuilder } from '@/components/studies/theory-of-change-builder';
 import { useState, useEffect } from 'react';
 
 export default function StudyDetailPage() {
@@ -168,6 +169,7 @@ export default function StudyDetailPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="design">Theory of Change</TabsTrigger>
           <TabsTrigger value="indicators">Indicators</TabsTrigger>
           <TabsTrigger value="questionnaires">Questionnaires</TabsTrigger>
           <TabsTrigger value="data-collection">Data Collection</TabsTrigger>
@@ -248,6 +250,14 @@ export default function StudyDetailPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="design" className="pt-4">
+          <Card>
+            <CardContent className="p-6">
+              <TheoryOfChangeBuilder studyId={studyId} studyDesign={study.studyDesign} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="indicators" className="pt-4">
