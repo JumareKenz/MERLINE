@@ -101,12 +101,28 @@ export default function StudyDetailPage() {
             <p className="text-[13px] text-foreground-tertiary mt-1 max-w-2xl">{study.purpose}</p>
           )}
         </div>
-        <Link href={`/studies/${studyId}/design`} className="shrink-0">
-          <Button size="sm" className="h-8 px-3 text-[13px]">
-            <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
-            Design Workspace
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Link href={`/studies/${studyId}/design`}>
+            <Button size="sm" variant="outline" className="h-8 px-3 text-[13px]">
+              <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> Design
+            </Button>
+          </Link>
+          <Link href={`/studies/${studyId}/collect`}>
+            <Button size="sm" variant="outline" className="h-8 px-3 text-[13px]">
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> Collect
+            </Button>
+          </Link>
+          <Link href={`/studies/${studyId}/analyze`}>
+            <Button size="sm" variant="outline" className="h-8 px-3 text-[13px]">
+              <FileText className="h-3.5 w-3.5 mr-1.5" /> Analyze
+            </Button>
+          </Link>
+          <Link href={`/studies/${studyId}/report`}>
+            <Button size="sm" className="h-8 px-3 text-[13px]">
+              <FileText className="h-3.5 w-3.5 mr-1.5" /> Report
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {allowedTransitions.length > 0 && (
