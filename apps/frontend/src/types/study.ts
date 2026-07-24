@@ -128,6 +128,7 @@ export interface CreateStudyDto {
 export interface UpdateStudyDto extends Partial<CreateStudyDto> {
   status?: StudyStatus;
   studyDesign?: unknown;
+  description?: string;
 }
 
 export interface StudyTransitionDto {

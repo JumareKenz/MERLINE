@@ -29,8 +29,8 @@ export default function NewStudyPage() {
     }
     try {
       const result = await createStudy.mutateAsync({ projectId, data: data as unknown as CreateStudyDto });
-      toast.success('Study created successfully');
-      router.push(`/studies/${result.data.data.id}`);
+      toast.success('Study created — opening design workspace');
+      router.push(`/studies/${result.data.data.id}/design`);
     } catch {
       // handled by hook
     }

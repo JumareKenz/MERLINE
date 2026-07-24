@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { formatDate } from '@/lib/utils';
-import { Calendar, ClipboardList, BarChart3, FileText, ArrowRight, Plus, Trash2, Library, Loader2 } from 'lucide-react';
+import { Calendar, ClipboardList, BarChart3, FileText, ArrowRight, Plus, Trash2, Library, Loader2, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
 import { StudyDashboard } from '@/components/dashboard/study-dashboard';
 import { useReports } from '@/hooks/use-reports';
@@ -85,20 +85,28 @@ export default function StudyDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <StatusBadge status={study.status} />
-          <span className="text-sm text-foreground-secondary font-mono">{study.code}</span>
-          {study.project && (
-            <Link href={`/projects/${study.project.id}`} className="text-sm text-foreground-link hover:underline">
-              {study.project.name}
-            </Link>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <StatusBadge status={study.status} />
+            <span className="text-sm text-foreground-secondary font-mono">{study.code}</span>
+            {study.project && (
+              <Link href={`/projects/${study.project.id}`} className="text-sm text-foreground-link hover:underline">
+                {study.project.name}
+              </Link>
+            )}
+          </div>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{study.title}</h1>
+          {study.purpose && (
+            <p className="text-[13px] text-foreground-tertiary mt-1 max-w-2xl">{study.purpose}</p>
           )}
         </div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{study.title}</h1>
-        {study.purpose && (
-          <p className="text-[13px] text-foreground-tertiary mt-1 max-w-2xl">{study.purpose}</p>
-        )}
+        <Link href={`/studies/${studyId}/design`} className="shrink-0">
+          <Button size="sm" className="h-8 px-3 text-[13px]">
+            <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
+            Design Workspace
+          </Button>
+        </Link>
       </div>
 
       {allowedTransitions.length > 0 && (
