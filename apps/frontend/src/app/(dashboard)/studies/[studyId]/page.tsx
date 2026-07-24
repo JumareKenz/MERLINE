@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useStudy } from '@/hooks/use-studies';
+import { useStudy, useTransitionStudy, useUpdateStudy, useStudyAllowedTransitions } from '@/hooks/use-studies';
 import { useAssignments } from '@/hooks/use-assignments';
 import { useSubmissions } from '@/hooks/use-submissions';
 import { useSyncStatus } from '@/hooks/use-sync';
@@ -17,26 +17,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { formatDate } from '@/lib/utils';
-import { Calendar, ClipboardList, BarChart3, FileText, Settings, FlaskConical, Plus, Trash2, Library } from 'lucide-react';
+import { Calendar, ClipboardList, BarChart3, FileText, ArrowRight, Plus, Trash2, Library, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { StudyDashboard } from '@/components/dashboard/study-dashboard';
 import { useReports } from '@/hooks/use-reports';
 import { ReportTable } from '@/components/reports/report-table';
 import { DataCollectionOverview } from '@/components/data-collection/data-collection-overview';
-import { toast } from 'sonner';
-import { useState } from 'react';
-
-const STATUS_TRANSITIONS: Record<string, string[]> = {
-  draft: ['submitted'],
-  submitted: ['approved', 'draft'],
-  approved: ['pre_test', 'draft'],
-  pre_test: ['field', 'draft'],
-  field: ['data_cleaning'],
-  data_cleaning: ['analysis'],
-  analysis: ['complete'],
-  complete: ['archived'],
-  archived: [],
-};
+import { useState, useEffect } from 'react';
 
 export default function StudyDetailPage() {
   const { studyId } = useParams<{ studyId: string }>();
@@ -45,15 +32,27 @@ export default function StudyDetailPage() {
   const pathname = usePathname();
   const activeTab = searchParams.get('tab') || 'overview';
   const { data, isLoading, isError, error, refetch } = useStudy(studyId);
+  const { data: allowedTransitionsData } = useStudyAllowedTransitions(studyId);
+  const transitionMutation = useTransitionStudy();
+  const updateStudyMutation = useUpdateStudy();
   const { data: indicatorsData } = useIndicators({ study_id: studyId });
   const { data: reportsData, isLoading: reportsLoading, isError: reportsIsError, error: reportsError, refetch: refetchReports } = useReports({ study_id: studyId });
   const { data: assignmentsData, isLoading: assignmentsLoading, error: assignmentsError, refetch: refetchAssignments } = useAssignments({ study_id: studyId });
   const { data: submissionsData, isLoading: submissionsLoading, error: submissionsError, refetch: refetchSubmissions } = useSubmissions({ study_id: studyId });
   const { data: syncData, isLoading: syncLoading, error: syncError, refetch: refetchSync } = useSyncStatus();
 
+  const study = data?.data?.data;
   const [settingsTitle, setSettingsTitle] = useState('');
   const [settingsType, setSettingsType] = useState('');
   const [settingsLocked, setSettingsLocked] = useState(false);
+
+  useEffect(() => {
+    if (study) {
+      setSettingsTitle(study.title);
+      setSettingsType(study.study_type || study.type || '');
+      setSettingsLocked(false);
+    }
+  }, [study?.id]);
 
   const handleTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -78,10 +77,9 @@ export default function StudyDetailPage() {
     return <ErrorState message={error?.message} onRetry={() => refetch()} />;
   }
 
-  const study = data?.data?.data;
   if (!study) return <ErrorState message="Study not found" />;
 
-  const allowedTransitions = study.allowed_transitions || STATUS_TRANSITIONS[study.status] || [];
+  const allowedTransitions = allowedTransitionsData ?? [];
   const indicators = indicatorsData?.data?.data || [];
 
   return (
@@ -96,17 +94,33 @@ export default function StudyDetailPage() {
             </Link>
           )}
         </div>
-        <h1 className="text-3xl font-bold text-foreground">{study.title}</h1>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{study.title}</h1>
         {study.purpose && (
-          <p className="text-foreground-secondary mt-2 max-w-2xl">{study.purpose}</p>
+          <p className="text-[13px] text-foreground-tertiary mt-1 max-w-2xl">{study.purpose}</p>
         )}
       </div>
 
       {allowedTransitions.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           {allowedTransitions.map((transition) => (
-            <Button key={transition} size="sm" variant="secondary">
-              Move to {transition.replace(/_/g, ' ')}
+            <Button
+              key={transition}
+              size="sm"
+              variant="secondary"
+              disabled={transitionMutation.isPending}
+              onClick={() =>
+                transitionMutation.mutate({
+                  id: studyId,
+                  data: { status: transition as any },
+                })
+              }
+            >
+              {transitionMutation.isPending && transitionMutation.variables?.data?.status === transition ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {transition.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
             </Button>
           ))}
         </div>
@@ -117,8 +131,8 @@ export default function StudyDetailPage() {
           <CardContent className="p-5 flex items-center gap-3">
             <ClipboardList className="h-5 w-5 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{study.questionnaire_count || 0}</p>
-              <p className="text-xs text-foreground-secondary">Questionnaires</p>
+              <p className="text-xl font-semibold">{study.questionnaire_count || 0}</p>
+              <p className="text-xs text-foreground-tertiary">Questionnaires</p>
             </div>
           </CardContent>
         </Card>
@@ -126,8 +140,8 @@ export default function StudyDetailPage() {
           <CardContent className="p-5 flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{study.indicator_count || 0}</p>
-              <p className="text-xs text-foreground-secondary">Indicators</p>
+              <p className="text-xl font-semibold">{study.indicator_count || 0}</p>
+              <p className="text-xs text-foreground-tertiary">Indicators</p>
             </div>
           </CardContent>
         </Card>
@@ -135,8 +149,8 @@ export default function StudyDetailPage() {
           <CardContent className="p-5 flex items-center gap-3">
             <FileText className="h-5 w-5 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{study.submission_count || 0}</p>
-              <p className="text-xs text-foreground-secondary">Submissions</p>
+              <p className="text-xl font-semibold">{study.submission_count || 0}</p>
+              <p className="text-xs text-foreground-tertiary">Submissions</p>
             </div>
           </CardContent>
         </Card>
@@ -218,16 +232,16 @@ export default function StudyDetailPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-md bg-neutral-50 dark:bg-neutral-100/10 p-2">
-                      <p className="text-lg font-bold">{study.indicator_count || 0}</p>
-                      <p className="text-xs text-foreground-secondary">Indicators</p>
+                      <p className="text-base font-semibold">{study.indicator_count || 0}</p>
+                      <p className="text-xs text-foreground-tertiary">Indicators</p>
                     </div>
                     <div className="rounded-md bg-neutral-50 dark:bg-neutral-100/10 p-2">
-                      <p className="text-lg font-bold">{study.questionnaire_count || 0}</p>
-                      <p className="text-xs text-foreground-secondary">Forms</p>
+                      <p className="text-base font-semibold">{study.questionnaire_count || 0}</p>
+                      <p className="text-xs text-foreground-tertiary">Forms</p>
                     </div>
                     <div className="rounded-md bg-neutral-50 dark:bg-neutral-100/10 p-2">
-                      <p className="text-lg font-bold">{study.submission_count || 0}</p>
-                      <p className="text-xs text-foreground-secondary">Submissions</p>
+                      <p className="text-base font-semibold">{study.submission_count || 0}</p>
+                      <p className="text-xs text-foreground-tertiary">Submissions</p>
                     </div>
                   </div>
                 </div>
@@ -402,8 +416,28 @@ export default function StudyDetailPage() {
                 <Switch checked={settingsLocked} onCheckedChange={setSettingsLocked} />
               </div>
               <div className="flex justify-end gap-3 pt-4">
-                <Button variant="secondary" onClick={() => toast.success('Changes discarded')}>Cancel</Button>
-                <Button onClick={() => toast.success('Settings saved')}>Save Changes</Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSettingsTitle(study.title);
+                    setSettingsType(study.study_type || study.type || '');
+                    setSettingsLocked(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={updateStudyMutation.isPending}
+                  onClick={() =>
+                    updateStudyMutation.mutate({
+                      id: studyId,
+                      data: { title: settingsTitle, study_type: settingsType as any },
+                    })
+                  }
+                >
+                  {updateStudyMutation.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                  Save Changes
+                </Button>
               </div>
             </CardContent>
           </Card>

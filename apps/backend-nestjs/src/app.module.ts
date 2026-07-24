@@ -20,6 +20,7 @@ import { DashboardsModule } from './dashboards/dashboards.module';
 import { AiModule } from './ai/ai.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { LogframesModule } from './logframes/logframes.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AiModule,
     AuditLogModule,
     NotificationsModule,
+    LogframesModule,
   ],
   providers: [
     {

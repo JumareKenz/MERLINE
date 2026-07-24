@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -13,53 +14,78 @@ import {
   Shield,
   Settings,
   Activity,
-  ChevronLeft,
-  ChevronRight,
   Building2,
   Layers,
-  Database,
   FileCheck,
   Sparkles,
   Cpu,
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Logo } from '@/components/brand/logo';
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  badge?: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'AI Assistant', href: '/ai', icon: Sparkles },
-  { label: 'Projects', href: '/projects', icon: FolderKanban },
-  { label: 'Studies', href: '/studies', icon: FlaskConical },
-  { label: 'Questionnaires', href: '/questionnaires', icon: ClipboardList },
-  { label: 'Indicators', href: '/indicators', icon: BarChart3 },
-  { label: 'Reports', href: '/reports', icon: FileText },
-];
+interface NavGroup {
+  id: string;
+  label: string;
+  items: NavItem[];
+}
 
-const DATA_COLLECTION_ITEMS: NavItem[] = [
-  { label: 'Assignments', href: '/assignments', icon: ClipboardList },
-  { label: 'Submissions', href: '/submissions', icon: FileCheck },
-];
-
-const ADMIN_ITEMS: NavItem[] = [
-  { label: 'AI Settings', href: '/admin/ai', icon: Cpu },
-  { label: 'Users', href: '/admin/users', icon: Users },
-  { label: 'Roles', href: '/admin/roles', icon: Shield },
-];
-
-const SETTINGS_ITEMS: NavItem[] = [
-  { label: 'Organizations', href: '/organizations', icon: Building2 },
-  { label: 'Workspaces', href: '/workspaces', icon: Layers },
-  { label: 'Settings', href: '/admin/settings', icon: Settings },
-  { label: 'Activity Log', href: '/admin/activity-log', icon: Activity },
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    items: [
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'AI Assistant', href: '/ai', icon: Sparkles },
+    ],
+  },
+  {
+    id: 'research',
+    label: 'Research',
+    items: [
+      { label: 'Projects', href: '/projects', icon: FolderKanban },
+      { label: 'Studies', href: '/studies', icon: FlaskConical },
+      { label: 'Questionnaires', href: '/questionnaires', icon: ClipboardList },
+      { label: 'Indicators', href: '/indicators', icon: BarChart3 },
+      { label: 'Reports', href: '/reports', icon: FileText },
+    ],
+  },
+  {
+    id: 'field',
+    label: 'Field Operations',
+    items: [
+      { label: 'Assignments', href: '/assignments', icon: ClipboardList },
+      { label: 'Submissions', href: '/submissions', icon: FileCheck },
+    ],
+  },
+  {
+    id: 'admin',
+    label: 'Administration',
+    items: [
+      { label: 'Users', href: '/admin/users', icon: Users },
+      { label: 'Roles', href: '/admin/roles', icon: Shield },
+      { label: 'AI Settings', href: '/admin/ai', icon: Cpu },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'System',
+    items: [
+      { label: 'Organizations', href: '/organizations', icon: Building2 },
+      { label: 'Workspaces', href: '/workspaces', icon: Layers },
+      { label: 'Settings', href: '/admin/settings', icon: Settings },
+      { label: 'Activity', href: '/admin/activity-log', icon: Activity },
+    ],
+  },
 ];
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
@@ -69,107 +95,165 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   return (
     <Link
       href={item.href}
-      className={cn(
-        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-        isActive
-          ? 'bg-primary-50 text-primary border-l-[3px] border-primary ml-0 pl-[9px]'
-          : 'text-foreground-secondary hover:bg-background-hover hover:text-foreground ml-0 pl-3',
-        collapsed && 'justify-center px-2'
-      )}
       title={collapsed ? item.label : undefined}
+      className={cn(
+        'relative flex items-center gap-2.5 rounded-[5px] transition-colors duration-150',
+        collapsed
+          ? 'h-8 w-8 justify-center mx-auto'
+          : 'h-[30px] px-2.5',
+        isActive
+          ? 'bg-primary-50 text-primary dark:bg-primary-100/10 dark:text-primary-400'
+          : 'text-foreground-secondary hover:bg-background-hover hover:text-foreground'
+      )}
     >
-      <item.icon className="h-5 w-5 shrink-0" />
+      {isActive && !collapsed && (
+        <span className="absolute inset-y-[4px] left-0 w-[2px] rounded-r-full bg-primary" />
+      )}
+      <item.icon className="h-[15px] w-[15px] shrink-0" strokeWidth={1.75} />
       {!collapsed && (
-        <>
-          <span className="flex-1 truncate">{item.label}</span>
-          {item.badge && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[11px] font-medium text-white">
-              {item.badge}
-            </span>
-          )}
-        </>
+        <span className="text-[13px] leading-none truncate">{item.label}</span>
       )}
     </Link>
   );
 }
 
-function NavSection({ label, collapsed }: { label: string; collapsed: boolean }) {
-  if (collapsed) return <Separator className="my-2" />;
+function SectionHeader({
+  label,
+  collapsed: sidebarCollapsed,
+  groupCollapsed,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  groupCollapsed: boolean;
+  onToggle: () => void;
+}) {
+  if (sidebarCollapsed) {
+    return <div className="my-3 mx-2 h-px bg-border-subtle" />;
+  }
+
   return (
-    <div className="px-3 pt-4 pb-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground-tertiary">
+    <button
+      onClick={onToggle}
+      className="flex w-full items-center justify-between px-2 pt-4 pb-1 group"
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-foreground-tertiary group-hover:text-foreground-secondary transition-colors">
         {label}
-      </p>
-    </div>
+      </span>
+      <ChevronDown
+        className={cn(
+          'h-3 w-3 text-foreground-tertiary transition-transform duration-200',
+          groupCollapsed && '-rotate-90'
+        )}
+      />
+    </button>
   );
 }
 
 export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, sidebarOpen } = useUIStore();
 
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set<string>();
+    try {
+      const stored = localStorage.getItem('merline-nav-groups');
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      try {
+        localStorage.setItem('merline-nav-groups', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  };
+
   return (
     <>
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/20 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px] lg:hidden"
           onClick={() => useUIStore.getState().toggleSidebar()}
         />
       )}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-full flex-col bg-background-surface border-r border-border transition-all duration-200 ease-standard',
-          sidebarCollapsed ? 'w-16' : 'w-64',
+          'fixed left-0 top-0 z-50 flex h-full flex-col bg-background-surface border-r border-border-subtle transition-all duration-300 ease-standard',
+          sidebarCollapsed ? 'w-[52px]' : 'w-[220px]',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className={cn('flex h-14 items-center border-b border-border px-4', sidebarCollapsed && 'justify-center')}>
-          {!sidebarCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                <span className="text-sm font-bold text-white">M</span>
-              </div>
-              <span className="text-lg font-semibold">Merline</span>
-            </Link>
+        {/* Logo */}
+        <div
+          className={cn(
+            'flex h-14 shrink-0 items-center border-b border-border-subtle',
+            sidebarCollapsed ? 'justify-center px-0' : 'px-4'
           )}
-          {sidebarCollapsed && (
-            <Link href="/dashboard">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                <span className="text-sm font-bold text-white">M</span>
-              </div>
+        >
+          {sidebarCollapsed ? (
+            <Link href="/dashboard" className="flex items-center justify-center">
+              <Logo variant="mark" height={22} />
+            </Link>
+          ) : (
+            <Link href="/dashboard" className="flex items-center">
+              <Logo variant="full" theme="auto" height={22} />
             </Link>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} collapsed={sidebarCollapsed} />
-          ))}
-
-          <NavSection label="Data Collection" collapsed={sidebarCollapsed} />
-          {DATA_COLLECTION_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} collapsed={sidebarCollapsed} />
-          ))}
-
-          <NavSection label="Administration" collapsed={sidebarCollapsed} />
-          {ADMIN_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} collapsed={sidebarCollapsed} />
-          ))}
-
-          <NavSection label="System" collapsed={sidebarCollapsed} />
-          {SETTINGS_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} collapsed={sidebarCollapsed} />
-          ))}
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0">
+          {NAV_GROUPS.map((group, index) => {
+            const isGroupCollapsed = collapsedGroups.has(group.id);
+            return (
+              <div key={group.id} className={cn(index > 0 && !sidebarCollapsed && 'mt-0.5')}>
+                <SectionHeader
+                  label={group.label}
+                  collapsed={sidebarCollapsed}
+                  groupCollapsed={isGroupCollapsed}
+                  onToggle={() => toggleGroup(group.id)}
+                />
+                {!isGroupCollapsed && (
+                  <div className={cn('space-y-0.5', sidebarCollapsed && 'space-y-1')}>
+                    {group.items.map((item) => (
+                      <NavLink key={item.href} item={item} collapsed={sidebarCollapsed} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
-        <div className="border-t border-border p-2">
-          <Button
-            variant="ghost"
-            size="sm"
+        {/* Collapse toggle */}
+        <div className="border-t border-border-subtle p-2">
+          <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full justify-center"
+            className={cn(
+              'flex h-8 items-center gap-2 rounded-[5px] px-2 text-foreground-tertiary transition-colors hover:bg-background-hover hover:text-foreground w-full',
+              sidebarCollapsed && 'justify-center px-0 w-8 mx-auto'
+            )}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-[15px] w-[15px]" strokeWidth={1.75} />
+            ) : (
+              <>
+                <PanelLeftClose className="h-[15px] w-[15px]" strokeWidth={1.75} />
+                <span className="text-[12px]">Collapse</span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
     </>

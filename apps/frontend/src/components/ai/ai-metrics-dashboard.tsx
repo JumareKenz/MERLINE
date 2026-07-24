@@ -55,7 +55,7 @@ export function AiMetricsDashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Inferences</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{stats.total_inferences.toLocaleString()}</p>
+            <p className="text-xl font-semibold">{stats.total_inferences.toLocaleString()}</p>
           </CardContent>
         </Card>
         <Card>
@@ -63,7 +63,7 @@ export function AiMetricsDashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Cost</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">${stats.total_cost.toFixed(2)}</p>
+            <p className="text-xl font-semibold">${stats.total_cost.toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -71,7 +71,7 @@ export function AiMetricsDashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Avg Latency</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{(stats.avg_latency_ms / 1000).toFixed(1)}s</p>
+            <p className="text-xl font-semibold">{(stats.avg_latency_ms / 1000).toFixed(1)}s</p>
           </CardContent>
         </Card>
         <Card>
@@ -79,7 +79,7 @@ export function AiMetricsDashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Tokens</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{stats.total_tokens.toLocaleString()}</p>
+            <p className="text-xl font-semibold">{stats.total_tokens.toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>

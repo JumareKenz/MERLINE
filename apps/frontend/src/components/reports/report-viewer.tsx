@@ -57,7 +57,7 @@ export function ReportViewer({ report, isLoading, isError, error, onRetry }: Rep
         <div>
           <div className="flex items-center gap-2 mb-1">
             <FileText className="h-5 w-5 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">{report.title}</h1>
+            <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{report.title}</h1>
           </div>
           <div className="flex items-center gap-3 mt-1">
             <Badge variant={statusVariant[report.status] || 'default'}>

@@ -23,9 +23,9 @@ export default function SyncMonitorPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Sync Monitor</h1>
-          <p className="text-foreground-secondary mt-1">
-            Monitor device synchronization and data flow.
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Sync Monitor</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">
+            Monitor device synchronization and data flow
           </p>
         </div>
         <div className="flex items-center gap-2">

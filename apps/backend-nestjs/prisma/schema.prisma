@@ -238,8 +238,63 @@ model Project {
   projectTags ProjectTag[]
   tags        ProjectProjectTag[]
   activities  ProjectActivity[]
+  logframe    Logframe?
 
   @@map("projects")
+}
+
+model Logframe {
+  id             String          @id @default(uuid())
+  goal           String
+  goalNarrative  String?         @map("goal_narrative")
+  projectId      String          @unique @map("project_id")
+  organizationId String          @map("organization_id")
+  createdById    String          @map("created_by_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outcomes       LogframeRow[]   @relation("LogframeOutcomes")
+
+  @@map("logframes")
+}
+
+model LogframeRow {
+  id             String          @id @default(uuid())
+  level          String
+  title          String
+  description    String?
+  meansOfVerification String?    @map("means_of_verification")
+  assumptions    String?
+  orderIndex     Int             @default(0) @map("order_index")
+  logframeId     String?         @map("logframe_id")
+  parentId       String?         @map("parent_id")
+  organizationId String          @map("organization_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  logframe       Logframe?       @relation("LogframeOutcomes", fields: [logframeId], references: [id], onDelete: Cascade)
+  parent         LogframeRow?    @relation("LogframeHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children       LogframeRow[]   @relation("LogframeHierarchy")
+  indicators     LogframeRowIndicator[]
+
+  @@map("logframe_rows")
+}
+
+model LogframeRowIndicator {
+  id           String      @id @default(uuid())
+  rowId        String      @map("row_id")
+  indicatorId  String      @map("indicator_id")
+  baseline     Float?
+  target       Float?
+  actual       Float?
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  row          LogframeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  indicator    Indicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@unique([rowId, indicatorId])
+  @@map("logframe_row_indicators")
 }
 
 model ProjectTeam {
@@ -371,6 +426,7 @@ model Indicator {
   study              Study            @relation(fields: [studyId], references: [id])
   values             IndicatorValue[]
   targets            IndicatorTarget[]
+  logframeRows       LogframeRowIndicator[]
 
   @@map("indicators")
 }

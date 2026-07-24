@@ -52,14 +52,14 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Projects</h1>
-          <p className="text-foreground-secondary mt-1">Manage your evaluation and research projects</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Projects</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage your evaluation and research projects</p>
         </div>
         <Link href="/projects/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> New Project
+          <Button size="sm" className="h-8 px-3 text-[13px]">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> New Project
           </Button>
         </Link>
       </div>

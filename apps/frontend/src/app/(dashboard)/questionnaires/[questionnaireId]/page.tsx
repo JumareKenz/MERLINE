@@ -45,9 +45,9 @@ export default function QuestionnaireDetailPage() {
           <StatusBadge status={questionnaire.status} />
           <span className="text-sm text-foreground-secondary font-mono">{questionnaire.code}</span>
         </div>
-        <h1 className="text-3xl font-bold text-foreground">{questionnaire.title}</h1>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{questionnaire.title}</h1>
         {questionnaire.description && (
-          <p className="text-foreground-secondary mt-2 max-w-2xl">{questionnaire.description}</p>
+          <p className="text-[13px] text-foreground-tertiary mt-1 max-w-2xl">{questionnaire.description}</p>
         )}
       </div>
 

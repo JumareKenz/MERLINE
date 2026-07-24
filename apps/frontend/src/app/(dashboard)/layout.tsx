@@ -15,8 +15,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Sidebar />
       <div
         className={cn(
-          'flex flex-1 flex-col transition-all duration-200 ease-standard',
-          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+          'flex flex-1 flex-col transition-all duration-300 ease-standard',
+          sidebarCollapsed ? 'lg:ml-[52px]' : 'lg:ml-[220px]'
         )}
       >
         <Header />

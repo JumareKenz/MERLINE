@@ -24,8 +24,8 @@ export default function NewQuestionnairePage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">New Questionnaire</h1>
-        <p className="text-foreground-secondary mt-1">Create a new data collection instrument</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">New Questionnaire</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Create a new data collection instrument</p>
       </div>
       <Card>
         <CardHeader>

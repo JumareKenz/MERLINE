@@ -37,8 +37,8 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Organization Settings</h1>
-        <p className="text-foreground-secondary mt-1">Manage organization profile, branding, and preferences</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Organization Settings</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage organization profile, branding, and preferences</p>
       </div>
 
       <Card>

@@ -84,8 +84,15 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <div className="mb-7">
+        <h1 className="text-[20px] font-semibold tracking-tight text-foreground">Create account</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-1">
+          Set up your organization&apos;s workspace
+        </p>
+      </div>
+
       {error && (
-        <div className="rounded-md bg-error-bg border border-error/20 p-3 text-sm text-error">
+        <div className="rounded-md bg-error-bg border border-error/20 px-3 py-2.5 text-[13px] text-error">
           {error}
         </div>
       )}

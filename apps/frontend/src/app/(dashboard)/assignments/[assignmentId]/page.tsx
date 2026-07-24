@@ -52,7 +52,7 @@ export default function AssignmentDetailPage() {
             <div className="flex items-center gap-2 mb-1">
               <StatusBadge status={assignment.status} />
             </div>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1 className="text-[17px] font-semibold tracking-tight text-foreground">
               {assignment.questionnaire?.title || 'Assignment'}
             </h1>
           </div>
@@ -87,8 +87,8 @@ export default function AssignmentDetailPage() {
           <CardContent className="p-5 flex items-center gap-3">
             <Target className="h-5 w-5 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{assignment.completed_count}/{assignment.target_count}</p>
-              <p className="text-xs text-foreground-secondary">Progress</p>
+              <p className="text-xl font-semibold">{assignment.completed_count}/{assignment.target_count}</p>
+              <p className="text-xs text-foreground-tertiary">Progress</p>
             </div>
           </CardContent>
         </Card>
@@ -113,16 +113,16 @@ export default function AssignmentDetailPage() {
           <AssignmentProgress target={assignment.target_count} completed={assignment.completed_count} size="md" />
           <div className="grid grid-cols-3 gap-4 mt-4 text-center">
             <div>
-              <p className="text-2xl font-bold text-primary">{assignment.progress_percentage}%</p>
-              <p className="text-xs text-foreground-secondary">Completion</p>
+              <p className="text-xl font-semibold text-primary">{assignment.progress_percentage}%</p>
+              <p className="text-xs text-foreground-tertiary">Completion</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{assignment.completed_count}</p>
-              <p className="text-xs text-foreground-secondary">Completed</p>
+              <p className="text-xl font-semibold">{assignment.completed_count}</p>
+              <p className="text-xs text-foreground-tertiary">Completed</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground-tertiary">{assignment.target_count - assignment.completed_count}</p>
-              <p className="text-xs text-foreground-secondary">Remaining</p>
+              <p className="text-xl font-semibold text-foreground-secondary">{assignment.target_count - assignment.completed_count}</p>
+              <p className="text-xs text-foreground-tertiary">Remaining</p>
             </div>
           </div>
           {assignment.notes && (

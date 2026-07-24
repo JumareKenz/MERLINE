@@ -178,6 +178,22 @@ export const API = {
       list: (projectId: string, params?: import('@/types/api').StudyFilterParams) =>
         apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/study').Study>>('/studies', { params: { ...params, projectId } }),
     },
+    logframe: {
+      get: (projectId: string) =>
+        apiClient.get<{ data: import('@/types/logframe').Logframe | null }>(`/projects/${projectId}/logframe`),
+      upsert: (projectId: string, data: import('@/types/logframe').UpsertLogframeDto) =>
+        apiClient.put<{ data: import('@/types/logframe').Logframe }>(`/projects/${projectId}/logframe`, data),
+      addRow: (projectId: string, data: import('@/types/logframe').CreateLogframeRowDto) =>
+        apiClient.post<{ data: import('@/types/logframe').LogframeRow }>(`/projects/${projectId}/logframe/rows`, data),
+      updateRow: (projectId: string, rowId: string, data: import('@/types/logframe').UpdateLogframeRowDto) =>
+        apiClient.put<{ data: import('@/types/logframe').LogframeRow }>(`/projects/${projectId}/logframe/rows/${rowId}`, data),
+      deleteRow: (projectId: string, rowId: string) =>
+        apiClient.delete(`/projects/${projectId}/logframe/rows/${rowId}`),
+      linkIndicator: (projectId: string, rowId: string, data: import('@/types/logframe').LinkIndicatorDto) =>
+        apiClient.post(`/projects/${projectId}/logframe/rows/${rowId}/indicators`, data),
+      unlinkIndicator: (projectId: string, rowId: string, indicatorId: string) =>
+        apiClient.delete(`/projects/${projectId}/logframe/rows/${rowId}/indicators/${indicatorId}`),
+    },
   },
   studies: {
     list: (params?: import('@/types/api').StudyFilterParams) =>
@@ -194,6 +210,8 @@ export const API = {
       apiClient.post<{ data: import('@/types/study').Study }>(`/studies/${id}/clone`, data),
     transition: (id: string, data: import('@/types/study').StudyTransitionDto) =>
       apiClient.post<{ data: import('@/types/study').Study }>(`/studies/${id}/transition`, data),
+    getAllowedTransitions: (id: string) =>
+      apiClient.get<{ data: string[] }>(`/studies/${id}/transitions`),
     lifecycle: (id: string) =>
       apiClient.get<{ data: import('@/types/study').StudyLifecycleEvent[] }>(`/studies/${id}/lifecycle`),
     timeline: (id: string) =>

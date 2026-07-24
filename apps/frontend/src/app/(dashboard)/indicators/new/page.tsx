@@ -24,8 +24,8 @@ export default function NewIndicatorPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">New Indicator</h1>
-        <p className="text-foreground-secondary mt-1">Create a new indicator for the library</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">New Indicator</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Create a new indicator for the library</p>
       </div>
       <Card>
         <CardHeader>

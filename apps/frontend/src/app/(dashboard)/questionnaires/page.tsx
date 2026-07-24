@@ -16,12 +16,12 @@ export default function QuestionnairesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Questionnaires</h1>
-          <p className="text-foreground-secondary mt-1">Design and manage data collection instruments</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Questionnaires</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Design and manage data collection instruments</p>
         </div>
         <Link href="/questionnaires/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> New Questionnaire
+          <Button size="sm" className="h-8 px-3 text-[13px]">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> New Questionnaire
           </Button>
         </Link>
       </div>

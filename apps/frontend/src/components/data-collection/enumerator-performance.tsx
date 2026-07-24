@@ -31,7 +31,7 @@ export function EnumeratorPerformance({
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm text-foreground-secondary">Submissions</span>
           </div>
-          <p className="text-2xl font-bold">{totalSubmissions}</p>
+          <p className="text-xl font-semibold">{totalSubmissions}</p>
         </CardContent>
       </Card>
       <Card>
@@ -40,7 +40,7 @@ export function EnumeratorPerformance({
             <CheckCircle className="h-4 w-4 text-success" />
             <span className="text-sm text-foreground-secondary">Approval Rate</span>
           </div>
-          <p className="text-2xl font-bold">{approvalRate}%</p>
+          <p className="text-xl font-semibold">{approvalRate}%</p>
           <Progress value={approvalRate} className="h-2" />
         </CardContent>
       </Card>
@@ -50,7 +50,7 @@ export function EnumeratorPerformance({
             <Activity className="h-4 w-4 text-primary" />
             <span className="text-sm text-foreground-secondary">Quality Score</span>
           </div>
-          <p className={`text-2xl font-bold ${qualityScore >= 80 ? 'text-success' : qualityScore >= 50 ? 'text-warning' : 'text-error'}`}>
+          <p className={`text-xl font-semibold ${qualityScore >= 80 ? 'text-success' : qualityScore >= 50 ? 'text-warning' : 'text-error'}`}>
             {qualityScore}%
           </p>
         </CardContent>
@@ -61,7 +61,7 @@ export function EnumeratorPerformance({
             <BarChart3 className="h-4 w-4 text-primary" />
             <span className="text-sm text-foreground-secondary">Trend</span>
           </div>
-          <p className="text-2xl font-bold capitalize">{trend}</p>
+          <p className="text-xl font-semibold capitalize">{trend}</p>
         </CardContent>
       </Card>
     </div>

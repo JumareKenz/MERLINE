@@ -56,8 +56,8 @@ export default function ProjectSettingsPage() {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Project Settings</h1>
-        <p className="text-foreground-secondary mt-1">Manage project configuration for &ldquo;{project.name}&rdquo;</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Project Settings</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage project configuration for &ldquo;{project.name}&rdquo;</p>
       </div>
 
       <Card>

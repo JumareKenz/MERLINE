@@ -46,8 +46,8 @@ export function ReportGenerator() {
   return (
     <div className="max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">Generate Report</h1>
-        <p className="text-foreground-secondary mt-1">Follow the steps to create a new report</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Generate Report</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Follow the steps to create a new report</p>
       </div>
 
       <div className="flex items-center gap-2 mb-8">

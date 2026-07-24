@@ -24,8 +24,8 @@ export default function NewProjectPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">New Project</h1>
-        <p className="text-foreground-secondary mt-1">Create a new evaluation or research project</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">New Project</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Create a new evaluation or research project</p>
       </div>
       <Card>
         <CardHeader>

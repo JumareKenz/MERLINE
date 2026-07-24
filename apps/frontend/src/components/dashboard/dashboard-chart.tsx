@@ -111,8 +111,8 @@ export function DashboardChart({ type, title, data, isLoading, error, onRetry, h
         {type === 'line_chart' && <LineChart data={data} height={height} />}
         {type === 'pie_chart' && <PieChart data={data} height={height} />}
         {type === 'kpi_card' && (
-          <div className="text-3xl font-bold text-foreground">
-            {data !== undefined ? String(data) : '-'}
+          <div className="text-2xl font-semibold text-foreground">
+            {data !== undefined ? String(data) : '—'}
           </div>
         )}
       </CardContent>

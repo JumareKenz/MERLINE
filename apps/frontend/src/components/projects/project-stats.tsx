@@ -16,12 +16,12 @@ function StatsCard({ icon, value, label }: StatsCardProps) {
     <Card>
       <CardContent className="p-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-50 text-primary dark:bg-primary-100/10">
             {icon}
           </div>
           <div>
-            <p className="text-2xl font-semibold">{value}</p>
-            <p className="text-xs text-foreground-secondary">{label}</p>
+            <p className="text-xl font-semibold">{value}</p>
+            <p className="text-xs text-foreground-tertiary">{label}</p>
           </div>
         </div>
       </CardContent>

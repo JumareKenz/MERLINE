@@ -27,7 +27,7 @@ export function SubmissionQualityCard({
             <CheckCircle className="h-4 w-4 text-success" />
             <span className="text-sm font-medium">Completion Rate</span>
           </div>
-          <p className="text-2xl font-bold">{completionRate}%</p>
+          <p className="text-xl font-semibold">{completionRate}%</p>
           <Progress value={completionRate} className="h-2" />
         </CardContent>
       </Card>
@@ -37,7 +37,7 @@ export function SubmissionQualityCard({
             <Clock className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium">Avg Duration</span>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="text-xl font-semibold">
             {avgTimeSeconds > 0 ? `${Math.floor(avgTimeSeconds / 60)}m` : '—'}
           </p>
         </CardContent>
@@ -48,7 +48,7 @@ export function SubmissionQualityCard({
             <AlertTriangle className="h-4 w-4 text-warning" />
             <span className="text-sm font-medium">Flag Rate</span>
           </div>
-          <p className="text-2xl font-bold">{flagRate}%</p>
+          <p className="text-xl font-semibold">{flagRate}%</p>
           <p className="text-xs text-foreground-secondary">{totalFlags} flags in {totalSubmissions} submissions</p>
         </CardContent>
       </Card>

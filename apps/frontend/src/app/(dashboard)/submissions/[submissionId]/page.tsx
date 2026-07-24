@@ -43,8 +43,8 @@ export default function SubmissionDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Submissions
         </Link>
-        <h1 className="text-3xl font-bold text-foreground font-mono">
-          Submission {submissionId.slice(0, 8)}...
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground font-mono">
+          Submission {submissionId.slice(0, 8)}…
         </h1>
       </div>
 

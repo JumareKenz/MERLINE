@@ -70,25 +70,25 @@ export function SyncMonitor({ devices, isLoading, isError, error, onRetry }: Syn
       <div className="grid gap-4 sm:grid-cols-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{summary.total}</p>
+            <p className="text-xl font-semibold">{summary.total}</p>
             <p className="text-xs text-foreground-secondary">Total Devices</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-success">{summary.online}</p>
+            <p className="text-xl font-semibold text-success">{summary.online}</p>
             <p className="text-xs text-foreground-secondary">Online</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-foreground-tertiary">{summary.offline}</p>
+            <p className="text-xl font-semibold text-foreground-tertiary">{summary.offline}</p>
             <p className="text-xs text-foreground-secondary">Offline</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-error">{summary.errors}</p>
+            <p className="text-xl font-semibold text-error">{summary.errors}</p>
             <p className="text-xs text-foreground-secondary">Errors</p>
           </CardContent>
         </Card>

@@ -49,8 +49,8 @@ export default function EnumeratorPerformancePage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Submissions
         </Link>
-        <h1 className="text-3xl font-bold text-foreground">Enumerator Performance</h1>
-        <p className="text-foreground-secondary mt-1">ID: {enumeratorId.slice(0, 8)}...</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Enumerator Performance</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5 font-mono">ID: {enumeratorId.slice(0, 8)}…</p>
       </div>
 
       <EnumeratorPerformance

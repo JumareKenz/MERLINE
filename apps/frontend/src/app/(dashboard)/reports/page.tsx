@@ -28,11 +28,11 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Reports</h1>
-          <p className="text-foreground-secondary mt-1">Manage and generate reports</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Reports</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage and generate reports</p>
         </div>
-        <Button onClick={() => router.push('/reports/new')}>
-          <Plus className="h-4 w-4 mr-2" />
+        <Button size="sm" className="h-8 px-3 text-[13px]" onClick={() => router.push('/reports/new')}>
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
           New Report
         </Button>
       </div>

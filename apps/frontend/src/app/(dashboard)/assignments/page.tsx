@@ -50,20 +50,21 @@ export default function AssignmentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Assignments</h1>
-          <p className="text-foreground-secondary mt-1">Manage data collection assignments for enumerators.</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Assignments</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage data collection assignments for enumerators</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8 text-foreground-tertiary"
             onClick={() => setView(view === 'table' ? 'card' : 'table')}
           >
             {view === 'table' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
           </Button>
           <Link href="/assignments/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
+            <Button size="sm" className="h-8 px-3 text-[13px]">
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
               New Assignment
             </Button>
           </Link>

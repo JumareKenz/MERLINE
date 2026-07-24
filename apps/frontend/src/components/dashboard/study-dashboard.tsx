@@ -38,8 +38,8 @@ export function StudyDashboard({ studyId }: StudyDashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Study Dashboard</h2>
-        <p className="text-foreground-secondary mt-1">Auto-generated metrics for this study</p>
+        <h2 className="text-[15px] font-semibold text-foreground">Study Dashboard</h2>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Auto-generated metrics for this study</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

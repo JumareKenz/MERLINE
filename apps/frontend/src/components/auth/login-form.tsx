@@ -2,7 +2,6 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { loginSchema, type LoginFormData } from '@/lib/validations';
 import { Button } from '@/components/ui/button';
@@ -39,9 +38,16 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="mb-7">
+        <h1 className="text-[20px] font-semibold tracking-tight text-foreground">Sign in</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-1">
+          Enter your credentials to access your workspace
+        </p>
+      </div>
+
       {error && (
-        <div className="rounded-md bg-error-bg border border-error/20 p-3 text-sm text-error">
+        <div className="rounded-md bg-error-bg border border-error/20 px-3 py-2.5 text-[13px] text-error">
           {error}
         </div>
       )}
@@ -96,31 +102,32 @@ export function LoginForm() {
         </Label>
       </div>
 
-      <Button type="submit" className="w-full" size="lg" loading={isLoading}>
-        {isLoading ? 'Signing in...' : 'Sign in'}
+      <Button type="submit" className="w-full" loading={isLoading}>
+        {isLoading ? 'Signing in…' : 'Sign in'}
       </Button>
 
-      <div className="relative">
+      <div className="relative my-1">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
+          <span className="w-full border-t border-border-subtle" />
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-foreground-tertiary">Or continue with</span>
+        <div className="relative flex justify-center">
+          <span className="bg-background px-3 text-[11px] text-foreground-tertiary uppercase tracking-wide">
+            or
+          </span>
         </div>
       </div>
 
       <Button
         type="button"
-        variant="secondary"
-        className="w-full"
+        variant="outline"
+        className="w-full text-[13px]"
         onClick={() => {}}
       >
-        <Loader2 className="mr-2 h-4 w-4" />
-        SSO
+        Continue with SSO
       </Button>
 
-      <p className="text-center text-sm text-foreground-secondary">
-        Don&apos;t have an account?{' '}
+      <p className="text-center text-[13px] text-foreground-tertiary pt-1">
+        No account?{' '}
         <Link href="/register" className="text-foreground-link hover:underline font-medium">
           Create one
         </Link>

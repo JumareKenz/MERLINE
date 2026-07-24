@@ -55,12 +55,13 @@ export default function SubmissionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Submissions</h1>
-          <p className="text-foreground-secondary mt-1">Browse and review collected data submissions.</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Submissions</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Browse and review collected data submissions</p>
         </div>
         <Button
           variant="ghost"
           size="icon"
+          className="h-8 w-8 text-foreground-tertiary"
           onClick={() => setView(view === 'table' ? 'card' : 'table')}
         >
           {view === 'table' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}

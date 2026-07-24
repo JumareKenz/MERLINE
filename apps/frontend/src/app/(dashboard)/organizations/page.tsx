@@ -24,8 +24,8 @@ export default function OrganizationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Organizations</h1>
-          <p className="text-foreground-secondary mt-1">Manage your organization profile</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Organizations</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage your organization profile</p>
         </div>
         <Button onClick={handleEdit}>
           <Plus className="mr-2 h-4 w-4" /> Edit Organization

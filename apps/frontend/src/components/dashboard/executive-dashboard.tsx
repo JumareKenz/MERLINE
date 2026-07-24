@@ -43,23 +43,23 @@ export function ExecutiveDashboard({ dateRange = 'last_30d', onDateRangeChange }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-foreground-secondary mt-1">
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">
             Organization-wide overview of your MERL activities
           </p>
         </div>
         {onDateRangeChange && (
           <Select value={dateRange} onValueChange={onDateRangeChange}>
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="h-8 w-[140px] text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="last_7d">Last 7 days</SelectItem>
-              <SelectItem value="last_30d">Last 30 days</SelectItem>
-              <SelectItem value="last_90d">Last quarter</SelectItem>
-              <SelectItem value="this_year">This year</SelectItem>
+              <SelectItem value="last_7d" className="text-[13px]">Last 7 days</SelectItem>
+              <SelectItem value="last_30d" className="text-[13px]">Last 30 days</SelectItem>
+              <SelectItem value="last_90d" className="text-[13px]">Last quarter</SelectItem>
+              <SelectItem value="this_year" className="text-[13px]">This year</SelectItem>
             </SelectContent>
           </Select>
         )}

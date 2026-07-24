@@ -19,8 +19,8 @@ export default function EditReportPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Edit Report</h1>
-        <p className="text-foreground-secondary mt-1">Update report configuration</p>
+        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Edit Report</h1>
+        <p className="text-[13px] text-foreground-tertiary mt-0.5">Update report configuration</p>
       </div>
       <ReportForm report={report} />
     </div>

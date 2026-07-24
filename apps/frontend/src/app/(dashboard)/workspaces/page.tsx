@@ -61,11 +61,11 @@ export default function WorkspacesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Workspaces</h1>
-          <p className="text-foreground-secondary mt-1">Organize your work into workspaces</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Workspaces</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Organize your work into workspaces</p>
         </div>
-        <Button onClick={() => { setSelectedWorkspace(null); setShowCreate(true); }}>
-          <Plus className="mr-2 h-4 w-4" /> Create Workspace
+        <Button size="sm" className="h-8 px-3 text-[13px]" onClick={() => { setSelectedWorkspace(null); setShowCreate(true); }}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> Create Workspace
         </Button>
       </div>
 

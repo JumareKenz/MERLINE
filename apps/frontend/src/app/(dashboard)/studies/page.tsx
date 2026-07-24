@@ -35,12 +35,12 @@ export default function StudiesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Studies</h1>
-          <p className="text-foreground-secondary mt-1">Browse and manage all studies</p>
+          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Studies</h1>
+          <p className="text-[13px] text-foreground-tertiary mt-0.5">Browse and manage all studies</p>
         </div>
         <Link href="/studies/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> New Study
+          <Button size="sm" className="h-8 px-3 text-[13px]">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> New Study
           </Button>
         </Link>
       </div>

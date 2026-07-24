@@ -82,11 +82,12 @@ export function useTransitionStudy() {
   });
 }
 
-export function useStudyTransitions(id: string) {
+export function useStudyAllowedTransitions(id: string) {
   return useQuery({
     queryKey: ['studies', id, 'transitions'],
-    queryFn: () => API.studies.transition(id, {} as StudyTransitionDto),
-    enabled: false,
+    queryFn: () => API.studies.getAllowedTransitions(id),
+    enabled: !!id,
+    select: (res) => (res.data?.data ?? []) as string[],
   });
 }
 
