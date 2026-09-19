@@ -52,8 +52,11 @@ export class UsersController {
   }
 
   @Post()
-  async create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  async create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.create(dto, user.organizationId);
   }
 
   @Put(':id')

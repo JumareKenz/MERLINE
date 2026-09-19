@@ -8,6 +8,16 @@ import {
 } from 'class-validator';
 
 export class CreateProjectDto {
+  /**
+   * PHASE 1: `organizationId` is deliberately NOT accepted from the client.
+   *
+   * It was a required body field, so a caller could create this resource
+   * inside another organization simply by supplying that organization's id.
+   * The tenant now comes from the authenticated token. With the global
+   * ValidationPipe's `forbidNonWhitelisted`, sending it is rejected outright
+   * rather than silently ignored.
+   */
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
@@ -38,7 +48,4 @@ export class CreateProjectDto {
   @IsOptional()
   workspaceId?: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  organizationId: string;
 }

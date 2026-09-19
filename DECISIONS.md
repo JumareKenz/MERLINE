@@ -8,9 +8,7 @@ The Complete Execution Brain records every significant decision as an Architectu
 
 | ADR | Title | Status | Date | Owner |
 |-----|-------|--------|------|-------|
-| - | - | - | - | - |
-
-*No decisions recorded yet. Phase 0 will establish the first ADRs.*
+| [001](docs/adr/ADR-001-postgres-image-pgvector.md) | PostgreSQL image — pgvector instead of PostGIS | Accepted | 2026-09-19 | Phase 1 |
 
 ---
 

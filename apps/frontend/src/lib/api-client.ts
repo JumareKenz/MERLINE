@@ -2,7 +2,31 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 import type { ApiError } from '@/types/api';
 import { mockAdapter } from './api-mock';
 
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+/**
+ * PHASE 1 — mock mode cannot be enabled outside development.
+ *
+ * The mock adapter serves generated demo data for the entire API surface. It
+ * is why a backend that could not authenticate anyone still demoed as a
+ * working product, and it hid the fact that several declared endpoints have no
+ * server route at all.
+ *
+ * `NODE_ENV` is inlined by Next at build time, so a production build
+ * short-circuits this to `false` and the bundler drops the adapter. Setting
+ * NEXT_PUBLIC_USE_MOCK in a deployed environment now has no effect.
+ */
+const USE_MOCK =
+  process.env.NODE_ENV === 'development' &&
+  process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+
+if (
+  process.env.NODE_ENV !== 'development' &&
+  process.env.NEXT_PUBLIC_USE_MOCK === 'true'
+) {
+  // Loud rather than silent: someone has tried to ship demo data.
+  console.warn(
+    '[api-client] NEXT_PUBLIC_USE_MOCK is set but ignored outside development.',
+  );
+}
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
@@ -468,6 +492,7 @@ export const API = {
         apiClient.get<{ data: import('@/types/ai').AiSession & { messages: import('@/types/ai').AiMessage[] } }>(`/ai/sessions/${id}`),
       delete: (id: string) => apiClient.delete(`/ai/sessions/${id}`),
     },
+    /** LEGACY (Phase 1) — the nine static agents are deregistered; these return 404. */
     agents: {
       researchDesign: (data: { text: string; context?: Record<string, unknown> }) =>
         apiClient.post<{ data: import('@/types/ai').AiAssistResponse }>('/ai/agents/research-design', data),

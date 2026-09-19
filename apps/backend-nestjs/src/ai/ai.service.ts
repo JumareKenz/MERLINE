@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
 import { AiGatewayService } from './ai-gateway.service';
-import { AgentOrchestratorService } from './agent-orchestrator.service';
 import { GuardrailService } from './guardrail.service';
 import { RagService } from './rag.service';
 import { PromptRegistryService } from './prompt-registry.service';
@@ -14,7 +13,6 @@ export class AiService extends BaseService {
   constructor(
     prisma: PrismaService,
     private readonly aiGateway: AiGatewayService,
-    private readonly orchestrator: AgentOrchestratorService,
     private readonly guardrail: GuardrailService,
     private readonly rag: RagService,
     private readonly promptRegistry: PromptRegistryService,
@@ -54,7 +52,6 @@ export class AiService extends BaseService {
       },
     });
 
-    const intent = this.orchestrator.classifyIntent(message);
     const context = {
       sessionId: session.id,
       organizationId,
@@ -62,42 +59,59 @@ export class AiService extends BaseService {
       ...(session.context as Record<string, unknown>),
     };
 
-    const [agentResponse, ragResults] = await Promise.all([
-      this.orchestrator.dispatchToAgent(intent, message, context),
-      this.rag.search(message, organizationId, 3).catch(() => []),
-    ]);
+    const ragResults = await this.rag
+      .search(message, organizationId, 3)
+      .catch(() => []);
 
-    const ragContext = ragResults.length > 0
-      ? `\n\nRelevant documents:\n${ragResults.map((d) => `- ${d.content.substring(0, 500)}`).join('\n')}`
-      : '';
+    const ragContext =
+      ragResults.length > 0
+        ? [
+            '',
+            '',
+            'Relevant excerpts from the knowledge base:',
+            ...ragResults.map((d) => `- ${d.content.substring(0, 500)}`),
+          ].join('\n')
+        : '';
 
-    const fullPrompt = `${agentResponse}\n\nContext from knowledge base:${ragContext}\n\n` +
-      `Please provide a comprehensive response based on the above. If the knowledge base context is relevant, incorporate it.`;
+    // PHASE 1: the user's message goes to the model directly.
+    //
+    // It was previously wrapped around `orchestrator.dispatchToAgent(...)`,
+    // which injected a hard-coded block of MERL advice into the prompt. That
+    // primed every answer with static text and made the agents look
+    // functional. The agents are deregistered; this sends the real question.
+    const fullPrompt = `${message}${ragContext}`;
+
+    const systemPrompt =
+      'You are a research assistant for a qualitative interview platform. ' +
+      'Answer concisely and only from what you are given. If the knowledge ' +
+      'base excerpts do not support an answer, say so rather than inferring.';
 
     let finalResponse: string;
-    let model = 'gpt-4o-mini';
-    let provider = 'openai';
+    let model = 'unknown';
+    let provider = 'unknown';
     let inputTokens = 0;
     let outputTokens = 0;
     let cost = 0;
     let latencyMs = 0;
 
-    try {
-      const gatewayResult = await this.aiGateway.sendMessage({
-        message: fullPrompt,
-        systemPrompt: `You are a MERL (Monitoring, Evaluation, Research, and Learning) assistant. ` +
-          `You specialize in ${intent}. Respond helpfully and concisely.`,
-      });
-      finalResponse = gatewayResult.content;
-      model = gatewayResult.model;
-      provider = gatewayResult.provider;
-      inputTokens = gatewayResult.usage.inputTokens;
-      outputTokens = gatewayResult.usage.outputTokens;
-      cost = gatewayResult.usage.cost;
-      latencyMs = gatewayResult.usage.latencyMs;
-    } catch {
-      finalResponse = agentResponse;
-    }
+    // PHASE 1: no fabrication fallback.
+    //
+    // This used to be wrapped in `catch { finalResponse = agentResponse; }`,
+    // so a provider failure silently returned the static agent template as
+    // though the model had produced it — the same defect as the gateway's
+    // simulated response, one layer up. Errors now propagate to the caller.
+    const gatewayResult = await this.aiGateway.sendMessage({
+      message: fullPrompt,
+      systemPrompt,
+    });
+
+    finalResponse = gatewayResult.content;
+    model = gatewayResult.model;
+    provider = gatewayResult.provider;
+    inputTokens = gatewayResult.usage.inputTokens;
+    outputTokens = gatewayResult.usage.outputTokens;
+    cost = gatewayResult.usage.cost;
+    latencyMs = gatewayResult.usage.latencyMs;
 
     const outputCheck = this.guardrail.checkOutput(finalResponse);
     if (!outputCheck.passed) {
@@ -108,7 +122,7 @@ export class AiService extends BaseService {
       data: {
         role: 'assistant',
         content: finalResponse,
-        meta: { intent, model, provider },
+        meta: { model, provider, ragHits: ragResults.length },
         sessionId: session.id,
       },
     });
@@ -129,7 +143,6 @@ export class AiService extends BaseService {
     return {
       reply: finalResponse,
       sessionId: session.id,
-      intent,
       usage: { inputTokens, outputTokens, cost, latencyMs },
     };
   }
@@ -187,11 +200,6 @@ export class AiService extends BaseService {
     return { deleted: true };
   }
 
-  async dispatchAgent(agentType: string, message: string, context: Record<string, unknown>, organizationId?: string) {
-    const enrichedContext = organizationId ? { ...context, organizationId } : context;
-    const response = await this.orchestrator.dispatchToAgent(agentType, message, enrichedContext);
-    return { agentType, response };
-  }
 
   async getMetrics(organizationId: string) {
     const [totalInferences, totalCost, avgLatency, recentInferences] = await Promise.all([

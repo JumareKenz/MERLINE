@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
-import { AiAgentSelector } from '@/components/ai/ai-agent-selector';
 import { AiMessageBubble } from '@/components/ai/ai-message-bubble';
 import { useAiSessions, useAiSession, useAiChat, useDeleteAiSession } from '@/hooks/use-ai';
 import { cn } from '@/lib/utils';
@@ -166,7 +165,6 @@ export default function AiChatPage() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-48">
-              <AiAgentSelector value={agentId} onChange={setAgentId} />
             </div>
             <Button variant="outline" size="sm" onClick={handleNewSession}>
               <Plus className="mr-1 h-4 w-4" />

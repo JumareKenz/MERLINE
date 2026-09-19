@@ -59,6 +59,21 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
+/**
+ * Prisma relation names, as they appear inside `include` / `select` /
+ * `_count`. A `prisma.<delegate>` scan alone misses these: Phase 1 shipped
+ * with `_count: { select: { studies: true } }` still in projects.findAll.
+ */
+const LEGACY_RELATIONS = [
+  'studies',
+  'indicators',
+  'questionnaires',
+  'submissions',
+  'assignments',
+  'logframe',
+  'reports',
+];
+
 describe('no legacy table access from active modules', () => {
   it('finds no prisma.<legacyDelegate> call in any active module', () => {
     const violations: string[] = [];
@@ -71,6 +86,26 @@ describe('no legacy table access from active modules', () => {
           if (pattern.test(contents)) {
             violations.push(
               `${path.relative(SRC_ROOT, file).split(path.sep).join('/')} -> prisma.${delegate}`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(violations.sort()).toEqual([]);
+  });
+
+  it('finds no legacy relation in an include/select/_count', () => {
+    const violations: string[] = [];
+
+    for (const moduleDir of ACTIVE_MODULE_DIRECTORIES) {
+      for (const file of sourceFiles(path.join(SRC_ROOT, moduleDir))) {
+        const contents = fs.readFileSync(file, 'utf8');
+        for (const relation of LEGACY_RELATIONS) {
+          // e.g. `studies: true` inside a select block.
+          if (new RegExp(`\b${relation}\s*:\s*(true|\{)`).test(contents)) {
+            violations.push(
+              `${path.relative(SRC_ROOT, file).split(path.sep).join('/')} -> ${relation}`,
             );
           }
         }

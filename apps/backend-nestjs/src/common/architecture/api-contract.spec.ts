@@ -55,6 +55,11 @@ const LEGACY_CLIENT_PATH_FRAGMENTS = [
   // `/submissions/:id/media`. Submissions are deregistered, and the route was
   // removed from MediaController in Phase 1; recordings replace it in Phase 2.
   '/submissions',
+  // `API.ai.agents.*` — the nine static specialist agents. Their routes were
+  // removed from AiController in Phase 1 because they returned hard-coded
+  // text and could not call a model. A real qualitative analysis service,
+  // required to return evidence-linked findings, replaces them in Phase 2.
+  '/ai/agents',
 ];
 
 /**

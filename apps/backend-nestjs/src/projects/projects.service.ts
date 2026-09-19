@@ -44,9 +44,8 @@ export class ProjectsService extends BaseService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          _count: { select: { studies: true } },
-        },
+        // PHASE 1: dropped `_count: { studies: true }`. Studies are a
+        // deregistered legacy relation; interview counts replace it in Phase 2.
       }),
       this.prisma.project.count({ where }),
     ]);
@@ -66,7 +65,7 @@ export class ProjectsService extends BaseService {
     return project;
   }
 
-  async create(dto: CreateProjectDto, userId: string) {
+  async create(dto: CreateProjectDto, userId: string, organizationId: string) {
     return this.prisma.project.create({
       data: {
         name: dto.name,
@@ -76,7 +75,7 @@ export class ProjectsService extends BaseService {
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
         settings: dto.settings as any,
         workspaceId: dto.workspaceId,
-        organizationId: dto.organizationId,
+        organizationId,
         createdById: userId,
       },
     });

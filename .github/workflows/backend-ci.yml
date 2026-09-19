@@ -2,12 +2,12 @@ name: Backend CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - 'apps/backend-nestjs/**'
       - '.github/workflows/backend-ci.yml'
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'apps/backend-nestjs/**'
       - '.github/workflows/backend-ci.yml'
@@ -71,6 +71,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+          MINIO_DEFAULT_BUCKETS: merline-test
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -108,6 +121,13 @@ jobs:
           # Presence of this flag opts the integration suites in. Without it
           # they skip, so the suite stays runnable on a machine with no DB.
           RUN_DB_TESTS: '1'
+          # Object storage acceptance (upload + signed download) runs against
+          # MinIO. SSE stays off here: MinIO rejects AES256 without KMS.
+          AWS_ENDPOINT: http://localhost:9000
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
+          AWS_BUCKET: merline-test
+          AWS_REGION: eu-west-1
 
   audit:
     name: npm Audit

@@ -33,8 +33,11 @@ export class ProjectsController {
 
   @Post()
   @Permissions('create.projects')
-  async create(@Body() dto: CreateProjectDto, @CurrentUser() user: any) {
-    return this.projectsService.create(dto, user.id);
+  async create(
+    @Body() dto: CreateProjectDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.projectsService.create(dto, user.id, user.organizationId);
   }
 
   @Get(':id')

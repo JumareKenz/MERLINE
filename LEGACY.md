@@ -143,17 +143,33 @@ kept removed by `no-legacy-queries.spec.ts`:
 | `media` | `submission` | `GET /submissions/:id/media` removed from MediaController; recordings replace it in Phase 2. |
 | `ai` — 4 specialist agents | `study`, `indicator`, `report`, `submission` | Context lookups and the PrismaService dependency removed. |
 
-### Still outstanding
+### AI specialist agents: deregistered
 
-**The nine AI specialist agents still return hard-coded template text.** They
-do not call a language model and cannot — `SpecialistAgent` has no gateway
-dependency. Phase 1 removed their legacy database reads and removed the
-fabricated fallback from `AiGatewayService`, but the agents themselves are
-unchanged and still reachable at `POST /ai/agents/*`.
+**Resolved during Phase 1 verification.** The nine agents returned hard-coded
+template text and could not call a model — `SpecialistAgent` has no gateway
+dependency. They are now:
 
-This was left deliberately. Removing them was scheduled for Phase 2 in the
-agreed plan, and Phase 1's remit was platform safety rather than product
-surface. It is flagged here because it is the same class of problem as the
+- removed from `AiController` (the nine `POST /ai/agents/*` routes),
+- removed from `AiModule` providers, along with `AgentOrchestratorService`,
+- removed from the frontend (`AiAgentSelector` no longer rendered),
+- marked `LEGACY` in `api-client.ts` and excluded from the contract check.
+
+Source files remain on disk and unregistered, consistent with the Phase 0
+deregistration discipline.
+
+Two related fixes came out of the same work:
+
+- `AiService.chat` previously wrapped the user's message around
+  `orchestrator.dispatchToAgent(...)`, injecting static MERL advice into every
+  prompt. It now sends the real question with RAG context and a qualitative
+  system prompt.
+- `AiService.chat` also had **a second fabrication fallback**:
+  `catch { finalResponse = agentResponse; }` returned the static agent template
+  when the gateway failed — the same defect as the gateway's simulated
+  response, one layer up. Removed; errors propagate.
+
+A real qualitative analysis service, required to return evidence-linked
+findings, replaces this surface in Phase 2. It is flagged here because it was the same class of problem as the
 gateway fallback: output that reads as analysis but is not.
 
 **Pre-existing API drift** remains pinned in the `KNOWN_MISSING` ratchet in

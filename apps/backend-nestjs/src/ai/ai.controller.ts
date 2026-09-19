@@ -5,7 +5,6 @@ import { AiService } from './ai.service';
 import { RagService } from './rag.service';
 import { PromptRegistryService } from './prompt-registry.service';
 import { ChatDto } from './dto/chat.dto';
-import { AgentRequestDto } from './dto/agent-request.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { RagSearchDto } from './dto/rag-search.dto';
 import { RagIngestDto } from './dto/rag-ingest.dto';
@@ -13,6 +12,18 @@ import { CreatePromptDto } from './dto/create-prompt.dto';
 import { UpdatePromptDto } from './dto/update-prompt.dto';
 
 @UseGuards(JwtAuthGuard)
+/**
+ * PHASE 1 — the nine specialist-agent routes are removed.
+ *
+ * They returned hard-coded template text and could not call a model: the
+ * SpecialistAgent base class has no gateway dependency. With the fabricated
+ * gateway fallback also gone, leaving them would have kept the one remaining
+ * surface where static text is presented as AI output.
+ *
+ * Their source files stay on disk, unregistered, consistent with the Phase 0
+ * deregistration discipline. A real qualitative analysis service — one that
+ * must return evidence-linked findings — replaces them in Phase 2.
+ */
 @Controller('ai')
 export class AiController {
   constructor(
@@ -46,50 +57,14 @@ export class AiController {
     return this.aiService.deleteSession(id, user.organizationId);
   }
 
-  @Post('agents/research-design')
-  async researchDesignAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('research-design', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/survey-design')
-  async surveyDesignAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('survey-design', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/indicator')
-  async indicatorAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('indicator', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/data-quality')
-  async dataQualityAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('data-quality', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/reporting')
-  async reportingAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('reporting', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/knowledge')
-  async knowledgeAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('knowledge', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/qualitative')
-  async qualitativeAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('qualitative', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/executive')
-  async executiveAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('executive', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
-  @Post('agents/translation')
-  async translationAgent(@Body() dto: AgentRequestDto, @CurrentUser() user: any) {
-    return this.aiService.dispatchAgent('translation', dto.message, dto.context ?? {}, user.organizationId);
-  }
 
   @Post('rag/search')
   async ragSearch(@Body() dto: RagSearchDto, @CurrentUser() user: any) {

@@ -115,7 +115,7 @@ export class UsersService extends BaseService {
     return user;
   }
 
-  async create(dto: CreateUserDto) {
+  async create(dto: CreateUserDto, organizationId: string) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -136,7 +136,7 @@ export class UsersService extends BaseService {
         avatarUrl: dto.avatarUrl,
         locale: dto.locale ?? 'en',
         isActive: dto.isActive ?? true,
-        organizationId: dto.organizationId,
+        organizationId,
         roles: dto.roleIds?.length
           ? {
               create: dto.roleIds.map((roleId) => ({ roleId })),

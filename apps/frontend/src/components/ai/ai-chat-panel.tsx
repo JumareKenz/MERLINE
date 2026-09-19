@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { LoadingState } from '@/components/shared/loading-state';
-import { AiAgentSelector } from './ai-agent-selector';
 import { AiMessageBubble } from './ai-message-bubble';
 import { useAiSessions, useAiSession, useAiChat, useDeleteAiSession } from '@/hooks/use-ai';
 import { cn } from '@/lib/utils';
@@ -102,7 +101,6 @@ export function AiChatPanel({ open, onClose, initialAgent = 'knowledge' }: AiCha
       </div>
 
       <div className="border-b px-4 py-2">
-        <AiAgentSelector value={agentId} onChange={setAgentId} />
       </div>
 
       <div className="flex flex-1 overflow-hidden">
