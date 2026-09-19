@@ -82,6 +82,23 @@ class ApiClient {
 
 export const apiClient = new ApiClient().client;
 
+/**
+ * PHASE 0 — QUALITATIVE RESET
+ *
+ * This file still declares the full legacy (MERL) API surface. Those
+ * declarations are RETAINED DELIBERATELY and marked `LEGACY` below.
+ *
+ * Their backend modules are deregistered, so calling them now returns 404.
+ * They are not deleted yet because deleting them would turn Phase 0 into a
+ * combined isolation + API redesign change, and because the data-preservation
+ * decision may require them for export tooling.
+ *
+ * Active qualitative code must not call a LEGACY group. `api-contract.spec.ts`
+ * in the backend checks that every ACTIVE endpoint declared here exists on the
+ * server; legacy groups are excluded from that check.
+ *
+ * Deleted progressively in Phase 2+, alongside the modules they call.
+ */
 export const API = {
   auth: {
     login: (data: { email: string; password: string; device_name?: string }) =>
@@ -195,6 +212,7 @@ export const API = {
         apiClient.delete(`/projects/${projectId}/logframe/rows/${rowId}/indicators/${indicatorId}`),
     },
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   studies: {
     list: (params?: import('@/types/api').StudyFilterParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/study').Study>>('/studies', { params }),
@@ -217,6 +235,7 @@ export const API = {
     timeline: (id: string) =>
       apiClient.get<{ data: import('@/types/study').StudyTimelineEvent[] }>(`/studies/${id}/timeline`),
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   indicators: {
     library: (params?: import('@/types/indicator').IndicatorFilterParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/indicator').Indicator>>('/indicators', { params }),
@@ -252,6 +271,7 @@ export const API = {
         apiClient.delete(`/studies/${studyId}/indicators/${indicatorId}`),
     },
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   questionnaires: {
     list: (params?: import('@/types/questionnaire').QuestionnaireFilterParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/questionnaire').Questionnaire>>('/questionnaires', { params }),
@@ -328,6 +348,7 @@ export const API = {
       delete: (ruleId: string) => apiClient.delete(`/validation-rules/${ruleId}`),
     },
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   assignments: {
     list: (params?: import('@/types/assignment').AssignmentFilterParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/assignment').Assignment>>('/assignments', { params }),
@@ -348,6 +369,7 @@ export const API = {
     enumeratorLoad: (eid: string) =>
       apiClient.get<{ data: { total: number; in_progress: number; completed: number } }>(`/enumerators/${eid}/load`),
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   submissions: {
     list: (params?: import('@/types/submission').SubmissionFilterParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/submission').Submission>>('/submissions', { params }),
@@ -384,6 +406,7 @@ export const API = {
     submissionMedia: (submissionId: string) =>
       apiClient.get<{ data: import('@/types/media').Media[] }>(`/submissions/${submissionId}/media`),
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   sync: {
     pull: (data: Record<string, unknown>) => apiClient.post('/sync/pull', data),
     push: (data: Record<string, unknown>) => apiClient.post('/sync/push', data),
@@ -391,6 +414,7 @@ export const API = {
     log: () => apiClient.get<{ data: import('@/types/media').SyncLogEntry[] }>('/sync/log'),
     full: () => apiClient.post('/sync/full'),
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   dashboard: {
     executive: (params?: import('@/types/api').DashboardFilterParams) =>
       apiClient.get<{ data: import('@/types/dashboard').DashboardSummary }>('/dashboards/executive', { params }),
@@ -403,6 +427,7 @@ export const API = {
     saveLayout: (widgets: import('@/types/dashboard').DashboardWidget[]) =>
       apiClient.put('/dashboards/layout/save', { layout: widgets }),
   },
+  /** LEGACY (Phase 0) — backend module deregistered; these endpoints return 404. Do not call. */
   reports: {
     list: (params?: import('@/types/api').FilterParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/report').Report>>('/reports', { params }),

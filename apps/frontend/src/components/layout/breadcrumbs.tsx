@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { APP_HOME } from '@/lib/routes';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -47,12 +48,12 @@ export function Breadcrumbs() {
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
 
-  if (pathname === '/dashboard' || pathname === '/') return null;
+  if (pathname === APP_HOME || pathname === '/') return null;
 
   return (
     <nav aria-label="Breadcrumb" className="hidden md:flex items-center gap-1 text-sm">
       <Link
-        href="/dashboard"
+        href={APP_HOME}
         className="flex items-center text-foreground-secondary hover:text-foreground transition-colors"
       >
         <Home className="h-4 w-4" />

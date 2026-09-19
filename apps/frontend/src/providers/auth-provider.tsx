@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
+import { APP_HOME } from '@/lib/routes';
 import { API } from '@/lib/api-client';
 import type { AuthUser } from '@/types/auth';
 import type { Permission } from '@/types/role';
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (isAuthenticated && isPublicRoute) {
-        router.push('/dashboard');
+        router.push(APP_HOME);
       }
     }
   }, [isAuthenticated, isLoading, pathname, router]);
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: authUser, token: authToken } = response.data.data;
     setAuthCookie(authToken);
     storeLogin(authUser, authToken);
-    router.push('/dashboard');
+    router.push(APP_HOME);
   };
 
   const register = async (data: {
@@ -102,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: authUser, token: authToken } = response.data.data;
     setAuthCookie(authToken);
     storeLogin(authUser, authToken);
-    router.push('/dashboard');
+    router.push(APP_HOME);
   };
 
   const logout = async () => {

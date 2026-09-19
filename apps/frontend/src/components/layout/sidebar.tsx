@@ -4,19 +4,13 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LayoutDashboard,
   FolderKanban,
-  FlaskConical,
-  ClipboardList,
-  BarChart3,
-  FileText,
   Users,
   Shield,
   Settings,
   Activity,
   Building2,
   Layers,
-  FileCheck,
   Sparkles,
   Cpu,
   ChevronDown,
@@ -24,6 +18,7 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { APP_HOME } from '@/lib/routes';
 import { useUIStore } from '@/stores/ui-store';
 import { Logo } from '@/components/brand/logo';
 
@@ -39,32 +34,27 @@ interface NavGroup {
   items: NavItem[];
 }
 
+/**
+ * PHASE 0 — QUALITATIVE RESET
+ *
+ * MERL entries removed from navigation. Their route files remain on disk and
+ * are still addressable by URL, but their backend modules are deregistered so
+ * they no longer load data. They are retained for reference and for any
+ * data-export work until the data-preservation decision is confirmed.
+ *
+ * Removed: Dashboard (MERL metrics only), Studies, Questionnaires, Indicators,
+ * Reports, Assignments, Submissions, and the Field Operations group.
+ *
+ * Interview Guides, Interviews, Approvals and Reports return in Phase 2 as
+ * qualitative surfaces. See LEGACY.md.
+ */
 const NAV_GROUPS: NavGroup[] = [
-  {
-    id: 'workspace',
-    label: 'Workspace',
-    items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { label: 'AI Assistant', href: '/ai', icon: Sparkles },
-    ],
-  },
   {
     id: 'research',
     label: 'Research',
     items: [
       { label: 'Projects', href: '/projects', icon: FolderKanban },
-      { label: 'Studies', href: '/studies', icon: FlaskConical },
-      { label: 'Questionnaires', href: '/questionnaires', icon: ClipboardList },
-      { label: 'Indicators', href: '/indicators', icon: BarChart3 },
-      { label: 'Reports', href: '/reports', icon: FileText },
-    ],
-  },
-  {
-    id: 'field',
-    label: 'Field Operations',
-    items: [
-      { label: 'Assignments', href: '/assignments', icon: ClipboardList },
-      { label: 'Submissions', href: '/submissions', icon: FileCheck },
+      { label: 'AI Assistant', href: '/ai', icon: Sparkles },
     ],
   },
   {
@@ -201,11 +191,11 @@ export function Sidebar() {
           )}
         >
           {sidebarCollapsed ? (
-            <Link href="/dashboard" className="flex items-center justify-center">
+            <Link href={APP_HOME} className="flex items-center justify-center">
               <Logo variant="mark" height={22} />
             </Link>
           ) : (
-            <Link href="/dashboard" className="flex items-center">
+            <Link href={APP_HOME} className="flex items-center">
               <Logo variant="full" theme="auto" height={22} />
             </Link>
           )}

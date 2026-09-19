@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { APP_HOME } from '@/lib/routes';
 import { Button } from '@/components/ui/button';
 
 export default function NotFound() {
@@ -10,7 +11,7 @@ export default function NotFound() {
         <p className="text-foreground-secondary mb-6">
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
-        <Link href="/dashboard">
+        <Link href={APP_HOME}>
           <Button>Go to Dashboard</Button>
         </Link>
       </div>

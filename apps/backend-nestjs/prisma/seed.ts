@@ -1,32 +1,50 @@
+/**
+ * PHASE 0 — QUALITATIVE RESET
+ *
+ * Core seed: organization, roles, admin user, and one project.
+ *
+ * MERL demo data (study, questionnaire) moved to `seed-legacy.ts` so the core
+ * seed no longer depends on deregistered modules' tables. Run the legacy seed
+ * separately with `npm run prisma:seed:legacy` if you need the old fixtures.
+ *
+ * NOTE: the demo admin password below is a development convenience and must
+ * never be used against a shared or production database. Phase 1 replaces this
+ * with an interactive bootstrap.
+ */
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const orgId = uuidv4();
-  const adminRoleId = uuidv4();
-  const userId = uuidv4();
+export const DEMO_ORG_SLUG = 'demo-org';
+export const DEMO_ADMIN_EMAIL = 'admin@merline.org';
+export const DEMO_PROJECT_NAME = 'Kenya Health Impact Evaluation';
 
-  const adminPassword = await bcrypt.hash('admin123', 12);
+async function main() {
+  const adminPassword = await bcrypt.hash(
+    process.env.SEED_ADMIN_PASSWORD ?? 'admin123',
+    12,
+  );
 
   const org = await prisma.organization.upsert({
-    where: { slug: 'demo-org' },
+    where: { slug: DEMO_ORG_SLUG },
     update: {},
     create: {
-      id: orgId,
+      id: uuidv4(),
       name: 'Demo Organization',
-      slug: 'demo-org',
+      slug: DEMO_ORG_SLUG,
       settings: { locale: 'en', timezone: 'UTC' },
     },
   });
 
   const adminRole = await prisma.role.upsert({
-    where: { slug_organizationId: { slug: 'administrator', organizationId: org.id } },
+    where: {
+      slug_organizationId: { slug: 'administrator', organizationId: org.id },
+    },
     update: {},
     create: {
-      id: adminRoleId,
+      id: uuidv4(),
       name: 'Administrator',
       slug: 'administrator',
       description: 'Full system access',
@@ -35,7 +53,7 @@ async function main() {
     },
   });
 
-  const viewerRole = await prisma.role.upsert({
+  await prisma.role.upsert({
     where: { slug_organizationId: { slug: 'viewer', organizationId: org.id } },
     update: {},
     create: {
@@ -48,8 +66,14 @@ async function main() {
     },
   });
 
-  const enumeratorRole = await prisma.role.upsert({
-    where: { slug_organizationId: { slug: 'enumerator', organizationId: org.id } },
+  // Retained under its current name for now. Phase 1 replaces the seeded role
+  // set with the qualitative roles (Research Lead, Researcher, Field
+  // Interviewer, Reviewer) and seeds the permission catalogue, which no code
+  // path currently creates.
+  await prisma.role.upsert({
+    where: {
+      slug_organizationId: { slug: 'enumerator', organizationId: org.id },
+    },
     update: {},
     create: {
       id: uuidv4(),
@@ -62,11 +86,11 @@ async function main() {
   });
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@merline.org' },
+    where: { email: DEMO_ADMIN_EMAIL },
     update: {},
     create: {
-      id: userId,
-      email: 'admin@merline.org',
+      id: uuidv4(),
+      email: DEMO_ADMIN_EMAIL,
       passwordHash: adminPassword,
       firstName: 'Admin',
       lastName: 'User',
@@ -82,58 +106,33 @@ async function main() {
     create: { userId: admin.id, roleId: adminRole.id },
   });
 
-  const projectId = uuidv4();
-  const project = await prisma.project.upsert({
-    where: { id: projectId },
-    update: {},
-    create: {
-      id: projectId,
-      name: 'Kenya Health Impact Evaluation',
-      description: 'A comprehensive health impact evaluation across select counties in Kenya.',
-      status: 'active',
-      organizationId: org.id,
-      createdById: admin.id,
-      startDate: new Date('2026-01-01'),
-      endDate: new Date('2026-12-31'),
-    },
+  const existingProject = await prisma.project.findFirst({
+    where: { name: DEMO_PROJECT_NAME, organizationId: org.id },
   });
 
-  const studyId = uuidv4();
-  await prisma.study.upsert({
-    where: { id: studyId },
-    update: {},
-    create: {
-      id: studyId,
-      title: 'Baseline Health Survey 2026',
-      code: 'BHS-2026-001',
-      status: 'DRAFT',
-      type: 'BASELINE',
-      projectId: project.id,
-      organizationId: org.id,
-      createdById: admin.id,
-      startDate: new Date('2026-03-01'),
-      endDate: new Date('2026-06-30'),
-    },
-  });
+  const project =
+    existingProject ??
+    (await prisma.project.create({
+      data: {
+        id: uuidv4(),
+        name: DEMO_PROJECT_NAME,
+        description:
+          'A comprehensive health impact evaluation across select counties in Kenya.',
+        status: 'active',
+        organizationId: org.id,
+        createdById: admin.id,
+        startDate: new Date('2026-01-01'),
+        endDate: new Date('2026-12-31'),
+      },
+    }));
 
-  const qnrId = uuidv4();
-  await prisma.questionnaire.upsert({
-    where: { id: qnrId },
-    update: {},
-    create: {
-      id: qnrId,
-      title: 'Household Health Survey',
-      description: 'Standard household health questionnaire for baseline assessment.',
-      status: 'draft',
-      version: 1,
-      studyId,
-      organizationId: org.id,
-      createdById: admin.id,
-    },
-  });
-
-  console.log('Seed completed successfully');
-  console.log('Admin login: admin@merline.org / admin123');
+  console.log('Core seed completed.');
+  console.log(`  organization: ${org.slug}`);
+  console.log(`  admin:        ${admin.email}`);
+  console.log(`  project:      ${project.name}`);
+  console.log(
+    'Legacy MERL fixtures are not seeded. Run `npm run prisma:seed:legacy` if needed.',
+  );
 }
 
 main()
@@ -141,6 +140,6 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
+  .finally(() => {
+    void prisma.$disconnect();
   });

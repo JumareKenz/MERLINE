@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
+import { APP_HOME } from '@/lib/routes';
 
 export default function HomePage() {
   const router = useRouter();
@@ -10,7 +11,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isLoading) {
-      router.push(isAuthenticated ? '/dashboard' : '/login');
+      router.push(isAuthenticated ? APP_HOME : '/login');
     }
   }, [isAuthenticated, isLoading, router]);
 
