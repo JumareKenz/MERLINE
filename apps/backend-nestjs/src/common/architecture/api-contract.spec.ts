@@ -49,7 +49,13 @@ const LEGACY_CLIENT_GROUPS = [
  * served by LogframesModule, which is deregistered. Group-level classification
  * alone would misreport these as drift.
  */
-const LEGACY_CLIENT_PATH_FRAGMENTS = ['/logframe'];
+const LEGACY_CLIENT_PATH_FRAGMENTS = [
+  '/logframe',
+  // `API.media.submissionMedia` lives in the active `media` group but targets
+  // `/submissions/:id/media`. Submissions are deregistered, and the route was
+  // removed from MediaController in Phase 1; recordings replace it in Phase 2.
+  '/submissions',
+];
 
 /**
  * Endpoints the client declares that the server has never implemented.

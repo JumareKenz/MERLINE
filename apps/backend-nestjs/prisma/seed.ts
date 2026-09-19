@@ -14,6 +14,11 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  PERMISSION_CATALOGUE,
+  ROLE_DEFINITIONS,
+  permissionsForRole,
+} from '../src/auth/permission-catalogue';
 
 const prisma = new PrismaClient();
 
@@ -38,52 +43,68 @@ async function main() {
     },
   });
 
-  const adminRole = await prisma.role.upsert({
-    where: {
-      slug_organizationId: { slug: 'administrator', organizationId: org.id },
-    },
-    update: {},
-    create: {
+  // ─── PHASE 1: seed the permission catalogue ───
+  //
+  // Nothing in the codebase created Permission rows before this, so the table
+  // could only ever be read. Enabling PermissionGuard against an empty table
+  // would have denied every decorated route, including for the administrator.
+  // Seeding must therefore happen before enforcement.
+  await prisma.permission.createMany({
+    data: PERMISSION_CATALOGUE.map((permission) => ({
       id: uuidv4(),
-      name: 'Administrator',
-      slug: 'administrator',
-      description: 'Full system access',
+      slug: permission.slug,
+      name: permission.name,
+      module: permission.module,
       organizationId: org.id,
-      isSystem: true,
-    },
+    })),
+    skipDuplicates: true,
   });
 
-  await prisma.role.upsert({
-    where: { slug_organizationId: { slug: 'viewer', organizationId: org.id } },
-    update: {},
-    create: {
-      id: uuidv4(),
-      name: 'Viewer',
-      slug: 'viewer',
-      description: 'Read-only access',
-      organizationId: org.id,
-      isSystem: true,
-    },
-  });
+  const permissionsBySlug = new Map(
+    (
+      await prisma.permission.findMany({ where: { organizationId: org.id } })
+    ).map((permission) => [permission.slug, permission]),
+  );
 
-  // Retained under its current name for now. Phase 1 replaces the seeded role
-  // set with the qualitative roles (Research Lead, Researcher, Field
-  // Interviewer, Reviewer) and seeds the permission catalogue, which no code
-  // path currently creates.
-  await prisma.role.upsert({
-    where: {
-      slug_organizationId: { slug: 'enumerator', organizationId: org.id },
-    },
-    update: {},
-    create: {
-      id: uuidv4(),
-      name: 'Enumerator',
-      slug: 'enumerator',
-      description: 'Field data collection',
-      organizationId: org.id,
-      isSystem: true,
-    },
-  });
+  const rolesBySlug = new Map<string, { id: string }>();
+
+  for (const definition of ROLE_DEFINITIONS) {
+    const role = await prisma.role.upsert({
+      where: {
+        slug_organizationId: {
+          slug: definition.slug,
+          organizationId: org.id,
+        },
+      },
+      update: { name: definition.name, description: definition.description },
+      create: {
+        id: uuidv4(),
+        name: definition.name,
+        slug: definition.slug,
+        description: definition.description,
+        organizationId: org.id,
+        isSystem: true,
+      },
+    });
+    rolesBySlug.set(definition.slug, role);
+
+    const permissionIds = permissionsForRole(definition)
+      .map((slug) => permissionsBySlug.get(slug)?.id)
+      .filter((id): id is string => Boolean(id));
+
+    await prisma.permissionRole.createMany({
+      data: permissionIds.map((permissionId) => ({
+        permissionId,
+        roleId: role.id,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  const adminRole = rolesBySlug.get('administrator');
+  if (!adminRole) {
+    throw new Error('Administrator role was not seeded');
+  }
 
   const admin = await prisma.user.upsert({
     where: { email: DEMO_ADMIN_EMAIL },

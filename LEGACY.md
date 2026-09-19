@@ -18,7 +18,7 @@ has been taken out of service but deliberately left on disk.
 | **Removed from application registration** | Yes — no legacy module is in `app.module.ts` |
 | **Moved on disk** | **No** — every file is where it was |
 | **Deleted** | **No** |
-| **Database schema changed** | **No** — `schema.prisma` is untouched; no table dropped |
+| **Database schema changed** | **No** — `schema.prisma` is untouched; no table dropped. Phase 1 added a baseline migration covering the schema as-is, legacy tables included. |
 | **Compiles** | Yes — legacy code still typechecks and builds |
 | **Reachable at runtime** | No — providers are not in the application graph; routes are not registered |
 
@@ -128,34 +128,48 @@ readable via Prisma but are served by no registered endpoint.
 
 ---
 
-## Known debt carried forward
+## Known debt — Phase 1 status
 
-Deregistering a module does not stop other code from querying its tables,
-because the schema is intact. These are tracked rather than fixed, so that
-Phase 0 stayed a pure isolation change.
+### Cleared in Phase 1
 
-| Where | Legacy tables queried | Resolve in |
+Phase 0 recorded three places where an active module still queried legacy
+tables. Deregistration does not prevent this, because the schema is untouched
+and the whole Prisma client is still generated. All three are now removed and
+kept removed by `no-legacy-queries.spec.ts`:
+
+| Where | Was reading | Resolution |
 |---|---|---|
-| `projects/` — project stats and includes | `study`, `questionnaire`, `submission` | Phase 1 |
-| `media/` — `getSubmissionMedia`, `GET /submissions/:id/media` | `submission` | Phase 2, when media becomes recordings |
-| `ai/` — `research-design-agent`, `indicator-agent` and peers | `study`, `indicator`, `submission` | Phase 2, when the nine static agents are removed |
+| `projects.getStats` | `study`, `questionnaire`, `submission` | Now reports team, activity and tag counts. Interview metrics arrive in Phase 2. |
+| `media` | `submission` | `GET /submissions/:id/media` removed from MediaController; recordings replace it in Phase 2. |
+| `ai` — 4 specialist agents | `study`, `indicator`, `report`, `submission` | Context lookups and the PrismaService dependency removed. |
 
-**AI surface.** `AiModule` stays registered because chat, prompts and inference
-accounting are on the qualitative path. Its nine "specialist agents" are static
-template generators with no model access and are MERL-oriented; they are removed
-in Phase 2 along with the fabricated-response fallback in `AiGatewayService`.
+### Still outstanding
 
-**Pre-existing API drift.** Endpoints the client declares that the server has
-never implemented, now pinned by a ratchet list in `api-contract.spec.ts`:
-`/auth/sessions`, `/teams/*`, `/ai/assist/*`, `GET /ai/prompts/:id`,
-`DELETE /ai/rag/documents/:id`, `POST /workspaces/:id/set-default`.
-Shrink that list; never grow it.
+**The nine AI specialist agents still return hard-coded template text.** They
+do not call a language model and cannot — `SpecialistAgent` has no gateway
+dependency. Phase 1 removed their legacy database reads and removed the
+fabricated fallback from `AiGatewayService`, but the agents themselves are
+unchanged and still reachable at `POST /ai/agents/*`.
 
-**Pre-existing typecheck failures.** Five errors in
-`src/auth/auth.controller.spec.ts` (`AuthenticatedUser` shape). Present before
-Phase 0, verified against a pristine tree. Fixed in Phase 1 with the auth work.
+This was left deliberately. Removing them was scheduled for Phase 2 in the
+agreed plan, and Phase 1's remit was platform safety rather than product
+surface. It is flagged here because it is the same class of problem as the
+gateway fallback: output that reads as analysis but is not.
 
----
+**Pre-existing API drift** remains pinned in the `KNOWN_MISSING` ratchet in
+`api-contract.spec.ts`: `/auth/sessions`, `/teams/*`, `/ai/assist/*`,
+`GET /ai/prompts/:id`, `DELETE /ai/rag/documents/:id`,
+`POST /workspaces/:id/set-default`.
+
+### Sync: retired
+
+The sync module stays deregistered and is now formally retired rather than
+scheduled for repair. Its `push` handler updated `SyncBatch` by the wrong key
+and returned 500 after committing its writes, its conflict handling was
+last-write-wins on a client-supplied timestamp, and no client ever called it.
+Its JSON payload format cannot carry audio in any case. The offline story for
+recordings is a resumable upload outbox, which is different machinery and is
+Phase 2 work.
 
 ## Open decision
 

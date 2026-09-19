@@ -1,6 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import type { AuthenticatedUser } from '../common/interfaces';
+
+/**
+ * PHASE 1: complete AuthenticatedUser fixtures.
+ *
+ * This suite never executed before Phase 1 — the bcrypt native binding was not
+ * built, so the file failed to load. Once it ran it showed two assertions
+ * written against a signature the controller does not have, and several
+ * partial user objects that do not satisfy AuthenticatedUser.
+ *
+ * The controller is correct: it passes `user.id` to the service. The
+ * expectations are corrected to match it.
+ */
+const authedUser = (overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser => ({
+  id: 'user-id',
+  email: 'test@example.com',
+  firstName: 'John',
+  lastName: 'Doe',
+  organizationId: 'org-id',
+  ...overrides,
+});
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -111,20 +132,16 @@ describe('AuthController', () => {
         message: 'Logged out successfully',
       });
 
-      const result = await controller.logout();
+      const result = await controller.logout(authedUser());
 
-      expect(authService.logout).toHaveBeenCalled();
+      expect(authService.logout).toHaveBeenCalledWith('user-id');
       expect(result).toEqual({ message: 'Logged out successfully' });
     });
   });
 
   describe('refresh', () => {
     it('should call authService.refresh with the current user', async () => {
-      const currentUser = {
-        id: 'user-id',
-        email: 'test@example.com',
-        organizationId: 'org-id',
-      };
+      const currentUser = authedUser();
 
       const expected = {
         user: {
@@ -144,7 +161,7 @@ describe('AuthController', () => {
 
       const result = await controller.refresh(currentUser);
 
-      expect(authService.refresh).toHaveBeenCalledWith(currentUser);
+      expect(authService.refresh).toHaveBeenCalledWith(currentUser.id);
       expect(result).toEqual(expected);
     });
   });
@@ -203,7 +220,7 @@ describe('AuthController', () => {
 
   describe('getProfile', () => {
     it('should call authService.getProfile with the current user id', async () => {
-      const currentUser = { id: 'user-id' };
+      const currentUser = authedUser();
       const expected = {
         id: 'user-id',
         email: 'test@example.com',
@@ -222,7 +239,7 @@ describe('AuthController', () => {
 
   describe('updateProfile', () => {
     it('should call authService.updateProfile with current user and dto', async () => {
-      const currentUser = { id: 'user-id' };
+      const currentUser = authedUser();
       const dto = { firstName: 'Jane' };
       const expected = {
         id: 'user-id',
@@ -242,7 +259,7 @@ describe('AuthController', () => {
 
   describe('changePassword', () => {
     it('should call authService.changePassword with current user and dto', async () => {
-      const currentUser = { id: 'user-id' };
+      const currentUser = authedUser();
       const dto = {
         currentPassword: 'oldpass123',
         newPassword: 'newpass123',

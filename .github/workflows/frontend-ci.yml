@@ -87,7 +87,7 @@ jobs:
         working-directory: apps/frontend
     services:
       postgres:
-        image: postgis/postgis:16-3.4
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: merline_test
           POSTGRES_USER: merline

@@ -1,5 +1,16 @@
+/**
+ * PHASE 1 — legacy query removal.
+ *
+ * This agent previously enriched its reply with counts read from deregistered
+ * MERL tables. An active module must not query tables whose owning module is
+ * frozen, so those lookups are gone along with the PrismaService dependency.
+ *
+ * NOTE: the reply below is still a hard-coded template — this agent does not
+ * call a language model, and cannot: the SpecialistAgent base class has no
+ * gateway dependency. Removing the nine specialist agents is Phase 2 work,
+ * tracked in LEGACY.md. It was deliberately not folded into Phase 1.
+ */
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
 import { SpecialistAgent } from './specialist-agent';
 
 @Injectable()
@@ -7,24 +18,8 @@ export class IndicatorAgent extends SpecialistAgent {
   readonly agentType = 'indicator';
   readonly displayName = 'Indicator Agent';
 
-  constructor(private readonly prisma: PrismaService) {
-    super();
-  }
-
-  async process(params: { message: string; context: Record<string, unknown>; organizationId?: string; studyId?: string }): Promise<string> {
-    let indicatorContext = '';
-    if (params.studyId) {
-      const indicators = await this.prisma.indicator.findMany({
-        where: { studyId: params.studyId, deletedAt: null },
-        take: 5,
-      });
-      if (indicators.length > 0) {
-        indicatorContext = `\n\nCurrent indicators in this study: ${indicators.map((i) => `${i.name} (${i.type})`).join(', ')}.`;
-      }
-    } else if (params.organizationId) {
-      const count = await this.prisma.indicator.count({ where: { organizationId: params.organizationId, deletedAt: null } });
-      indicatorContext = `\n\nOrganization has ${count} indicators defined.`;
-    }
+  async process(params: { message: string; context: Record<string, unknown> }): Promise<string> {
+    const indicatorContext = '';
 
     return `[Indicator Agent] Let me help you with your indicator-related query.\n\n` +
       `Your request: "${params.message}"${indicatorContext}\n\n` +

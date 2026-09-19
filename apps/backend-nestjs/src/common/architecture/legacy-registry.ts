@@ -39,6 +39,7 @@ export const ACTIVE_MODULE_DIRECTORIES = [
   'notifications',
   'organizations',
   'projects',
+  'storage',
   'users',
 ] as const;
 
@@ -59,30 +60,24 @@ export const LEGACY_MODULE_CLASS_NAMES = [
 ] as const;
 
 /**
- * Known Prisma-level coupling from active modules into legacy tables.
+ * Prisma-level coupling from active modules into legacy tables.
  *
- * Deregistering a module does not stop other code from querying its tables,
- * because `schema.prisma` is deliberately untouched in Phase 0. These are
- * tracked as debt rather than fixed here, so that Phase 0 stays a pure
- * isolation change. Each is scheduled in LEGACY.md.
+ * Deregistering a module removes its providers and routes but does not stop
+ * other code reaching its tables, because `schema.prisma` is deliberately
+ * untouched. Phase 0 tracked three such cases as debt; Phase 1 cleared all of
+ * them:
+ *
+ *   - `projects.getStats` counted studies, questionnaires and submissions
+ *   - `media` served `/submissions/:id/media`
+ *   - four AI agents read study, indicator, report and submission counts
+ *
+ * Enforced by `no-legacy-queries.spec.ts`. Keep this list empty.
  */
 export const KNOWN_PRISMA_COUPLING: ReadonlyArray<{
   module: string;
   legacyTables: readonly string[];
   resolvedIn: string;
-}> = [
-  {
-    module: 'projects',
-    legacyTables: ['study', 'questionnaire', 'submission'],
-    resolvedIn: 'Phase 1',
-  },
-  { module: 'media', legacyTables: ['submission'], resolvedIn: 'Phase 2' },
-  {
-    module: 'ai',
-    legacyTables: ['study', 'indicator', 'submission'],
-    resolvedIn: 'Phase 2',
-  },
-];
+}> = [];
 
 export type LegacyModuleDirectory = (typeof LEGACY_MODULE_DIRECTORIES)[number];
 export type ActiveModuleDirectory = (typeof ACTIVE_MODULE_DIRECTORIES)[number];

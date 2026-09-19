@@ -1,14 +1,44 @@
-import { Injectable, NotFoundException, BadRequestException, StreamableFile } from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
-import { BaseService } from '../common/base/base.service';
-import { InitChunkedUploadDto } from './dto/init-chunked-upload.dto';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { MediaType, ProcessingStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
-import * as fs from 'fs';
-import { MediaType, ProcessingStatus } from '@prisma/client';
-import { createReadStream } from 'fs';
+import { BaseService } from '../common/base/base.service';
+import { PrismaService } from '../database/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { InitChunkedUploadDto } from './dto/init-chunked-upload.dto';
 
-const UPLOADS_ROOT = path.resolve(process.env.UPLOADS_DIR || (process.env.VERCEL ? '/tmp/uploads' : 'uploads'));
+/**
+ * PHASE 1 — PLATFORM SAFETY
+ *
+ * Media persistence, rebuilt on durable object storage.
+ *
+ * What changed and why:
+ *
+ *  - Objects go to S3/MinIO instead of the local filesystem. The old path
+ *    resolved to `/tmp/uploads` on Vercel and to a single pod's disk on
+ *    Kubernetes, so uploads could vanish between requests.
+ *  - Every read and delete is tenant-scoped. `GET /media/:id/download`
+ *    previously streamed any file to any authenticated caller who knew its
+ *    UUID, with no ownership check at all.
+ *  - Downloads are served as short-lived signed URLs rather than proxied
+ *    bytes, so large interview audio does not occupy an application worker.
+ *  - `audio/webm` is accepted. Chrome's MediaRecorder produces it by default,
+ *    so the previous allowlist would have rejected browser-recorded audio —
+ *    which is exactly what the Phase 2 PWA will produce.
+ *  - The size cap is configurable and defaults far above the old 50 MB, which
+ *    was below a single 90-minute interview.
+ *  - Checksums are computed and stored, so an upload can be verified rather
+ *    than assumed.
+ *
+ * Still deliberately unchanged: chunked upload keeps its three-step API shape.
+ * Its reassembly is rewritten here, but true resumable multipart upload is
+ * Phase 2 work alongside the offline outbox.
+ */
 
 const ALLOWED_MIME_TYPES: Record<string, MediaType> = {
   'image/jpeg': MediaType.IMAGE,
@@ -16,14 +46,26 @@ const ALLOWED_MIME_TYPES: Record<string, MediaType> = {
   'image/gif': MediaType.IMAGE,
   'image/webp': MediaType.IMAGE,
   'image/svg+xml': MediaType.IMAGE,
+
+  // Audio. `audio/webm` and `audio/ogg;codecs=opus` are what browsers record.
   'audio/mpeg': MediaType.AUDIO,
+  'audio/mp3': MediaType.AUDIO,
   'audio/wav': MediaType.AUDIO,
+  'audio/x-wav': MediaType.AUDIO,
   'audio/ogg': MediaType.AUDIO,
+  'audio/opus': MediaType.AUDIO,
+  'audio/webm': MediaType.AUDIO,
   'audio/mp4': MediaType.AUDIO,
+  'audio/m4a': MediaType.AUDIO,
+  'audio/x-m4a': MediaType.AUDIO,
+  'audio/aac': MediaType.AUDIO,
+  'audio/flac': MediaType.AUDIO,
+
   'video/mp4': MediaType.VIDEO,
   'video/mpeg': MediaType.VIDEO,
   'video/webm': MediaType.VIDEO,
   'video/quicktime': MediaType.VIDEO,
+
   'application/pdf': MediaType.FILE,
   'application/msword': MediaType.FILE,
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': MediaType.FILE,
@@ -35,96 +77,136 @@ const ALLOWED_MIME_TYPES: Record<string, MediaType> = {
   'image/signature': MediaType.SIGNATURE,
 };
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+/** 90 minutes of 128 kbps audio is roughly 86 MB; uncompressed WAV far more. */
+const DEFAULT_MAX_FILE_BYTES = 512 * 1024 * 1024;
 
 @Injectable()
 export class MediaService extends BaseService {
-  constructor(prisma: PrismaService) {
+  private readonly maxFileBytes: number;
+
+  constructor(
+    prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {
     super(prisma);
-    try {
-      if (!fs.existsSync(UPLOADS_ROOT)) {
-        fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
-      }
-    } catch {
-      console.warn(`Cannot create uploads directory at ${UPLOADS_ROOT}, uploads may fail`);
-    }
+    this.maxFileBytes = Number(process.env.MAX_UPLOAD_BYTES ?? DEFAULT_MAX_FILE_BYTES);
   }
 
-  async upload(file: Express.Multer.File, dto: { type?: MediaType; submissionId?: string; metadata?: Record<string, unknown> }, userId: string, organizationId: string) {
-    if (file.size > MAX_FILE_SIZE) {
-      throw new BadRequestException(`File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+  async upload(
+    file: Express.Multer.File,
+    dto: { type?: MediaType; metadata?: Record<string, unknown> },
+    userId: string,
+    organizationId: string,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No file content received');
     }
 
-    const allowedType = ALLOWED_MIME_TYPES[file.mimetype];
-    if (!allowedType && !dto.type) {
-      throw new BadRequestException(`File type ${file.mimetype} is not allowed`);
+    if (file.size > this.maxFileBytes) {
+      throw new BadRequestException(
+        `File exceeds the maximum upload size of ${Math.floor(this.maxFileBytes / 1024 / 1024)}MB`,
+      );
+    }
+
+    // `audio/webm;codecs=opus` — match on the bare type.
+    const baseMime = file.mimetype.split(';')[0].trim().toLowerCase();
+    const allowedType = ALLOWED_MIME_TYPES[baseMime];
+    if (!allowedType) {
+      throw new BadRequestException(`File type ${baseMime} is not allowed`);
     }
 
     const id = uuidv4();
-    const ext = path.extname(file.originalname);
-    const filename = `${id}${ext}`;
-    const subDir = this.getDateSubDir();
-    const relativePath = path.join(subDir, filename);
-    const absolutePath = path.join(UPLOADS_ROOT, relativePath);
+    const extension = path.extname(file.originalname).replace(/^\./, '');
+    const key = this.storage.buildKey({
+      organizationId,
+      kind: 'media',
+      id,
+      extension,
+    });
 
-    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-    fs.writeFileSync(absolutePath, file.buffer);
+    const { checksum, bytes } = await this.storage.putObject({
+      key,
+      body: file.buffer,
+      contentType: baseMime,
+      metadata: { organizationId, uploadedBy: userId },
+    });
 
-    const mediaType = dto.type || this.inferMediaType(file.mimetype);
+    const declaredChecksum = dto.metadata?.checksum as string | undefined;
+    if (declaredChecksum && declaredChecksum !== checksum) {
+      // The client told us what it sent and the bytes disagree. Remove the
+      // object rather than record a row pointing at corrupt content.
+      await this.storage.deleteObject(key);
+      throw new BadRequestException('Upload checksum mismatch; the file was not stored');
+    }
 
     return this.prisma.media.create({
       data: {
         id,
-        filename,
+        filename: path.basename(key),
         originalName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
-        type: mediaType,
+        mimeType: baseMime,
+        size: bytes,
+        type: dto.type ?? allowedType,
         processingStatus: ProcessingStatus.COMPLETED,
-        path: relativePath,
-        checksum: dto.metadata?.checksum as string | undefined,
-        metadata: (dto.metadata || {}) as any,
-        submissionId: dto.submissionId || null,
+        path: key,
+        checksum,
+        metadata: (dto.metadata ?? {}) as any,
         uploadedById: userId,
         organizationId,
       },
     });
   }
 
-  async initChunkedUpload(dto: InitChunkedUploadDto, userId: string) {
+  async initChunkedUpload(dto: InitChunkedUploadDto) {
     const identifier = uuidv4();
-
-    const mediaType = dto.type || this.inferMediaType(dto.mimeType);
-
     return {
       identifier,
       uploadUrl: `/media/chunked/${identifier}`,
       expiresIn: 86400,
-      mediaType,
+      mediaType: dto.type ?? this.inferMediaType(dto.mimeType),
     };
   }
 
-  async uploadChunk(identifier: string, file: Express.Multer.File, index: number, userId: string) {
-    const chunkDir = path.join(UPLOADS_ROOT, 'chunks', identifier);
-    fs.mkdirSync(chunkDir, { recursive: true });
+  /**
+   * Chunks are buffered as individual objects under a temporary prefix so that
+   * nothing depends on a single machine's disk. Reassembly happens in
+   * `completeChunkedUpload`.
+   */
+  async uploadChunk(
+    identifier: string,
+    file: Express.Multer.File,
+    index: number,
+    userId: string,
+    organizationId: string,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No chunk content received');
+    }
+    if (!Number.isInteger(index) || index < 0) {
+      throw new BadRequestException('Chunk index must be a non-negative integer');
+    }
 
-    const chunkPath = path.join(chunkDir, `chunk-${index}`);
-    fs.writeFileSync(chunkPath, file.buffer);
-
-    await this.prisma.mediaChunk.create({
-      data: {
-        identifier,
-        index,
-        size: file.size,
-        checksum: undefined,
-        uploadedById: userId,
-      },
+    const key = this.chunkKey(organizationId, identifier, index);
+    const { checksum } = await this.storage.putObject({
+      key,
+      body: file.buffer,
+      contentType: 'application/octet-stream',
+      metadata: { identifier, index: String(index) },
     });
 
-    return { identifier, chunkIndex: index, received: file.size };
+    await this.prisma.mediaChunk.create({
+      data: { identifier, index, size: file.size, checksum, uploadedById: userId },
+    });
+
+    return { identifier, chunkIndex: index, received: file.size, checksum };
   }
 
-  async completeChunkedUpload(identifier: string, userId: string, organizationId: string, submissionId?: string) {
+  async completeChunkedUpload(
+    identifier: string,
+    userId: string,
+    organizationId: string,
+    options: { originalName?: string; mimeType?: string } = {},
+  ) {
     const chunks = await this.prisma.mediaChunk.findMany({
       where: { identifier },
       orderBy: { index: 'asc' },
@@ -134,93 +216,117 @@ export class MediaService extends BaseService {
       throw new BadRequestException('No chunks found for this identifier');
     }
 
-    const id = uuidv4();
-    const chunkDir = path.join(UPLOADS_ROOT, 'chunks', identifier);
-    const firstChunkMeta = chunks[0];
+    // Previously the reassembled object was hard-coded to
+    // `application/octet-stream` / MediaType.FILE, so a chunk-uploaded
+    // interview was not recorded as audio at all.
+    const mimeType = (options.mimeType ?? 'application/octet-stream')
+      .split(';')[0]
+      .trim()
+      .toLowerCase();
+    const mediaType = ALLOWED_MIME_TYPES[mimeType] ?? this.inferMediaType(mimeType);
 
-    const mimeType = 'application/octet-stream';
-    const mediaType = MediaType.FILE;
-    const ext = '';
-    const filename = `${id}${ext}`;
-    const subDir = this.getDateSubDir();
-    const relativePath = path.join(subDir, filename);
-    const absolutePath = path.join(UPLOADS_ROOT, relativePath);
-
-    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-
-    const writeStream = fs.createWriteStream(absolutePath);
-    let totalSize = 0;
-
+    const parts: Buffer[] = [];
     for (const chunk of chunks) {
-      const chunkPath = path.join(chunkDir, `chunk-${chunk.index}`);
-      const data = fs.readFileSync(chunkPath);
-      writeStream.write(data);
-      totalSize += data.length;
-      fs.unlinkSync(chunkPath);
+      const stream = await this.storage.getObjectStream(
+        this.chunkKey(organizationId, identifier, chunk.index),
+      );
+      parts.push(await this.readStream(stream));
+    }
+    const body = Buffer.concat(parts);
+
+    if (body.length > this.maxFileBytes) {
+      throw new BadRequestException('Reassembled file exceeds the maximum upload size');
     }
 
-    writeStream.end();
+    const id = uuidv4();
+    const extension = options.originalName
+      ? path.extname(options.originalName).replace(/^\./, '')
+      : '';
+    const key = this.storage.buildKey({ organizationId, kind: 'media', id, extension });
 
-    fs.rmdirSync(chunkDir, { recursive: true });
+    const { checksum, bytes } = await this.storage.putObject({
+      key,
+      body,
+      contentType: mimeType,
+      metadata: { organizationId, uploadedBy: userId, assembledFrom: identifier },
+    });
 
     const media = await this.prisma.media.create({
       data: {
         id,
-        filename,
-        originalName: `chunked-${identifier}`,
+        filename: path.basename(key),
+        originalName: options.originalName ?? `chunked-${identifier}`,
         mimeType,
-        size: totalSize,
+        size: bytes,
         type: mediaType,
         processingStatus: ProcessingStatus.COMPLETED,
-        path: relativePath,
-        submissionId: submissionId || null,
+        path: key,
+        checksum,
         uploadedById: userId,
         organizationId,
       },
     });
 
-    await this.prisma.mediaChunk.deleteMany({
-      where: { identifier },
-    });
+    // Best-effort cleanup; the row is already durable, so a failure here must
+    // not fail the request.
+    await Promise.all(
+      chunks.map((chunk) =>
+        this.storage
+          .deleteObject(this.chunkKey(organizationId, identifier, chunk.index))
+          .catch(() => undefined),
+      ),
+    );
+    await this.prisma.mediaChunk.deleteMany({ where: { identifier } });
 
     return media;
   }
 
-  async findById(id: string) {
-    const media = await this.prisma.media.findUnique({
-      where: { id },
-      include: { submission: true },
+  /** Tenant-scoped. All reads go through here. */
+  async findById(id: string, organizationId: string) {
+    const media = await this.prisma.media.findFirst({
+      where: { id, organizationId, deletedAt: null },
     });
 
-    if (!media || media.deletedAt) {
+    if (!media) {
+      // Same response whether it does not exist or belongs to another tenant.
       throw new NotFoundException('Media not found');
     }
 
     return media;
   }
 
-  async download(id: string) {
-    const media = await this.findById(id);
-    const absolutePath = path.join(UPLOADS_ROOT, media.path);
+  /**
+   * Returns a short-lived signed URL. The authorization decision happens here,
+   * in `findById`; the URL itself carries no identity, so it must never be
+   * minted before that check.
+   */
+  async getDownloadUrl(id: string, organizationId: string) {
+    const media = await this.findById(id, organizationId);
 
-    if (!fs.existsSync(absolutePath)) {
-      throw new NotFoundException('File not found on disk');
+    if (!(await this.storage.objectExists(media.path))) {
+      throw new NotFoundException('Stored object is missing for this media record');
     }
 
-    const stream = createReadStream(absolutePath);
-    return { stream, media };
+    return {
+      url: await this.storage.getSignedDownloadUrl(media.path, media.originalName),
+      expiresIn: Number(process.env.SIGNED_URL_TTL_SECONDS ?? 900),
+      media,
+    };
   }
 
-  async remove(id: string) {
-    await this.findById(id);
+  async remove(id: string, organizationId: string) {
+    const media = await this.findById(id, organizationId);
+
+    // Soft-delete the row first; the object is removed by the retention job in
+    // Phase 4, so a mis-click stays recoverable.
     return this.prisma.media.update({
-      where: { id },
+      where: { id: media.id },
       data: { deletedAt: new Date() },
     });
   }
 
-  async getStatus(id: string) {
-    const media = await this.findById(id);
+  async getStatus(id: string, organizationId: string) {
+    const media = await this.findById(id, organizationId);
     return {
       id: media.id,
       filename: media.originalName,
@@ -228,37 +334,42 @@ export class MediaService extends BaseService {
       size: media.size,
       type: media.type,
       processingStatus: media.processingStatus,
+      checksum: media.checksum,
       createdAt: media.createdAt,
     };
   }
 
-  async getSubmissionMedia(submissionId: string) {
-    const submission = await this.prisma.submission.findUnique({
-      where: { id: submissionId },
-    });
-
-    if (!submission) {
-      throw new NotFoundException('Submission not found');
-    }
-
+  async listForOrganization(organizationId: string, type?: MediaType) {
     return this.prisma.media.findMany({
-      where: { submissionId, deletedAt: null },
+      where: { organizationId, deletedAt: null, ...(type ? { type } : {}) },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
   }
 
-  private getDateSubDir(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return path.join(String(year), month, day);
+  private chunkKey(organizationId: string, identifier: string, index: number): string {
+    return `org/${organizationId}/chunks/${identifier}/${String(index).padStart(6, '0')}`;
+  }
+
+  private async readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
+    }
+    return Buffer.concat(chunks);
   }
 
   private inferMediaType(mimeType: string): MediaType {
-    if (mimeType.startsWith('image/')) return MediaType.IMAGE;
-    if (mimeType.startsWith('audio/')) return MediaType.AUDIO;
-    if (mimeType.startsWith('video/')) return MediaType.VIDEO;
+    const base = mimeType.split(';')[0].trim().toLowerCase();
+    if (base.startsWith('image/')) return MediaType.IMAGE;
+    if (base.startsWith('audio/')) return MediaType.AUDIO;
+    if (base.startsWith('video/')) return MediaType.VIDEO;
     return MediaType.FILE;
+  }
+
+  private throwIfForeign(ownerOrgId: string, organizationId: string) {
+    if (ownerOrgId !== organizationId) {
+      throw new ForbiddenException('Resource not found in this organization');
+    }
   }
 }

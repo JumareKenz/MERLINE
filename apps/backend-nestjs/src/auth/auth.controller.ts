@@ -18,15 +18,8 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import type { AuthenticatedUser } from '../common/interfaces';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-
-interface AuthenticatedUser {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  organizationId: string;
-}
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard)

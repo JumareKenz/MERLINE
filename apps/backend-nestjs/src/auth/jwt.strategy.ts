@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
+import { jwtVerifyOptions } from './jwt.constants';
 
 interface JwtPayload {
   sub: string;
@@ -20,10 +21,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('jwt.secret') ?? configService.get<string>('JWT_SECRET') ?? 'fallback-dev-only',
-      algorithms: ['HS256'],
-      issuer: 'merline',
-      audience: 'merline-api',
+      secretOrKey:
+        configService.get<string>('jwt.secret') ??
+        configService.get<string>('JWT_SECRET') ??
+        'fallback-dev-only',
+      // Shared with the signer via jwt.constants so the two cannot drift.
+      ...jwtVerifyOptions,
     });
   }
 

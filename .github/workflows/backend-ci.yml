@@ -59,7 +59,7 @@ jobs:
         working-directory: apps/backend-nestjs
     services:
       postgres:
-        image: postgis/postgis:16-3.4
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: merline_test
           POSTGRES_USER: merline
@@ -80,10 +80,34 @@ jobs:
           cache-dependency-path: apps/backend-nestjs/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+
+      # Phase 1: migrations are the source of truth. Applying them here also
+      # proves `prisma migrate deploy` works on a clean database, which is what
+      # the deploy pipeline runs.
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://merline:merline@localhost:5432/merline_test
+
+      # Fails if schema.prisma has changes that no migration expresses.
+      - name: Check for migration drift
+        run: |
+          npx prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
+        env:
+          DATABASE_URL: postgresql://merline:merline@localhost:5432/merline_test
+          SHADOW_DATABASE_URL: postgresql://merline:merline@localhost:5432/merline_shadow
+
       - run: npm test
         env:
           DATABASE_URL: postgresql://merline:merline@localhost:5432/merline_test
           JWT_SECRET: test-secret
+          # Presence of this flag opts the integration suites in. Without it
+          # they skip, so the suite stays runnable on a machine with no DB.
+          RUN_DB_TESTS: '1'
 
   audit:
     name: npm Audit

@@ -29,6 +29,10 @@ export default () => {
       bucket: process.env.AWS_BUCKET ?? 'merline-media-dev',
       endpoint: process.env.AWS_ENDPOINT ?? '',
     },
+    storage: {
+      signedUrlTtlSeconds: process.env.SIGNED_URL_TTL_SECONDS ?? '900',
+      maxUploadBytes: process.env.MAX_UPLOAD_BYTES ?? String(512 * 1024 * 1024),
+    },
     ai: {
       openaiKey: process.env.OPENAI_API_KEY ?? '',
       anthropicKey: process.env.ANTHROPIC_API_KEY ?? '',

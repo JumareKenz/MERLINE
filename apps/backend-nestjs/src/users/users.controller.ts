@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/interfaces';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -23,11 +25,13 @@ export class UsersController {
 
   @Get()
   async findAll(
+    // PHASE 1: the `organizationId` query parameter is gone. It let any
+    // authenticated user list another organization's users by passing its id.
+    @CurrentUser() user: AuthenticatedUser,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('isActive') isActive?: string,
-    @Query('organizationId') organizationId?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
@@ -36,7 +40,7 @@ export class UsersController {
       limit: limit ? parseInt(limit, 10) : undefined,
       search,
       isActive,
-      organizationId,
+      organizationId: user.organizationId,
       sortBy,
       sortOrder,
     });

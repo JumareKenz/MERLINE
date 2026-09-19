@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { jwtSignOptions } from './jwt.constants';
 
 @Module({
   imports: [
@@ -14,9 +15,10 @@ import { JwtStrategy } from './jwt.strategy';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('jwt.secret'),
-        signOptions: {
-          expiresIn: parseInt(configService.get<string>('jwt.expiresIn', '604800'), 10),
-        },
+        // Signing options come from jwt.constants so they cannot drift from
+        // the verification options in jwt.strategy.ts. Previously these were
+        // defined independently and disagreed, so no token ever verified.
+        signOptions: jwtSignOptions(configService.get<string>('jwt.expiresIn')),
       }),
     }),
   ],

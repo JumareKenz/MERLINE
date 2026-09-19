@@ -21,7 +21,7 @@ export class UsersService extends BaseService {
     limit?: number;
     search?: string;
     isActive?: string;
-    organizationId?: string;
+    organizationId: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) {
@@ -31,7 +31,8 @@ export class UsersService extends BaseService {
     const sortBy = query.sortBy ?? 'createdAt';
     const sortOrder = query.sortOrder ?? 'desc';
 
-    const where: any = { deletedAt: null };
+    // PHASE 1: always tenant-scoped. Was an optional client-supplied filter.
+    const where: any = { deletedAt: null, organizationId: query.organizationId };
 
     if (query.search) {
       where.OR = [
@@ -43,10 +44,6 @@ export class UsersService extends BaseService {
 
     if (query.isActive !== undefined) {
       where.isActive = query.isActive === 'true';
-    }
-
-    if (query.organizationId) {
-      where.organizationId = query.organizationId;
     }
 
     const [items, total] = await Promise.all([

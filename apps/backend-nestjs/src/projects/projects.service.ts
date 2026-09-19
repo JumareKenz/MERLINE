@@ -12,7 +12,10 @@ export class ProjectsService extends BaseService {
   }
 
   async findAll(query: {
-    organizationId?: string;
+    // PHASE 1: required, and supplied by the controller from the caller's
+    // token. Was optional and read straight from the query string, so any
+    // authenticated user could list another organization's projects.
+    organizationId: string;
     status?: string;
     page?: number;
     limit?: number;
@@ -22,11 +25,7 @@ export class ProjectsService extends BaseService {
     const limit = Math.min(100, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
 
-    const where: any = { deletedAt: null };
-
-    if (query.organizationId) {
-      where.organizationId = query.organizationId;
-    }
+    const where: any = { deletedAt: null, organizationId: query.organizationId };
 
     if (query.status) {
       where.status = query.status;
@@ -55,9 +54,9 @@ export class ProjectsService extends BaseService {
     return { items, total, page, limit };
   }
 
-  async findById(id: string) {
+  async findById(id: string, organizationId: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, organizationId },
     });
 
     if (!project) {
@@ -83,8 +82,10 @@ export class ProjectsService extends BaseService {
     });
   }
 
-  async update(id: string, dto: UpdateProjectDto) {
-    await this.findById(id);
+  async update(id: string, dto: UpdateProjectDto, organizationId: string) {
+    // PHASE 1: findById is tenant-scoped, so this doubles as the ownership
+    // check. Every mutating method must go through it.
+    await this.findById(id, organizationId);
 
     return this.prisma.project.update({
       where: { id },
@@ -100,8 +101,8 @@ export class ProjectsService extends BaseService {
     });
   }
 
-  async remove(id: string) {
-    await this.findById(id);
+  async remove(id: string, organizationId: string) {
+    await this.findById(id, organizationId);
 
     await this.prisma.project.update({
       where: { id },
@@ -111,16 +112,16 @@ export class ProjectsService extends BaseService {
     return { deleted: true };
   }
 
-  async archive(id: string) {
-    await this.findById(id);
+  async archive(id: string, organizationId: string) {
+    await this.findById(id, organizationId);
     return this.prisma.project.update({
       where: { id },
       data: { status: 'archived' },
     });
   }
 
-  async restore(id: string) {
-    await this.findById(id);
+  async restore(id: string, organizationId: string) {
+    await this.findById(id, organizationId);
     return this.prisma.project.update({
       where: { id },
       data: { status: 'active', deletedAt: null },
@@ -128,7 +129,7 @@ export class ProjectsService extends BaseService {
   }
 
   async clone(id: string, userId: string, organizationId: string) {
-    const project = await this.findById(id);
+    const project = await this.findById(id, organizationId);
     return this.prisma.project.create({
       data: {
         name: `${project.name} (Copy)`,
@@ -143,8 +144,8 @@ export class ProjectsService extends BaseService {
     });
   }
 
-  async getTimeline(id: string) {
-    await this.findById(id);
+  async getTimeline(id: string, organizationId: string) {
+    await this.findById(id, organizationId);
     return this.prisma.projectActivity.findMany({
       where: { projectId: id },
       orderBy: { createdAt: 'desc' },
@@ -152,39 +153,30 @@ export class ProjectsService extends BaseService {
     });
   }
 
-  async getStats(id: string) {
-    await this.findById(id);
-    const [studies, studiesCount] = await Promise.all([
-      this.prisma.study.findMany({
-        where: { projectId: id, deletedAt: null },
-        select: { id: true, status: true },
-      }),
-      this.prisma.study.count({ where: { projectId: id, deletedAt: null } }),
-    ]);
+  /**
+   * PHASE 1 — legacy query removal.
+   *
+   * Previously counted studies, submissions and questionnaires, and grouped
+   * studies by status. Those modules are deregistered, so an active endpoint
+   * was reading tables that no longer have an owner.
+   *
+   * Reduced to what the qualitative product can answer today. Interview,
+   * recording and transcript counts are added in Phase 2 when those tables
+   * exist — see LEGACY.md.
+   */
+  async getStats(id: string, organizationId: string) {
+    await this.findById(id, organizationId);
 
-    const studyIds = studies.map((s) => s.id);
-    const [submissionsCount, questionnairesCount, teamCount] = await Promise.all([
-      studyIds.length > 0
-        ? this.prisma.submission.count({ where: { studyId: { in: studyIds } } })
-        : 0,
-      this.prisma.questionnaire.count({ where: { studyId: { in: studyIds } } }),
+    const [teamCount, activityCount, tagCount] = await Promise.all([
       this.prisma.projectTeam.count({ where: { projectId: id } }),
+      this.prisma.projectActivity.count({ where: { projectId: id } }),
+      this.prisma.projectTag.count({ where: { projectId: id } }),
     ]);
-
-    const studiesByStatus = studies.reduce(
-      (acc: Record<string, number>, s) => {
-        acc[s.status] = (acc[s.status] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
 
     return {
-      totalStudies: studiesCount,
-      totalSubmissions: submissionsCount,
-      totalQuestionnaires: questionnairesCount,
       totalTeamMembers: teamCount,
-      studiesByStatus,
+      totalActivities: activityCount,
+      totalTags: tagCount,
     };
   }
 }

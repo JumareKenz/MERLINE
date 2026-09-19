@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 interface GatewayResponse {
@@ -23,9 +23,24 @@ interface ProviderConfig {
 
 @Injectable()
 export class AiGatewayService {
+  private readonly logger = new Logger(AiGatewayService.name);
   private readonly providers: ProviderConfig[];
 
   constructor(private readonly configService: ConfigService) {
+    // PHASE 1: only OpenAI-compatible providers are registered.
+    //
+    // `callProvider` speaks one dialect: POST /chat/completions with a Bearer
+    // token. The previous list also registered Anthropic and Google against
+    // that same shape, but neither accepts it — Anthropic uses /v1/messages
+    // with an `x-api-key` header and a different body, Gemini uses
+    // `:generateContent`. Both therefore failed on every call and fell through
+    // to the fabricated response, which is partly how that fallback went
+    // unnoticed.
+    //
+    // Now that failures are surfaced, registering a provider that cannot work
+    // would just guarantee an error. OpenRouter proxies Anthropic and Google
+    // models over the OpenAI dialect, so nothing is lost. Native adapters can
+    // be added later behind a per-provider request/response mapper.
     this.providers = [
       {
         name: 'openai',
@@ -33,20 +48,6 @@ export class AiGatewayService {
         apiKey: this.configService.get<string>('ai.openaiKey', ''),
         models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
         defaultModel: 'gpt-4o-mini',
-      },
-      {
-        name: 'anthropic',
-        baseUrl: 'https://api.anthropic.com/v1',
-        apiKey: this.configService.get<string>('ai.anthropicKey', ''),
-        models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
-        defaultModel: 'claude-3-haiku',
-      },
-      {
-        name: 'google',
-        baseUrl: 'https://generativelanguage.googleapis.com/v1',
-        apiKey: this.configService.get<string>('ai.googleKey', ''),
-        models: ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-        defaultModel: 'gemini-1.5-flash',
       },
       {
         name: 'openrouter',
@@ -70,14 +71,21 @@ export class AiGatewayService {
     const provider = this.resolveProvider(params.provider);
     const model = params.model ?? provider.defaultModel;
 
-    const errors: Error[] = [];
+    const errors: string[] = [];
 
     const providers = params.provider
       ? [this.getProviderByName(params.provider)]
       : this.providers.filter((p) => p.apiKey);
 
-    for (const prov of providers) {
-      if (!prov.apiKey) continue;
+    const usable = providers.filter((p) => p.apiKey);
+
+    if (usable.length === 0) {
+      throw new ServiceUnavailableException(
+        'No AI provider is configured. Set an API key for at least one provider.',
+      );
+    }
+
+    for (const prov of usable) {
       try {
         const result = await this.callProvider(prov, model, params);
         return {
@@ -88,22 +96,26 @@ export class AiGatewayService {
           },
         };
       } catch (err) {
-        errors.push(err as Error);
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`AI provider "${prov.name}" failed: ${message}`);
+        errors.push(`${prov.name}: ${message}`);
       }
     }
 
-    const simulatedTokens = Math.ceil(params.message.length / 4);
-    return {
-      content: this.generateSimulatedResponse(params.message, params.systemPrompt),
-      model: 'simulated',
-      provider: 'fallback',
-      usage: {
-        inputTokens: simulatedTokens,
-        outputTokens: simulatedTokens,
-        cost: 0,
-        latencyMs: Date.now() - startTime,
-      },
-    };
+    // PHASE 1: fail loudly.
+    //
+    // This previously returned `generateSimulatedResponse()` — a hand-written
+    // block of MERL-flavoured filler — through the normal success path,
+    // labelled `model: 'simulated'`, `provider: 'fallback'`, `cost: 0`. No
+    // inspected UI surfaced that distinction, so invented text was
+    // indistinguishable from a real model answer.
+    //
+    // For a product whose output informs decisions about real programme
+    // participants, a visible outage is strictly better than silent
+    // fabrication. Do not reintroduce a fallback that returns content.
+    throw new ServiceUnavailableException(
+      `All configured AI providers failed. ${errors.join('; ')}`,
+    );
   }
 
   private resolveProvider(provider?: string): ProviderConfig {
@@ -185,21 +197,4 @@ export class AiGatewayService {
     return (inputTokens / 1000) * rate.input + (outputTokens / 1000) * rate.output;
   }
 
-  private generateSimulatedResponse(message: string, systemPrompt?: string): string {
-    const lines = [
-      `I understand your query about "${message.substring(0, 100)}".`,
-      '',
-      'Based on the available information and best practices in MERL:',
-      '',
-      '1. I have analyzed the key aspects of your request',
-      '2. Consider the specific context and requirements of your monitoring and evaluation framework',
-      '3. Ensure alignment with established indicators and data collection protocols',
-      '',
-      systemPrompt ? `Following the guidance: ${systemPrompt.substring(0, 200)}` : '',
-      '',
-      'Would you like me to elaborate on any specific aspect or provide more detailed recommendations?',
-    ];
-
-    return lines.filter(Boolean).join('\n');
-  }
 }

@@ -16,6 +16,11 @@ export class AuditLogService {
     ipAddress?: string;
     userAgent?: string;
     tags?: string;
+    /**
+     * PHASE 1: content hash supplied by the caller. Previously hard-coded to
+     * `null`, which left the tamper-evidence column unused.
+     */
+    checksum?: string;
   }) {
     return this.prisma.auditLog.create({
       data: {
@@ -29,7 +34,7 @@ export class AuditLogService {
         ipAddress: params.ipAddress ?? null,
         userAgent: params.userAgent ?? null,
         tags: params.tags ?? null,
-        checksum: null,
+        checksum: params.checksum ?? null,
       },
     });
   }

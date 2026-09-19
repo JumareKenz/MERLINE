@@ -17,6 +17,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { expiresInSeconds, jwtSignOptions } from './jwt.constants';
 
 @Injectable()
 export class AuthService {
@@ -394,9 +395,15 @@ export class AuthService {
       tkn: dbUser?.tokenVersion ?? 0,
     };
 
-    const expiresIn = parseInt(this.configService.get<string>('jwt.expiresIn', '604800'), 10);
-    const accessToken = await this.jwtService.signAsync(payload, { expiresIn });
+    // Sign with the shared options so issuer/audience match what
+    // JwtStrategy verifies, and so the duration string is not mangled by
+    // parseInt. `expiresIn` is returned separately, in seconds, for clients.
+    const configured = this.configService.get<string>('jwt.expiresIn');
+    const accessToken = await this.jwtService.signAsync(
+      payload,
+      jwtSignOptions(configured),
+    );
 
-    return { accessToken, expiresIn };
+    return { accessToken, expiresIn: expiresInSeconds(configured) };
   }
 }
