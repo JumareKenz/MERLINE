@@ -1,41 +1,19 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter } from './common/filters/http-exception.filter';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import helmet from 'helmet';
+import { configureApp } from './configure-app';
 
+/**
+ * Long-running server entry (Docker, local dev, any Node host).
+ *
+ * The serverless entry is `api/index.ts`. Both call `configureApp` so the two
+ * runtimes cannot drift.
+ */
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = configureApp(await NestFactory.create(AppModule));
 
-  app.setGlobalPrefix('api/v1');
-
-  const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
-    : process.env.NODE_ENV === 'production'
-      ? [process.env.APP_URL].filter(Boolean)
-      : ['http://localhost:3000', 'http://localhost:5173'];
-
-  app.enableCors({
-    origin: corsOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true,
-  });
-
-  app.use(helmet());
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
-
-  app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(new TransformInterceptor());
-
-  await app.listen(process.env.PORT ?? 4000);
-  console.log(`Application running on port ${process.env.PORT ?? 4000}`);
+  const port = process.env.PORT ?? 4000;
+  await app.listen(port);
+  console.log(`Application running on port ${port}`);
 }
-bootstrap();
+
+void bootstrap();

@@ -1,0 +1,13 @@
+# Build output is regenerated on Vercel.
+dist
+coverage
+test
+
+# Tests never ship. The integration suites also import @prisma/client
+# directly and would inflate the function bundle.
+**/*.spec.ts
+
+# Local-only.
+.env
+.env.local
+uploads

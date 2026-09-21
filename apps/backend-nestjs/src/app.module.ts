@@ -7,6 +7,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
 import { AppConfigModule } from './config/config.module';
 import { PrismaModule } from './database/prisma.module';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
+import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { UsersModule } from './users/users.module';
@@ -38,6 +39,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AppConfigModule,
     PrismaModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
+    HealthModule,
     AuthModule,
     OrganizationsModule,
     UsersModule,

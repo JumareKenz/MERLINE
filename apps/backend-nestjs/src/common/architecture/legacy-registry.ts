@@ -34,6 +34,7 @@ export const LEGACY_MODULE_DIRECTORIES = [
 export const ACTIVE_MODULE_DIRECTORIES = [
   'ai',
   'audit-log',
+  'health',
   'auth',
   'media',
   'notifications',
