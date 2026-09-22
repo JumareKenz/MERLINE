@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 interface GatewayResponse {
@@ -53,8 +57,26 @@ export class AiGatewayService {
         name: 'openrouter',
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: this.configService.get<string>('ai.openrouterKey', ''),
-        models: ['openai/gpt-4o', 'anthropic/claude-3-sonnet', 'google/gemini-pro'],
+        models: [
+          'openai/gpt-4o',
+          'anthropic/claude-3-sonnet',
+          'google/gemini-pro',
+        ],
         defaultModel: 'openai/gpt-4o',
+      },
+      {
+        // Groq's inference API is OpenAI-compatible (same /chat/completions
+        // dialect), so it needs no separate client — just another entry here.
+        name: 'groq',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        apiKey: this.configService.get<string>('ai.groqKey', ''),
+        models: [
+          this.configService.get<string>('ai.groqModel', 'openai/gpt-oss-120b'),
+        ],
+        defaultModel: this.configService.get<string>(
+          'ai.groqModel',
+          'openai/gpt-oss-120b',
+        ),
       },
     ];
   }
@@ -136,7 +158,12 @@ export class AiGatewayService {
   private async callProvider(
     provider: ProviderConfig,
     model: string,
-    params: { message: string; systemPrompt?: string; temperature?: number; maxTokens?: number },
+    params: {
+      message: string;
+      systemPrompt?: string;
+      temperature?: number;
+      maxTokens?: number;
+    },
   ): Promise<GatewayResponse> {
     const startTime = Date.now();
 
@@ -145,12 +172,16 @@ export class AiGatewayService {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${provider.apiKey}`,
-        ...(provider.name === 'anthropic' ? { 'anthropic-version': '2023-06-01' } : {}),
+        ...(provider.name === 'anthropic'
+          ? { 'anthropic-version': '2023-06-01' }
+          : {}),
       },
       body: JSON.stringify({
         model,
         messages: [
-          ...(params.systemPrompt ? [{ role: 'system', content: params.systemPrompt }] : []),
+          ...(params.systemPrompt
+            ? [{ role: 'system', content: params.systemPrompt }]
+            : []),
           { role: 'user', content: params.message },
         ],
         temperature: params.temperature ?? 0.7,
@@ -159,7 +190,9 @@ export class AiGatewayService {
     });
 
     if (!response.ok) {
-      throw new Error(`Provider ${provider.name} returned ${response.status}: ${await response.text()}`);
+      throw new Error(
+        `Provider ${provider.name} returned ${response.status}: ${await response.text()}`,
+      );
     }
 
     const data = await response.json();
@@ -174,13 +207,23 @@ export class AiGatewayService {
       usage: {
         inputTokens,
         outputTokens,
-        cost: this.calculateCost(provider.name, model, inputTokens, outputTokens),
+        cost: this.calculateCost(
+          provider.name,
+          model,
+          inputTokens,
+          outputTokens,
+        ),
         latencyMs,
       },
     };
   }
 
-  private calculateCost(provider: string, model: string, inputTokens: number, outputTokens: number): number {
+  private calculateCost(
+    provider: string,
+    model: string,
+    inputTokens: number,
+    outputTokens: number,
+  ): number {
     const rates: Record<string, { input: number; output: number }> = {
       'gpt-4o': { input: 0.01, output: 0.03 },
       'gpt-4o-mini': { input: 0.0015, output: 0.006 },
@@ -194,7 +237,8 @@ export class AiGatewayService {
     };
 
     const rate = rates[model] ?? { input: 0.002, output: 0.008 };
-    return (inputTokens / 1000) * rate.input + (outputTokens / 1000) * rate.output;
+    return (
+      (inputTokens / 1000) * rate.input + (outputTokens / 1000) * rate.output
+    );
   }
-
 }

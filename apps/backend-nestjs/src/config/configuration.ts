@@ -12,10 +12,16 @@ export default () => {
   return {
     port: parseInt(process.env.PORT ?? '4000', 10),
     database: {
-      url: requireEnv('DATABASE_URL', 'postgresql://merline:merline@localhost:5432/merline'),
+      url: requireEnv(
+        'DATABASE_URL',
+        'postgresql://merline:merline@localhost:5432/merline',
+      ),
     },
     jwt: {
-      secret: requireEnv('JWT_SECRET', 'merline-dev-secret-change-in-production'),
+      secret: requireEnv(
+        'JWT_SECRET',
+        'merline-dev-secret-change-in-production',
+      ),
       expiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
     },
     redis: {
@@ -38,6 +44,8 @@ export default () => {
       anthropicKey: process.env.ANTHROPIC_API_KEY ?? '',
       googleKey: process.env.GOOGLE_AI_API_KEY ?? '',
       openrouterKey: process.env.OPENROUTER_API_KEY ?? '',
+      groqKey: process.env.GROQ_API_KEY ?? '',
+      groqModel: process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b',
     },
     app: {
       url: process.env.APP_URL ?? 'http://localhost:4000',

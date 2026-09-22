@@ -16,10 +16,12 @@
  * is orthogonal to whether FindingsService enforces evidence integrity
  * around it.
  */
+import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { ConsentsService } from '../../consents/consents.service';
 import { FindingsService } from '../../findings/findings.service';
+import { AiGatewayService } from '../../ai/ai-gateway.service';
 
 const shouldRun =
   process.env.RUN_DB_TESTS === '1' && Boolean(process.env.DATABASE_URL);
@@ -41,7 +43,11 @@ describeDb('evidence integrity (database)', () => {
   async function buildEvidenceChain(
     orgId: string,
     userId: string,
-    opts: { allowQuotation: boolean; allowPublication: boolean },
+    opts: {
+      allowQuotation: boolean;
+      allowPublication: boolean;
+      allowAiAnalysis?: boolean;
+    },
   ) {
     const participant = await prisma.participant.create({
       data: {
@@ -58,6 +64,7 @@ describeDb('evidence integrity (database)', () => {
         allowTranscription: true,
         allowQuotation: opts.allowQuotation,
         allowPublication: opts.allowPublication,
+        allowAiAnalysis: opts.allowAiAnalysis ?? false,
         organizationId: orgId,
         actorId: userId,
       },
@@ -136,7 +143,13 @@ describeDb('evidence integrity (database)', () => {
     });
 
     consents = new ConsentsService(prisma as any);
-    findings = new FindingsService(prisma as any, consents);
+    // No GROQ_API_KEY (or any provider key) on purpose: the AI-draft tests
+    // below prove the consent gate refuses the request before the provider
+    // is ever called, and that a genuinely unconfigured provider fails
+    // honestly rather than fabricating a finding.
+    const aiConfig = new ConfigService({ ai: {} });
+    const aiGateway = new AiGatewayService(aiConfig);
+    findings = new FindingsService(prisma as any, consents, aiGateway);
   }, 60_000);
 
   afterAll(async () => {
@@ -365,6 +378,59 @@ describeDb('evidence integrity (database)', () => {
       );
       const rejected = await findings.reject(finding.id, userAId, orgAId);
       expect(rejected.status).toBe('REJECTED');
+    });
+  });
+
+  describe('AI-assisted drafting', () => {
+    it('refuses to draft when consent.allowAiAnalysis is false, without calling the provider', async () => {
+      const chain = await buildEvidenceChain(orgAId, userAId, {
+        allowQuotation: true,
+        allowPublication: true,
+        allowAiAnalysis: false,
+      });
+
+      await expect(
+        findings.draftFromTranscript(chain.transcript.id, userAId, orgAId),
+      ).rejects.toThrow(/does not permit AI analysis/i);
+
+      // No Finding should exist for a request that never passed the consent gate.
+      const count = await prisma.finding.count({
+        where: { organizationId: orgAId, source: 'AI' },
+      });
+      expect(count).toBe(0);
+    });
+
+    it('fails honestly when no AI provider is configured, never fabricating a finding', async () => {
+      const chain = await buildEvidenceChain(orgAId, userAId, {
+        allowQuotation: true,
+        allowPublication: true,
+        allowAiAnalysis: true,
+      });
+
+      await expect(
+        findings.draftFromTranscript(chain.transcript.id, userAId, orgAId),
+      ).rejects.toThrow(/no ai provider is configured/i);
+
+      const count = await prisma.finding.count({
+        where: { organizationId: orgAId, source: 'AI' },
+      });
+      expect(count).toBe(0);
+    });
+
+    it('refuses to draft from a transcript that is not COMPLETED', async () => {
+      const chain = await buildEvidenceChain(orgAId, userAId, {
+        allowQuotation: true,
+        allowPublication: true,
+        allowAiAnalysis: true,
+      });
+      await prisma.transcript.update({
+        where: { id: chain.transcript.id },
+        data: { status: 'PROCESSING' },
+      });
+
+      await expect(
+        findings.draftFromTranscript(chain.transcript.id, userAId, orgAId),
+      ).rejects.toThrow(/must be completed/i);
     });
   });
 });

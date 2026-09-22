@@ -13,10 +13,24 @@ import type { AuthenticatedUser } from '../common/interfaces';
 import { FindingsService } from './findings.service';
 import { CreateFindingDto } from './dto/create-finding.dto';
 import { AddQuotationDto } from './dto/add-quotation.dto';
+import { DraftFindingDto } from './dto/draft-finding.dto';
 
 @Controller('findings')
 export class FindingsController {
   constructor(private readonly findingsService: FindingsService) {}
+
+  @Post('ai-draft')
+  @Permissions('use.ai', 'create.findings')
+  async draftFromTranscript(
+    @Body() dto: DraftFindingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.findingsService.draftFromTranscript(
+      dto.transcriptId,
+      user.id,
+      user.organizationId,
+    );
+  }
 
   @Get()
   @Permissions('view.findings')
