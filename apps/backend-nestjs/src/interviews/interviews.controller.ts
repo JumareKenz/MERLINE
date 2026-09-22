@@ -58,6 +58,20 @@ export class InterviewsController {
     return this.interviewsService.create(dto, user.id, user.organizationId);
   }
 
+  /**
+   * Who an interview can be assigned to: active members of the caller's
+   * organization, names only, with a field-interviewer flag. Lets research
+   * staff assign work without `view.users` (which exposes emails, access
+   * codes and roles). Declared before `:id` so it is not parsed as an id.
+   */
+  @Get('interviewers')
+  @Permissions('create.interviews')
+  async listInterviewers(@CurrentUser() user: AuthenticatedUser) {
+    return this.interviewsService.listAssignableInterviewers(
+      user.organizationId,
+    );
+  }
+
   @Get(':id')
   @Permissions('view.interviews')
   async findById(

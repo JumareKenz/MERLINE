@@ -25,6 +25,8 @@ import { InterviewsService } from '../../interviews/interviews.service';
 import { MediaService } from '../../media/media.service';
 import { StorageService } from '../../storage/storage.service';
 import { TranscriptDialogueService } from '../../transcripts/transcript-dialogue.service';
+import { OrganizationsService } from '../../organizations/organizations.service';
+import { AuthService } from '../../auth/auth.service';
 
 const shouldRun =
   process.env.RUN_DB_TESTS === '1' &&
@@ -157,6 +159,8 @@ describeDb('field workflow (database)', () => {
     await prisma.roleUser.deleteMany({
       where: { userId: { in: [leadId, fieldId, field2Id] } },
     });
+    await prisma.permissionRole.deleteMany({ where: { role: orgs } });
+    await prisma.permission.deleteMany({ where: orgs });
     await prisma.role.deleteMany({ where: orgs });
     await prisma.project.deleteMany({ where: orgs });
     await prisma.user.deleteMany({ where: orgs });
@@ -594,6 +598,61 @@ describeDb('field workflow (database)', () => {
           orgAId,
         ),
       ).rejects.toThrow(/project not found/i);
+    });
+  });
+
+  describe('assignment and membership', () => {
+    it('lists assignable interviewers from the caller’s organization only, flagged by role', async () => {
+      const list = await interviews.listAssignableInterviewers(orgAId);
+      const ids = list.map((u) => u.id);
+      expect(ids).toEqual(expect.arrayContaining([leadId, fieldId, field2Id]));
+      expect(ids).not.toContain(userBId);
+      expect(list.find((u) => u.id === fieldId)?.isFieldInterviewer).toBe(true);
+      expect(list.find((u) => u.id === leadId)?.isFieldInterviewer).toBe(false);
+      expect(Object.keys(list[0]).sort()).toEqual([
+        'firstName',
+        'id',
+        'isFieldInterviewer',
+        'lastName',
+      ]);
+    });
+
+    it('refuses to assign a role belonging to another organization', async () => {
+      const foreignRole = await prisma.role.create({
+        data: {
+          name: 'Admin B',
+          slug: `admin-b-${run}`,
+          organizationId: orgBId,
+        },
+      });
+      const orgs = new OrganizationsService(prisma as any);
+      await expect(
+        orgs.updateMemberRole(orgAId, fieldId, foreignRole.id),
+      ).rejects.toThrow(/role not found/i);
+    });
+
+    it('reports effective permissions on /auth/me from own-organization roles only', async () => {
+      const perm = await prisma.permission.create({
+        data: {
+          slug: 'view.interviews',
+          name: 'View Interviews',
+          module: 'interviews',
+          organizationId: orgAId,
+        },
+      });
+      const fieldRole = await prisma.role.findFirstOrThrow({
+        where: { organizationId: orgAId, slug: 'field-interviewer' },
+      });
+      await prisma.permissionRole.create({
+        data: { roleId: fieldRole.id, permissionId: perm.id },
+      });
+      const auth = new AuthService(prisma as any, {} as any, {} as any);
+      const profile = await auth.getProfile(fieldId);
+      expect(profile.permissions).toEqual(['view.interviews']);
+      expect(profile.roles.map((r) => r.slug)).toEqual(['field-interviewer']);
+      await prisma.permissionRole.deleteMany({
+        where: { roleId: fieldRole.id },
+      });
     });
   });
 

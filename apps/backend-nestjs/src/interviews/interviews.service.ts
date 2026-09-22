@@ -7,7 +7,10 @@ import {
 import { InterviewStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
-import { resolveFieldScope } from '../common/scoping/field-scope';
+import {
+  FIELD_ROLE_SLUG,
+  resolveFieldScope,
+} from '../common/scoping/field-scope';
 import { ConsentsService } from '../consents/consents.service';
 import { MediaService } from '../media/media.service';
 import { CreateInterviewDto } from './dto/create-interview.dto';
@@ -24,6 +27,19 @@ const ALLOWED_TRANSITIONS: Record<InterviewStatus, InterviewStatus[]> = {
 const INTERVIEW_SUMMARY_INCLUDE = {
   participant: { select: { id: true, displayName: true } },
   interviewer: { select: { id: true, firstName: true, lastName: true } },
+  // Scope flags only: lets the field app show (and cache for offline use)
+  // whether recording is permitted. The server re-checks on every upload.
+  consent: {
+    select: {
+      id: true,
+      method: true,
+      allowRecording: true,
+      allowTranscription: true,
+      allowAiAnalysis: true,
+      withdrawnAt: true,
+      expiresAt: true,
+    },
+  },
   _count: {
     select: {
       recordings: { where: { deletedAt: null } },
@@ -212,6 +228,28 @@ export class InterviewsService extends BaseService {
         ...(status === 'COMPLETED' && { endedAt: new Date() }),
       },
     });
+  }
+
+  async listAssignableInterviewers(organizationId: string) {
+    const users = await this.prisma.user.findMany({
+      where: { organizationId, deletedAt: null, isActive: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        roles: {
+          where: { role: { organizationId } },
+          select: { role: { select: { slug: true } } },
+        },
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+    return users.map((u) => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      isFieldInterviewer: u.roles.some((r) => r.role.slug === FIELD_ROLE_SLUG),
+    }));
   }
 
   /** Single-request upload (file picker). Gated by `assertRecordingPermitted`. */

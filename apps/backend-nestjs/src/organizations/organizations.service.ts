@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { BaseService } from '../common/base/base.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -67,7 +71,9 @@ export class OrganizationsService extends BaseService {
         where: { slug: dto.slug },
       });
       if (existing && existing.id !== id) {
-        throw new ConflictException('Organization with this slug already exists');
+        throw new ConflictException(
+          'Organization with this slug already exists',
+        );
       }
     }
     return this.prisma.organization.update({
@@ -112,12 +118,20 @@ export class OrganizationsService extends BaseService {
 
   async addMember(
     orgId: string,
-    body: { email: string; firstName: string; lastName: string; roleId?: string },
+    body: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      roleId?: string;
+    },
     createdById: string,
   ) {
     await this.findById(orgId);
+    if (body.roleId) await this.assertRoleInOrganization(body.roleId, orgId);
 
-    const existing = await this.prisma.user.findUnique({ where: { email: body.email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: body.email },
+    });
     if (existing) {
       throw new ConflictException('User with this email already exists');
     }
@@ -167,6 +181,7 @@ export class OrganizationsService extends BaseService {
     if (!user) {
       throw new NotFoundException('User not found in organization');
     }
+    await this.assertRoleInOrganization(roleId, orgId);
 
     await this.prisma.roleUser.deleteMany({ where: { userId } });
     await this.prisma.roleUser.create({ data: { userId, roleId } });
@@ -190,5 +205,16 @@ export class OrganizationsService extends BaseService {
     });
 
     return { deleted: true };
+  }
+
+  /** A role id from a request body must be one of this organization's roles. */
+  private async assertRoleInOrganization(roleId: string, orgId: string) {
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!role) {
+      throw new NotFoundException('Role not found in organization');
+    }
   }
 }

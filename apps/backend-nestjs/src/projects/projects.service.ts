@@ -25,7 +25,10 @@ export class ProjectsService extends BaseService {
     const limit = Math.min(100, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
 
-    const where: any = { deletedAt: null, organizationId: query.organizationId };
+    const where: any = {
+      deletedAt: null,
+      organizationId: query.organizationId,
+    };
 
     if (query.status) {
       where.status = query.status;
@@ -46,6 +49,15 @@ export class ProjectsService extends BaseService {
         orderBy: { createdAt: 'desc' },
         // PHASE 1: dropped `_count: { studies: true }`. Studies are a
         // deregistered legacy relation; interview counts replace it in Phase 2.
+        include: {
+          _count: {
+            select: {
+              participants: { where: { deletedAt: null } },
+              interviews: { where: { deletedAt: null } },
+              findings: { where: { deletedAt: null } },
+            },
+          },
+        },
       }),
       this.prisma.project.count({ where }),
     ]);
@@ -92,7 +104,9 @@ export class ProjectsService extends BaseService {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.status !== undefined && { status: dto.status }),
-        ...(dto.startDate !== undefined && { startDate: new Date(dto.startDate) }),
+        ...(dto.startDate !== undefined && {
+          startDate: new Date(dto.startDate),
+        }),
         ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) }),
         ...(dto.settings !== undefined && { settings: dto.settings as any }),
         ...(dto.workspaceId !== undefined && { workspaceId: dto.workspaceId }),

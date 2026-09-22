@@ -343,7 +343,11 @@ export class AuthService {
           select: { id: true, name: true, slug: true },
         },
         roles: {
-          include: { role: true },
+          include: {
+            role: {
+              include: { permissions: { include: { permission: true } } },
+            },
+          },
         },
       },
     });
@@ -351,6 +355,17 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    // Effective permission slugs, resolved exactly as PermissionGuard does
+    // (roles from the user's own organization only). Lets the UI hide what
+    // the API would refuse anyway; the API remains the authority.
+    const permissions = [
+      ...new Set(
+        user.roles
+          .filter((ru) => ru.role.organizationId === user.organizationId)
+          .flatMap((ru) => ru.role.permissions.map((rp) => rp.permission.slug)),
+      ),
+    ].sort();
 
     return {
       id: user.id,
@@ -369,6 +384,7 @@ export class AuthService {
         name: ru.role.name,
         slug: ru.role.slug,
       })),
+      permissions,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
