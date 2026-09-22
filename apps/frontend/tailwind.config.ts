@@ -62,6 +62,26 @@ const config: Config = {
           800: "hsl(var(--color-primary-800))",
           900: "hsl(var(--color-primary-900))",
           DEFAULT: "hsl(var(--color-primary-500))",
+          // PHASE 2: was referenced as `text-primary-foreground` throughout
+          // (Button's default variant, among others) but never defined —
+          // a no-op Tailwind class. Buttons were rendering with whatever
+          // color inherited from the page, not a deliberate one.
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        lemon: {
+          50: "hsl(var(--color-lemon-50))",
+          100: "hsl(var(--color-lemon-100))",
+          200: "hsl(var(--color-lemon-200))",
+          300: "hsl(var(--color-lemon-300))",
+          400: "hsl(var(--color-lemon-400))",
+          500: "hsl(var(--color-lemon-500))",
+          600: "hsl(var(--color-lemon-600))",
+          700: "hsl(var(--color-lemon-700))",
+          800: "hsl(var(--color-lemon-800))",
+          900: "hsl(var(--color-lemon-900))",
+          DEFAULT: "hsl(var(--color-lemon-500))",
+          // Always pair a lemon fill with this — white-on-lemon is 1.3:1.
+          foreground: "hsl(var(--lemon-foreground))",
         },
         secondary: {
           50: "hsl(var(--color-secondary-50))",

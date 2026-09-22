@@ -106,26 +106,6 @@ export function LoginForm() {
         {isLoading ? 'Signing in…' : 'Sign in'}
       </Button>
 
-      <div className="relative my-1">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border-subtle" />
-        </div>
-        <div className="relative flex justify-center">
-          <span className="bg-background px-3 text-[11px] text-foreground-tertiary uppercase tracking-wide">
-            or
-          </span>
-        </div>
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full text-[13px]"
-        onClick={() => {}}
-      >
-        Continue with SSO
-      </Button>
-
       <p className="text-center text-[13px] text-foreground-tertiary pt-1">
         No account?{' '}
         <Link href="/register" className="text-foreground-link hover:underline font-medium">

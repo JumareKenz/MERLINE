@@ -8,31 +8,29 @@ interface LogoProps {
   height?: number;
 }
 
-export function Logo({ variant = 'full', theme = 'auto', className, height }: LogoProps) {
-  if (variant === 'mark') {
-    const h = height ?? 36;
-    return (
-      <Image
-        src="/brand/logo-mark.png"
-        alt="Merline"
-        height={h}
-        width={h}
-        className={cn('object-contain', className)}
-        priority
-      />
-    );
-  }
-
-  const h = height ?? 40;
-
+/**
+ * PHASE 2 — rebrand.
+ *
+ * The mark is two PNGs derived from one master (see public/brand/master.png,
+ * the untouched upload): navy-on-transparent for light surfaces, white +
+ * lemon-on-transparent for dark/navy surfaces — the raw navy mark is nearly
+ * invisible on a navy background, confirmed by compositing it before this
+ * component existed. See docs/BRAND.md for the derivation commands.
+ *
+ * `variant="full"` no longer ships a flattened wordmark image. Real text in
+ * the display face is crisper at every size, needs no light/dark pair of its
+ * own (`currentColor`-adjacent via the foreground token instead), and is
+ * actually selectable/readable by assistive tech rather than an image of text.
+ */
+function Mark({ theme, height }: { theme: 'light' | 'dark' | 'auto'; height: number }) {
   if (theme === 'light') {
     return (
       <Image
-        src="/brand/logo-full-light.png"
-        alt="Merline — MERL Intelligence Platform"
-        height={h}
-        width={Math.round(h * 3.52)}
-        className={cn('object-contain', className)}
+        src="/brand/mark-light.png"
+        alt=""
+        height={height}
+        width={height}
+        className="object-contain"
         priority
       />
     );
@@ -41,35 +39,58 @@ export function Logo({ variant = 'full', theme = 'auto', className, height }: Lo
   if (theme === 'dark') {
     return (
       <Image
-        src="/brand/logo-full-dark.png"
-        alt="Merline — MERL Intelligence Platform"
-        height={h}
-        width={Math.round(h * 3.54)}
-        className={cn('object-contain', className)}
+        src="/brand/mark-dark.png"
+        alt=""
+        height={height}
+        width={height}
+        className="object-contain"
         priority
       />
     );
   }
 
-  // auto: light image shown in light mode, dark image in dark mode
   return (
     <>
       <Image
-        src="/brand/logo-full-light.png"
-        alt="Merline — MERL Intelligence Platform"
-        height={h}
-        width={Math.round(h * 3.52)}
-        className={cn('object-contain dark:hidden', className)}
+        src="/brand/mark-light.png"
+        alt=""
+        height={height}
+        width={height}
+        className="object-contain dark:hidden"
         priority
       />
       <Image
-        src="/brand/logo-full-dark.png"
-        alt="Merline — MERL Intelligence Platform"
-        height={h}
-        width={Math.round(h * 3.54)}
-        className={cn('object-contain hidden dark:block', className)}
+        src="/brand/mark-dark.png"
+        alt=""
+        height={height}
+        width={height}
+        className="object-contain hidden dark:block"
         priority
       />
     </>
+  );
+}
+
+export function Logo({ variant = 'full', theme = 'auto', className, height }: LogoProps) {
+  if (variant === 'mark') {
+    return (
+      <span className={cn('inline-flex shrink-0', className)}>
+        <Mark theme={theme} height={height ?? 32} />
+      </span>
+    );
+  }
+
+  const h = height ?? 28;
+
+  return (
+    <span className={cn('inline-flex items-center gap-2', className)}>
+      <Mark theme={theme} height={h} />
+      <span
+        className="font-display font-semibold tracking-tight text-foreground"
+        style={{ fontSize: h * 0.62 }}
+      >
+        Merline
+      </span>
+    </span>
   );
 }

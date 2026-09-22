@@ -18,12 +18,18 @@ const sora = Sora({
 export const metadata: Metadata = {
   title: {
     template: '%s | Merline',
-    default: 'Merline — MERL Intelligence Platform',
+    default: 'Merline — Research Intelligence',
   },
-  description: 'Monitoring, Evaluation, Research and Learning Intelligence Platform. Insight. Evidence. Impact.',
+  description:
+    'Qualitative interview platform for field research — guides, consent, recording, transcripts, and evidence-linked findings.',
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon-32.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/favicon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/favicon-48.png', sizes: '48x48', type: 'image/png' },
+    ],
     apple: '/icons/apple-touch-icon.png',
   },
   appleWebApp: {
@@ -34,7 +40,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0d4ac5',
+  themeColor: '#012C76',
   width: 'device-width',
   initialScale: 1,
 };

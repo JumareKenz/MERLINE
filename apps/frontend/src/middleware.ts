@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { APP_HOME } from '@/lib/routes';
 
-const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
+const PUBLIC_ROUTES = ['/login', '/field-login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
 /** field.jrecc.org serves the dedicated field-worker app, under /field/* internally. */
 const FIELD_HOST = 'field.jrecc.org';
@@ -57,8 +57,22 @@ export function middleware(request: NextRequest) {
 
   // Domain routing: field.jrecc.org's URLs stay clean (field.jrecc.org/ ,
   // not field.jrecc.org/field) — rewritten transparently to the real,
-  // field-only route tree under src/app/field/. /login and friends stay
-  // shared, unprefixed, so there is exactly one login flow.
+  // field-only route tree under src/app/field/.
+  //
+  // /login is the one deliberate exception to "public routes stay shared":
+  // the field app gets its own login screen (src/app/field-login/ — a
+  // sibling of field/, not nested under it, so it does not inherit
+  // FieldLayout's authenticated header/logout button). Everything else
+  // public (register, forgot-password) stays the shared admin flow; field
+  // workers don't self-register.
+  if (isFieldHost && (pathname === '/login' || pathname.startsWith('/login/'))) {
+    const rewritten = request.nextUrl.clone();
+    rewritten.pathname = '/field-login';
+    rewritten.protocol = 'http:';
+    rewritten.port = '3001';
+    return NextResponse.rewrite(rewritten);
+  }
+
   if (isFieldHost && !pathname.startsWith('/field') && !isPublicRoute) {
     const rewritten = request.nextUrl.clone();
     rewritten.pathname = pathname === '/' ? '/field' : `/field${pathname}`;

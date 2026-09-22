@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/shared/error-state';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { RecordingUploader } from '@/components/interviews/recording-uploader';
+import { AudioRecorder } from '@/components/interviews/audio-recorder';
 import { useInterview, useUpdateInterviewStatus, useRecordings } from '@/hooks/use-interviews';
 import { useConsent } from '@/hooks/use-consents';
 import { useParticipant } from '@/hooks/use-participants';
@@ -74,7 +75,15 @@ export default function FieldInterviewDetailPage() {
           <CheckCircle2 className="h-4 w-4 shrink-0" /> This interview is complete.
         </div>
       ) : consent?.allowRecording ? (
-        <RecordingUploader interviewId={interviewId} />
+        <div className="space-y-3">
+          <AudioRecorder interviewId={interviewId} />
+          <details className="text-[12px] text-foreground-tertiary">
+            <summary className="cursor-pointer select-none">Upload a file instead</summary>
+            <div className="mt-2">
+              <RecordingUploader interviewId={interviewId} />
+            </div>
+          </details>
+        </div>
       ) : (
         <p className="text-[13px] text-foreground-tertiary py-2">
           Consent on file does not permit recording this interview.
