@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useUpdateStudy } from '@/hooks/use-studies';
+import { useSilentUpdateStudy } from '@/hooks/use-studies';
 import type { Study } from '@/types/study';
 
 export type SamplingMethod = 'simple_random' | 'systematic' | 'stratified' | 'cluster' | 'purposive' | 'snowball' | 'convenience';
@@ -40,7 +40,7 @@ export interface StudyDesignData {
     rationale: string;
     strata: string[];
   };
-  toc: unknown; // existing ToC structure
+  toc: unknown;
   completedSteps: Record<string, boolean>;
 }
 
@@ -88,8 +88,9 @@ export function useStudyDesign(study: Study | undefined) {
     parseDesign(study?.studyDesign)
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const updateStudy = useUpdateStudy();
+  const updateStudy = useSilentUpdateStudy();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const studyId = study?.id;
 
   useEffect(() => {
@@ -102,16 +103,20 @@ export function useStudyDesign(study: Study | undefined) {
     (next: StudyDesignData) => {
       if (!studyId) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (resetTimer.current) clearTimeout(resetTimer.current);
       setSaveStatus('saving');
       saveTimer.current = setTimeout(() => {
         updateStudy.mutate(
           { id: studyId, data: { studyDesign: next as unknown as Record<string, unknown> } },
           {
-            onSuccess: () => setSaveStatus('saved'),
+            onSuccess: () => {
+              setSaveStatus('saved');
+              resetTimer.current = setTimeout(() => setSaveStatus('idle'), 2500);
+            },
             onError: () => setSaveStatus('error'),
           },
         );
-      }, 1200);
+      }, 800);
     },
     [studyId, updateStudy],
   );

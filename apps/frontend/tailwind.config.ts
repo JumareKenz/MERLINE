@@ -122,6 +122,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "system-ui", "sans-serif"],
+        display: ["Sora", "Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code", "monospace"],
         "sans-arabic": ["IBM Plex Sans Arabic", "Noto Naskh Arabic", "Inter", "sans-serif"],
         "sans-ethiopic": ["Noto Sans Ethiopic", "Inter", "sans-serif"],
@@ -210,11 +211,14 @@ const config: Config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.2s ease-out",
-        "fade-out": "fade-out 0.15s ease-in",
-        "slide-in-from-right": "slide-in-from-right 0.25s ease-out",
-        "slide-out-to-right": "slide-out-to-right 0.2s ease-in",
-        "skeleton-pulse": "skeleton-pulse 1.5s ease-in-out infinite",
+        "fade-in": "fade-in 0.15s ease-out",
+        "fade-out": "fade-out 0.1s ease-in",
+        "slide-in-from-right": "slide-in-from-right 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+        "slide-out-to-right": "slide-out-to-right 0.15s ease-in",
+        "skeleton-pulse": "skeleton-pulse 1.8s ease-in-out infinite",
+      },
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(0.16, 1, 0.3, 1)',
       },
     },
   },

@@ -52,6 +52,21 @@ export function useUpdateStudy() {
   });
 }
 
+/** Silent variant for autosave — no toast, only invalidates cache. */
+export function useSilentUpdateStudy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateStudyDto }) =>
+      API.studies.update(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['studies', 'detail', variables.id] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to save changes');
+    },
+  });
+}
+
 export function useDeleteStudy() {
   const queryClient = useQueryClient();
   return useMutation({

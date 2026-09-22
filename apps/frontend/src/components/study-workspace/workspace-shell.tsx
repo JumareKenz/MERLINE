@@ -5,6 +5,7 @@ import { Sparkles, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { WorkflowNav, computeSteps } from './workflow-nav';
 import { AiCopilot } from './ai-copilot';
 import { cn } from '@/lib/utils';
@@ -43,7 +44,7 @@ export function WorkspaceShell({ study, currentStep, children }: WorkspaceShellP
   return (
     <WorkspaceContext.Provider value={{ study, design, setDesign, saveStatus, markStepComplete, currentStep }}>
       <div className="flex flex-col h-[calc(100vh-48px)]">
-        {/* Workspace header bar */}
+        {/* Workspace header */}
         <div className="h-11 flex items-center gap-3 px-4 border-b border-border bg-background shrink-0">
           <Link
             href={`/studies/${study.id}`}
@@ -76,12 +77,19 @@ export function WorkspaceShell({ study, currentStep, children }: WorkspaceShellP
 
           {/* Center: step content */}
           <div className="flex-1 overflow-y-auto">
-            {children}
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
           </div>
 
-          {/* Right: AI Copilot */}
-          {copilotOpen && (
-            <div className="w-[300px] shrink-0">
+          {/* Right: AI Copilot — always mounted, width-animated for smooth open/close */}
+          <div
+            className={cn(
+              'shrink-0 overflow-hidden border-l border-border transition-all duration-300 ease-standard',
+              copilotOpen ? 'w-[300px]' : 'w-0 opacity-0 border-transparent',
+            )}
+          >
+            <div className="w-[300px] h-full">
               <AiCopilot
                 studyTitle={study.title}
                 studyType={study.study_type ?? study.type}
@@ -96,7 +104,7 @@ export function WorkspaceShell({ study, currentStep, children }: WorkspaceShellP
                 onClose={() => setCopilotOpen(false)}
               />
             </div>
-          )}
+          </div>
         </div>
       </div>
     </WorkspaceContext.Provider>

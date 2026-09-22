@@ -15,3 +15,7 @@ coverage/
 *.sqlite
 *.sqlite3
 storage/
+
+# Windows Explorer metadata
+desktop.ini
+**/desktop.ini

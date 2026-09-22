@@ -2,17 +2,17 @@
 
 import { useRouter, useParams } from 'next/navigation';
 import { useWorkspace } from '@/components/study-workspace/workspace-shell';
-import { useUpdateStudy } from '@/hooks/use-studies';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowRight, ArrowLeft, Calculator, Users, MapPin } from 'lucide-react';
-import { useMemo } from 'react';
+import { ArrowRight, ArrowLeft, Calculator, Users, MapPin, AlertCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { computeN } from '@/hooks/use-study-design';
 import type { SamplingMethod } from '@/hooks/use-study-design';
+import { cn } from '@/lib/utils';
 
 const SAMPLING_METHODS: { value: SamplingMethod; label: string; desc: string }[] = [
   { value: 'simple_random', label: 'Simple Random Sampling', desc: 'Every member of the population has an equal chance of selection.' },
@@ -25,10 +25,10 @@ const SAMPLING_METHODS: { value: SamplingMethod; label: string; desc: string }[]
 ];
 
 export default function MethodologyStep() {
-  const { study, design, setDesign, markStepComplete } = useWorkspace();
+  const { design, setDesign, markStepComplete } = useWorkspace();
   const { studyId } = useParams<{ studyId: string }>();
-  const updateStudy = useUpdateStudy();
   const router = useRouter();
+  const [samplingError, setSamplingError] = useState('');
 
   const recommendedN = useMemo(() => computeN(design.sampleSize), [design.sampleSize]);
 
@@ -45,7 +45,18 @@ export default function MethodologyStep() {
     });
   };
 
+  const handleSamplingMethodChange = (method: SamplingMethod) => {
+    update(['samplingStrategy', 'method'], method);
+    if (samplingError) setSamplingError('');
+  };
+
   const handleProceed = () => {
+    if (!design.samplingStrategy.method) {
+      setSamplingError('Select a sampling method before proceeding.');
+      const el = document.getElementById('sampling-methods');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     setDesign((prev) => ({
       ...prev,
       sampleSize: { ...prev.sampleSize, recommendedN },
@@ -155,7 +166,10 @@ export default function MethodologyStep() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Expected Proportion (%) <span className="text-foreground-tertiary font-normal">— use 50% if unknown</span></Label>
+              <Label className="text-[13px]">
+                Expected Proportion (%)
+                <span className="text-foreground-tertiary font-normal ml-1">use 50% if unknown</span>
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -166,7 +180,10 @@ export default function MethodologyStep() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Design Effect <span className="text-foreground-tertiary font-normal">— 1 for SRS, 1.5-2 for cluster</span></Label>
+              <Label className="text-[13px]">
+                Design Effect
+                <span className="text-foreground-tertiary font-normal ml-1">1 for SRS, 1.5–2 for cluster</span>
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -193,7 +210,7 @@ export default function MethodologyStep() {
           <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 flex items-center gap-4">
             <div>
               <p className="text-[12px] text-foreground-tertiary">Recommended Sample Size</p>
-              <p className="text-[32px] font-semibold tracking-tight text-primary leading-none mt-1">
+              <p className="text-[32px] font-semibold tracking-tight text-primary leading-none mt-1 tabular-nums transition-all duration-300">
                 {recommendedN.toLocaleString()}
               </p>
             </div>
@@ -209,11 +226,20 @@ export default function MethodologyStep() {
       </Card>
 
       {/* Sampling Strategy */}
-      <Card>
+      <Card id="sampling-methods" className={cn(samplingError && 'border-error/50')}>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-primary" strokeWidth={1.75} />
-            <CardTitle className="text-sm font-medium">Sampling Strategy</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" strokeWidth={1.75} />
+              <CardTitle className="text-sm font-medium">
+                Sampling Strategy <span className="text-error">*</span>
+              </CardTitle>
+            </div>
+            {samplingError && (
+              <p className="text-[12px] text-error flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> {samplingError}
+              </p>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -221,16 +247,18 @@ export default function MethodologyStep() {
             {SAMPLING_METHODS.map((m) => (
               <button
                 key={m.value}
-                onClick={() => update(['samplingStrategy', 'method'], m.value)}
-                className={`flex items-start gap-3 p-3 rounded-md border text-left transition-colors ${
+                onClick={() => handleSamplingMethodChange(m.value)}
+                className={cn(
+                  'flex items-start gap-3 p-3 rounded-md border text-left transition-colors',
                   design.samplingStrategy.method === m.value
                     ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/40 hover:bg-background-hover'
-                }`}
+                    : 'border-border hover:border-primary/40 hover:bg-background-hover',
+                )}
               >
-                <div className={`mt-0.5 h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                  design.samplingStrategy.method === m.value ? 'border-primary' : 'border-border'
-                }`}>
+                <div className={cn(
+                  'mt-0.5 h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors',
+                  design.samplingStrategy.method === m.value ? 'border-primary' : 'border-border',
+                )}>
                   {design.samplingStrategy.method === m.value && (
                     <div className="h-2 w-2 rounded-full bg-primary" />
                   )}
@@ -249,7 +277,7 @@ export default function MethodologyStep() {
               <Textarea
                 value={design.samplingStrategy.strata.join('\n')}
                 onChange={(e) => update(['samplingStrategy', 'strata'], e.target.value.split('\n').filter(Boolean))}
-                placeholder="e.g.&#10;Urban households&#10;Rural households&#10;Peri-urban households"
+                placeholder={'e.g.\nUrban households\nRural households\nPeri-urban households'}
                 rows={3}
                 className="text-[13px] resize-none"
               />
