@@ -1,0 +1,1985 @@
+<title>Merlin System Inspection</title>
+
+<style>
+  :root {
+    --paper: #EDEFF0;
+    --paper-raised: #F6F7F7;
+    --paper-sunk: #E3E6E7;
+    --ink: #12171A;
+    --ink-soft: #3C464B;
+    --ink-faint: #6B767C;
+    --rule: #CFD5D7;
+    --rule-soft: #DDE2E3;
+    --accent: #2E6E75;
+    --accent-soft: #D9E5E6;
+
+    --sev-critical: #A32E22;
+    --sev-high: #B8641F;
+    --sev-medium: #8A7A2B;
+    --sev-low: #6B7A80;
+
+    --ok: #2E6E75;
+    --warn: #8A7A2B;
+    --bad: #A32E22;
+
+    --font-display: ui-sans-serif, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    --font-body: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+    --measure: 70ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12171A;
+      --paper-raised: #1A2126;
+      --paper-sunk: #0C1013;
+      --ink: #E4E9EA;
+      --ink-soft: #AEB9BD;
+      --ink-faint: #7B878C;
+      --rule: #2C363B;
+      --rule-soft: #222B30;
+      --accent: #6FB3B9;
+      --accent-soft: #1E2E31;
+
+      --sev-critical: #D9695A;
+      --sev-high: #D59356;
+      --sev-medium: #BBA85C;
+      --sev-low: #8D9AA0;
+
+      --ok: #6FB3B9;
+      --warn: #BBA85C;
+      --bad: #D9695A;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #12171A;
+    --paper-raised: #1A2126;
+    --paper-sunk: #0C1013;
+    --ink: #E4E9EA;
+    --ink-soft: #AEB9BD;
+    --ink-faint: #7B878C;
+    --rule: #2C363B;
+    --rule-soft: #222B30;
+    --accent: #6FB3B9;
+    --accent-soft: #1E2E31;
+    --sev-critical: #D9695A;
+    --sev-high: #D59356;
+    --sev-medium: #BBA85C;
+    --sev-low: #8D9AA0;
+    --ok: #6FB3B9;
+    --warn: #BBA85C;
+    --bad: #D9695A;
+  }
+
+  :root[data-theme="light"] {
+    --paper: #EDEFF0;
+    --paper-raised: #F6F7F7;
+    --paper-sunk: #E3E6E7;
+    --ink: #12171A;
+    --ink-soft: #3C464B;
+    --ink-faint: #6B767C;
+    --rule: #CFD5D7;
+    --rule-soft: #DDE2E3;
+    --accent: #2E6E75;
+    --accent-soft: #D9E5E6;
+    --sev-critical: #A32E22;
+    --sev-high: #B8641F;
+    --sev-medium: #8A7A2B;
+    --sev-low: #6B7A80;
+    --ok: #2E6E75;
+    --warn: #8A7A2B;
+    --bad: #A32E22;
+  }
+
+  * { box-sizing: border-box; }
+
+  .page {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.65;
+    padding: 0 24px 120px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .prose { max-width: var(--measure); }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    padding: 72px 0 32px;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .eyebrow .sep { color: var(--rule); }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 6vw, 58px);
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    font-weight: 660;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .meta-cell {
+    flex: 1 1 160px;
+    padding: 12px 16px;
+    border-right: 1px solid var(--rule);
+    background: var(--paper-raised);
+  }
+  .meta-cell:last-child { border-right: 0; }
+
+  .meta-cell dt {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 4px;
+  }
+
+  .meta-cell dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  /* ---------- index ---------- */
+
+  .index {
+    margin: 40px 0 0;
+    padding: 0 0 8px;
+  }
+
+  .index-grid {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 1px;
+    background: var(--rule-soft);
+    border: 1px solid var(--rule-soft);
+  }
+
+  .index-grid li { background: var(--paper); }
+
+  .index-grid a {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    text-decoration: none;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    line-height: 1.35;
+    transition: background 0.12s ease;
+  }
+
+  .index-grid a:hover,
+  .index-grid a:focus-visible { background: var(--accent-soft); }
+
+  .index-grid .n {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    padding-top: 2px;
+    min-width: 18px;
+  }
+
+  /* ---------- sections ---------- */
+
+  section { padding-top: 56px; scroll-margin-top: 20px; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(23px, 3vw, 30px);
+    letter-spacing: -0.02em;
+    font-weight: 640;
+    line-height: 1.15;
+    margin: 0 0 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    text-wrap: balance;
+  }
+
+  h2 .n {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+  }
+
+  h3 {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 640;
+    letter-spacing: -0.01em;
+    margin: 34px 0 10px;
+    color: var(--ink);
+  }
+
+  h4 {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    margin: 26px 0 8px;
+  }
+
+  p { margin: 0 0 14px; max-width: var(--measure); }
+
+  ul, ol { max-width: var(--measure); padding-left: 20px; margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+
+  code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.855em;
+    background: var(--paper-sunk);
+    padding: 1px 5px;
+    border-radius: 2px;
+    word-break: break-word;
+  }
+
+  strong { font-weight: 700; color: var(--ink); }
+
+  /* ---------- evidence markers ---------- */
+
+  .ev {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    white-space: nowrap;
+    font-weight: 600;
+    border: 1px solid;
+    vertical-align: 1.5px;
+  }
+  .ev-c { color: var(--ok); border-color: var(--ok); }
+  .ev-i { color: var(--warn); border-color: var(--warn); }
+  .ev-n { color: var(--sev-low); border-color: var(--sev-low); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 14px 16px;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    margin: 18px 0 8px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .legend div { display: flex; gap: 8px; align-items: center; }
+
+  /* ---------- tables ---------- */
+
+  .tbl-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    margin: 18px 0 22px;
+    background: var(--paper-raised);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 620px;
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  thead th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper-sunk);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody td:first-child { color: var(--ink); font-weight: 600; }
+  td code { font-size: 11.5px; background: transparent; padding: 0; color: var(--ink-faint); }
+
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- chips ---------- */
+
+  .chip {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid;
+  }
+  .c-complete { color: var(--ok); border-color: var(--ok); background: var(--accent-soft); }
+  .c-partial  { color: var(--warn); border-color: var(--warn); }
+  .c-missing  { color: var(--bad); border-color: var(--bad); }
+  .c-unclear  { color: var(--sev-low); border-color: var(--sev-low); }
+
+  /* ---------- risk cards ---------- */
+
+  .risks { display: flex; flex-direction: column; gap: 10px; margin: 20px 0; }
+
+  .risk {
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--sev-low);
+    border-radius: 2px;
+    padding: 14px 18px;
+    background: var(--paper-raised);
+  }
+  .risk.critical { border-left-color: var(--sev-critical); }
+  .risk.high     { border-left-color: var(--sev-high); }
+  .risk.medium   { border-left-color: var(--sev-medium); }
+  .risk.low      { border-left-color: var(--sev-low); }
+
+  .risk-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .risk-sev {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .risk.critical .risk-sev { color: var(--sev-critical); }
+  .risk.high .risk-sev     { color: var(--sev-high); }
+  .risk.medium .risk-sev   { color: var(--sev-medium); }
+  .risk.low .risk-sev      { color: var(--sev-low); }
+
+  .risk-title {
+    font-family: var(--font-display);
+    font-weight: 640;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .risk p { margin: 0; font-size: 14.5px; color: var(--ink-soft); max-width: 78ch; }
+  .risk p + p { margin-top: 7px; }
+
+  /* ---------- callout ---------- */
+
+  .callout {
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--accent);
+    background: var(--paper-raised);
+    padding: 18px 20px;
+    border-radius: 2px;
+    margin: 22px 0;
+  }
+  .callout.alarm { border-top-color: var(--sev-critical); }
+  .callout h4 { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* ---------- workflow blocks ---------- */
+
+  .wf {
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    margin: 0 0 12px;
+    background: var(--paper-raised);
+    overflow: hidden;
+  }
+
+  .wf-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    background: var(--paper-sunk);
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+
+  .wf-letter {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .wf-name {
+    font-family: var(--font-display);
+    font-weight: 640;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    flex: 1;
+  }
+
+  .wf-body { padding: 14px 16px; }
+  .wf-body dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+  .wf-body dt {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 3px;
+  }
+  .wf-body dd { margin: 0; font-size: 14px; color: var(--ink-soft); max-width: 72ch; }
+  .wf-body dd code { font-size: 12px; }
+
+  @media (max-width: 620px) {
+    .wf-body dl { grid-template-columns: 1fr; gap: 2px; }
+    .wf-body dt { margin-top: 8px; }
+  }
+
+  /* ---------- mermaid ---------- */
+
+  pre.mermaid {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 22px;
+    margin: 22px 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  /* ---------- appendix lists ---------- */
+
+  .cols2 {
+    columns: 2;
+    column-gap: 36px;
+    max-width: 100%;
+  }
+  .cols2 li { break-inside: avoid; }
+  @media (max-width: 640px) { .cols2 { columns: 1; } }
+
+  .kv-list {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    max-width: 100%;
+  }
+  .kv-list li {
+    padding: 5px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    color: var(--ink-soft);
+  }
+  .kv-list .k { color: var(--ink); min-width: 250px; }
+
+  /* ---------- closing ---------- */
+
+  .closing {
+    margin-top: 64px;
+    padding: 28px 30px;
+    border: 2px solid var(--ink);
+    border-radius: 2px;
+    background: var(--paper-raised);
+  }
+  .closing h2 { border-bottom: 0; padding-bottom: 0; margin-bottom: 14px; }
+  .closing p { font-size: 16.5px; max-width: 68ch; }
+
+  hr.div {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 30px 0;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="page">
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      <span>Code Inspection</span>
+      <span class="sep">/</span>
+      <span>Read-only</span>
+      <span class="sep">/</span>
+      <span>Repo <code class="mono">merline</code> @ d013b5a</span>
+    </div>
+    <h1>Merlin System Inspection</h1>
+    <p class="standfirst">
+      An evidence-based audit of the existing codebase against a proposed qualitative
+      field-interview product: PWA recording, offline sync, transcription, AI insight,
+      evidence-linked findings, and configurable reporting.
+    </p>
+    <dl class="meta-strip">
+      <div class="meta-cell"><dt>Inspected</dt><dd>2026-09-19</dd></div>
+      <div class="meta-cell"><dt>Branch</dt><dd>master</dd></div>
+      <div class="meta-cell"><dt>Commits</dt><dd class="num">19</dd></div>
+      <div class="meta-cell"><dt>Last commit</dt><dd>2026-07-24</dd></div>
+      <div class="meta-cell"><dt>Code changed</dt><dd>None</dd></div>
+    </dl>
+  </header>
+
+  <nav class="index" aria-label="Report contents">
+    <h4 style="margin-top:28px">Contents</h4>
+    <ol class="index-grid">
+      <li><a href="#s1"><span class="n">01</span><span>Executive Summary</span></a></li>
+      <li><a href="#s2"><span class="n">02</span><span>Repository Map</span></a></li>
+      <li><a href="#s3"><span class="n">03</span><span>Current Architecture</span></a></li>
+      <li><a href="#s4"><span class="n">04</span><span>Roles and Permissions</span></a></li>
+      <li><a href="#s5"><span class="n">05</span><span>Existing Data Model</span></a></li>
+      <li><a href="#s6"><span class="n">06</span><span>Existing Features</span></a></li>
+      <li><a href="#s7"><span class="n">07</span><span>Workflow Analysis</span></a></li>
+      <li><a href="#s8"><span class="n">08</span><span>AI and Transcription</span></a></li>
+      <li><a href="#s9"><span class="n">09</span><span>PWA and Offline</span></a></li>
+      <li><a href="#s10"><span class="n">10</span><span>Security and Consent</span></a></li>
+      <li><a href="#s11"><span class="n">11</span><span>Testing and Reliability</span></a></li>
+      <li><a href="#s12"><span class="n">12</span><span>Risks and Gaps</span></a></li>
+      <li><a href="#s13"><span class="n">13</span><span>Recommended Next Steps</span></a></li>
+      <li><a href="#s14"><span class="n">14</span><span>Product Decisions Needed</span></a></li>
+      <li><a href="#s15"><span class="n">15</span><span>Appendix</span></a></li>
+    </ol>
+
+    <div class="legend">
+      <div><span class="ev ev-c">Confirmed</span> <span>read directly in code</span></div>
+      <div><span class="ev ev-i">Inference</span> <span>likely, from strong indirect evidence</span></div>
+      <div><span class="ev ev-n">Not found</span> <span>searched for, no evidence</span></div>
+    </div>
+  </nav>
+
+  <!-- ===================== 1 ===================== -->
+  <section id="s1">
+    <h2><span class="n">01</span> Executive Summary</h2>
+
+    <p>
+      The product in this repository is called <strong>Merline</strong>, not Merlin. It is an
+      AI-branded MERL platform — Monitoring, Evaluation, Research and Learning — aimed at NGOs,
+      governments and research institutions. It is built around <em>quantitative</em> survey work:
+      projects, studies, logframes, indicators, questionnaires, enumerator assignments, and
+      form submissions.
+    </p>
+
+    <p>
+      Against the proposed qualitative interview product, the honest summary is that
+      <strong>the surrounding scaffolding exists and the interview pipeline does not</strong>.
+      There is a competent web dashboard, a multi-module REST API, and a 40-model Postgres
+      schema. There is no interview entity, no interview guide, no transcript, no finding or
+      quotation, no consent record, no audio capture, no transcription, no PWA, and no
+      offline storage on the client.
+    </p>
+
+    <div class="callout alarm">
+      <h4>Three findings that change the picture</h4>
+      <p>
+        <strong>1. The backend API cannot currently authenticate anyone.</strong>
+        Tokens are signed without <code>issuer</code>/<code>audience</code> claims but verified
+        <em>with</em> them, so every authenticated request fails. I reproduced the failure
+        directly. <span class="ev ev-c">Confirmed</span>
+      </p>
+      <p>
+        <strong>2. The AI layer fabricates answers when it cannot reach a provider.</strong>
+        <code>AiGatewayService</code> falls back to a hand-written "simulated response" that is
+        returned through the same success path as a real model answer. Separately, all nine
+        "specialist agents" are hard-coded template strings that never call a model at all.
+        <span class="ev ev-c">Confirmed</span>
+      </p>
+      <p>
+        <strong>3. The polished dashboard is largely running on mock data.</strong>
+        The frontend ships an 800-line in-process mock adapter (<code>lib/api-mock.ts</code>)
+        that serves demo projects, studies, submissions and AI sessions when
+        <code>NEXT_PUBLIC_USE_MOCK=true</code>. Screenshots of a working product do not imply a
+        working backend path. <span class="ev ev-c">Confirmed</span>
+      </p>
+    </div>
+
+    <h3>Maturity</h3>
+    <p>
+      This is an <strong>early prototype with production-shaped packaging</strong>. The repository
+      contains extensive planning documentation asserting far more completeness than the code
+      supports — <code>PROGRESS.md</code> claims 1,230 backend tests, 600 frontend tests, and a
+      designed 62-table schema; the repository contains <strong>two</strong> test files, one of
+      which fails to run, and 40 models. <code>README.md</code> states the backend is
+      Laravel/PHP and the mobile app is Flutter; the backend is NestJS/TypeScript and no mobile
+      application source exists. Treat the docs as aspiration, not as a description of the system.
+    </p>
+
+    <p>
+      What genuinely works, assuming the auth defect is fixed: CRUD across organizations, users,
+      roles, projects, studies, logframes, indicators, questionnaires (with sections, questions,
+      options, skip logic, validations, translations), assignments, submissions, media upload to
+      local disk, a delta sync API, dashboards, notifications, audit log storage, and an AI
+      chat endpoint that can reach OpenAI.
+    </p>
+  </section>
+
+  <!-- ===================== 2 ===================== -->
+  <section id="s2">
+    <h2><span class="n">02</span> Repository Map</h2>
+
+    <p>
+      The repository root is dominated by planning documents and role-play "executive agent"
+      prompts. Actual source code lives in exactly two directories under <code>apps/</code>.
+      There is <strong>no root <code>package.json</code> and no workspace/monorepo tool</strong>
+      — each app is installed and built independently. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>Path</th><th>Contains</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>apps/frontend</code></td><td>Next.js 14 App Router, React 18, TypeScript, Tailwind, Radix, TanStack Query, Zustand, ECharts</td><td>Real source — 45 routes, ~190 components</td></tr>
+          <tr><td><code>apps/backend-nestjs</code></td><td>NestJS 11, Prisma 6, PostgreSQL, passport-jwt, multer</td><td>Real source — 19 modules</td></tr>
+          <tr><td><code>apps/backend-nestjs/prisma</code></td><td><code>schema.prisma</code> (40 models), <code>seed.ts</code></td><td>No <code>migrations/</code> directory</td></tr>
+          <tr><td><code>docker/</code></td><td><code>docker-compose.yml</code>, frontend Dockerfile, nginx conf, setup/start/stop scripts</td><td>Present</td></tr>
+          <tr><td><code>.github/workflows/</code></td><td><code>backend-ci.yml</code>, <code>frontend-ci.yml</code>, <code>deploy.yml</code></td><td>Present, partly broken (§11)</td></tr>
+          <tr><td><code>mobile/</code></td><td>9 Markdown design docs (offline architecture, sync engine, form engine, GPS/media)</td><td><strong>Documentation only — no Flutter code</strong></td></tr>
+          <tr><td><code>packages/</code></td><td>—</td><td><strong>Empty</strong></td></tr>
+          <tr><td><code>frontend/</code>, <code>database/</code>, <code>security/</code>, <code>devops/</code>, <code>qa/</code>, <code>ai/</code>, <code>design/</code>, <code>ux/</code>, <code>domain/</code>, <code>architecture/</code>, <code>product/</code>, <code>research/</code>, <code>strategy/</code>, <code>integration/</code>, <code>success/</code>, <code>data/</code>, <code>prompts/</code>, <code>decisions/</code>, <code>agents/</code>, <code>Staff/</code></td><td>Planning Markdown and agent prompts</td><td>No code</td></tr>
+          <tr><td><code>idea/</code></td><td>Pitch deck (PPTX) and pitch PDF</td><td>Untracked; not inspected for content</td></tr>
+          <tr><td><code>docs/</code></td><td>Architecture, API reference, admin/engineer/AI guides, glossary</td><td>Written ahead of the code</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Backend modules (<code>apps/backend-nestjs/src</code>)</h4>
+    <ul class="cols2">
+      <li><code>auth</code> — register, login, refresh, profile, password reset</li>
+      <li><code>organizations</code> — orgs, workspaces, roles, permissions</li>
+      <li><code>users</code></li>
+      <li><code>projects</code> — plus teams, tags, activities</li>
+      <li><code>studies</code> — plus study teams, lifecycle transitions</li>
+      <li><code>logframes</code></li>
+      <li><code>indicators</code> — values, targets</li>
+      <li><code>questionnaires</code> — sections, questions, options, skip logic, validations, translations</li>
+      <li><code>assignments</code></li>
+      <li><code>submissions</code></li>
+      <li><code>media</code> — upload, chunked upload, download</li>
+      <li><code>sync</code> — pull, push, status, log, full</li>
+      <li><code>reports</code> — reports, templates, schedules</li>
+      <li><code>dashboards</code> — widgets, alerts, preferences</li>
+      <li><code>ai</code> — gateway, 9 agents, RAG, prompts, guardrails</li>
+      <li><code>audit-log</code></li>
+      <li><code>notifications</code></li>
+      <li><code>common</code> — guards, interceptors, filters, decorators</li>
+      <li><code>config</code>, <code>database</code></li>
+    </ul>
+  </section>
+
+  <!-- ===================== 3 ===================== -->
+  <section id="s3">
+    <h2><span class="n">03</span> Current Architecture</h2>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Layer</th><th>Actual implementation</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>Frontend</td><td>Next.js 14 App Router, two route groups: <code>(auth)</code> and <code>(dashboard)</code>. Client-heavy; TanStack Query for server state, Zustand for auth/UI/form-builder state.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>API transport</td><td>Axios singleton, <code>Bearer</code> token from Zustand store, global 401 → logout. Base URL <code>NEXT_PUBLIC_API_BASE_URL</code>, default <code>http://localhost:8000/api/v1</code>.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Mock layer</td><td>A full Axios adapter with route matching and generated demo data, toggled by <code>NEXT_PUBLIC_USE_MOCK</code>.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Backend</td><td>NestJS 11 monolith, global prefix <code>api/v1</code>, helmet, CORS allowlist, global <code>ValidationPipe</code> with <code>whitelist</code> + <code>forbidNonWhitelisted</code>, global exception filter and response transformer. Listens on <code>PORT</code> (default 4000).</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Database</td><td>PostgreSQL via Prisma 6. 40 models. One <code>Unsupported("vector(1536)")</code> column implying pgvector.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Migrations</td><td>No <code>prisma/migrations</code> directory. Scripts offer both <code>migrate dev</code> and <code>db push</code>; CI/deploy calls <code>prisma migrate deploy</code>, which would find nothing to apply.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Object storage</td><td><strong>None.</strong> Files are written to the local filesystem under <code>UPLOADS_DIR</code>, or <code>/tmp/uploads</code> when <code>VERCEL</code> is set. <code>@aws-sdk/client-s3</code> and <code>@aws-sdk/lib-storage</code> are installed but never imported.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Queue / workers</td><td><strong>None.</strong> No BullMQ, no Redis client, no <code>@Cron</code>. <code>@nestjs/schedule</code> is installed and unused; Redis host/port are in config and unused.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>AI services</td><td>Custom <code>AiGatewayService</code> issuing raw <code>fetch</code> calls to an OpenAI-shaped <code>/chat/completions</code> endpoint for four configured providers.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Auth</td><td>JWT (HS256) via passport-jwt; bcrypt cost 12; <code>tokenVersion</code> column for bulk revocation.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+          <tr><td>Deployment</td><td>Two targets, inconsistent: Docker/Helm/EKS in <code>deploy.yml</code>, and Vercel (<code>.vercel</code> directories in both apps, <code>vercel-build</code> script, <code>VERCEL</code> branch in media service). No <code>vercel.json</code>; <code>charts/</code> does not exist.</td><td><span class="ev ev-c">Confirmed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>System as built</h3>
+
+<pre class="mermaid">
+flowchart TB
+  subgraph Client["Browser — no PWA, no offline store"]
+    UI["Next.js 14 dashboard<br/>45 routes"]
+    MOCK["api-mock.ts<br/>in-process demo data"]
+  end
+
+  subgraph API["NestJS monolith — api/v1"]
+    AUTH["auth<br/>JWT sign/verify mismatch"]
+    CRUD["projects · studies · questionnaires<br/>indicators · assignments · submissions"]
+    MEDIA["media<br/>multer to local disk"]
+    SYNC["sync<br/>pull / push / full"]
+    REP["reports<br/>string templates"]
+    AI["ai<br/>gateway + 9 static agents"]
+  end
+
+  DB[("PostgreSQL<br/>Prisma · 40 models<br/>no migrations")]
+  DISK[["Local filesystem<br/>uploads/ or /tmp/uploads"]]
+  LLM{{"OpenAI · Anthropic · Google · OpenRouter<br/>3 of 4 wired incorrectly"}}
+  SIM["Simulated response<br/>fallback text"]
+
+  UI -->|axios + Bearer| AUTH
+  UI -.->|NEXT_PUBLIC_USE_MOCK=true| MOCK
+  UI --> CRUD
+  UI --> MEDIA
+  UI --> REP
+  UI --> AI
+
+  AUTH --> DB
+  CRUD --> DB
+  SYNC --> DB
+  REP --> DB
+  MEDIA --> DISK
+  MEDIA --> DB
+  AI --> DB
+  AI --> LLM
+  LLM -.->|any failure or missing key| SIM
+  SIM -.-> UI
+
+  MISSING["NOT PRESENT<br/>service worker · IndexedDB · MediaRecorder<br/>transcription · job queue · object storage<br/>interview / transcript / consent models"]
+</pre>
+
+    <p>
+      The dotted paths are the ones that matter for this product direction. The fallback from
+      provider failure straight back to the user interface, with no error surfaced, is the single
+      most dangerous edge in the diagram.
+    </p>
+  </section>
+
+  <!-- ===================== 4 ===================== -->
+  <section id="s4">
+    <h2><span class="n">04</span> Existing User Roles and Permissions</h2>
+
+    <p>
+      The database models a complete RBAC system: <code>Role</code>, <code>Permission</code>,
+      <code>RoleUser</code>, <code>PermissionRole</code>, all scoped by
+      <code>organizationId</code>. Roles are per-organization with a <code>slug</code> unique
+      within the org and an <code>isSystem</code> flag. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <p>
+      The seed creates three roles — <strong>Administrator</strong>, <strong>Viewer</strong>,
+      <strong>Enumerator</strong> — and one demo admin user with a hard-coded weak password.
+      Registration creates a new organization and a role for the registering user in a
+      transaction. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <p>
+      The frontend declares a permission matrix of 12 modules × 7 actions
+      (<code>view</code>, <code>create</code>, <code>edit</code>, <code>delete</code>,
+      <code>approve</code>, <code>export</code>, <code>invite</code>) in
+      <code>lib/permissions.ts</code>, with wildcard support (<code>module.*</code>), and uses it
+      to hide UI. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <div class="callout alarm">
+      <h4>Permissions are not enforced anywhere on the server</h4>
+      <p>
+        <code>PermissionGuard</code> and <code>TenantGuard</code> are both implemented and
+        <strong>neither is ever applied</strong>. A repository-wide search for
+        <code>@UseGuards(PermissionGuard)</code>, <code>TenantGuard</code>, or the
+        <code>@Permissions()</code> decorator returns only the definition files themselves.
+        Every controller uses <code>@UseGuards(JwtAuthGuard)</code> and nothing more. The
+        effective authorization model is <strong>"any authenticated user can do anything"</strong>.
+        <span class="ev ev-c">Confirmed</span>
+      </p>
+      <p>
+        <code>ThrottlerModule.forRoot</code> is registered but no <code>APP_GUARD</code> binds
+        <code>ThrottlerGuard</code>, so rate limiting is also inert.
+        <span class="ev ev-c">Confirmed</span>
+      </p>
+    </div>
+
+    <p>
+      For the interview product, the roles named in the brief —
+      <strong>administrator</strong>, <strong>researcher</strong>, <strong>manager</strong>,
+      <strong>field interviewer</strong>, <strong>reviewer/approver</strong> — do not exist as
+      seeded roles, and no permission slugs cover interviews, transcripts, findings, or consent.
+      <span class="ev ev-n">Not found</span>
+    </p>
+  </section>
+
+  <!-- ===================== 5 ===================== -->
+  <section id="s5">
+    <h2><span class="n">05</span> Existing Data Model</h2>
+
+    <p>
+      40 Prisma models. Common conventions: UUID primary keys, <code>snake_case</code> column
+      mapping, <code>createdAt</code>/<code>updatedAt</code>, and soft delete via
+      <code>deletedAt</code> on most business entities. Almost every table carries
+      <code>organizationId</code> for tenancy — though, as §10 shows, the application rarely
+      filters on it. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h4>Core hierarchy</h4>
+    <p>
+      <code>Organization</code> → <code>Workspace</code> → <code>Project</code> →
+      <code>Study</code> → <code>Questionnaire</code> → <code>Section</code> →
+      <code>Question</code> → <code>QuestionOption</code>. Studies also own
+      <code>Assignment</code>, <code>Submission</code>, <code>Indicator</code> and
+      <code>Report</code>. Projects own a single <code>Logframe</code>.
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Entity</th><th>Notable fields</th><th>Key relationships</th></tr></thead>
+        <tbody>
+          <tr><td>Organization</td><td><code>slug</code> unique, <code>settings</code> Json, <code>isActive</code></td><td>users, roles, permissions, workspaces, projects, studies</td></tr>
+          <tr><td>User</td><td><code>email</code> unique, <code>passwordHash</code>, <code>locale</code>, <code>tokenVersion</code>, email-verification and reset-password token + expiry columns</td><td>→ Organization; roles via RoleUser; assignments, submissions, project/study teams</td></tr>
+          <tr><td>Role / Permission</td><td><code>slug</code> unique per org, <code>module</code>, <code>isSystem</code></td><td>many-to-many with User and each other</td></tr>
+          <tr><td>Project</td><td><code>status</code> (free string), dates, <code>settings</code> Json</td><td>→ Workspace?, Organization, creator; studies, teams, tags, activities, logframe</td></tr>
+          <tr><td>Study</td><td><code>status</code> <em>enum, 11 values</em>, <code>type</code> <em>enum, 22 values</em>, <code>studyDesign</code>/<code>location</code>/<code>targetDetails</code> Json, <code>isLocked</code></td><td>→ Project, Organization; teams, questionnaires, assignments, indicators, submissions, reports</td></tr>
+          <tr><td>Questionnaire</td><td><code>version</code> int, <code>status</code> string, <code>locale</code></td><td>→ Study; sections → questions → options / skipLogic / validations / translations</td></tr>
+          <tr><td>Assignment</td><td><code>status</code> enum (ASSIGNED…APPROVED/REJECTED), <code>notes</code>, assigned/started/completed timestamps</td><td>→ enumerator (User), Study; submissions</td></tr>
+          <tr><td>Submission</td><td><code>answers</code> Json, <code>location</code> Json, <code>deviceId</code>, <code>qualityScore</code>, <code>reviewedById</code>/<code>reviewedAt</code></td><td>→ Assignment?, Study, enumerator?; media[]</td></tr>
+          <tr><td>Media</td><td><code>type</code> enum incl. <strong>AUDIO</strong>, <code>processingStatus</code> enum, <code>path</code>, <code>checksum</code>, <code>metadata</code> Json, <code>size</code> Int</td><td>→ Submission? (nullable), uploader; chunks[]</td></tr>
+          <tr><td>MediaChunk</td><td><code>identifier</code>, <code>index</code>, <code>size</code>, <code>checksum</code></td><td>→ Media? — <strong>never actually linked</strong> (§7F)</td></tr>
+          <tr><td>SyncLog / SyncBatch</td><td><code>action</code>/<code>status</code> enums, <code>payload</code> Json, <code>conflict</code> Json, <code>deviceId</code>, counters</td><td>Flat tables, no FK to the entities they describe</td></tr>
+          <tr><td>Report</td><td><code>type</code>, <code>config</code> Json, <code>data</code> Json, <code>status</code></td><td>→ Study?, template?; schedules[]</td></tr>
+          <tr><td>ReportTemplate / ReportSchedule</td><td><code>config</code> Json, <code>isPublic</code>; <code>cron</code>, <code>nextRunAt</code></td><td>Template is <strong>not referenced by a foreign key</strong> from Report — <code>templateId</code> is a loose string</td></tr>
+          <tr><td>AuditLog</td><td><code>event</code>, <code>auditableType</code>/<code>auditableId</code>, <code>oldValues</code>/<code>newValues</code> Json, <code>ipAddress</code>, <code>userAgent</code>, <code>checksum</code></td><td>→ User? — nullable</td></tr>
+          <tr><td>AiSession / AiMessage</td><td><code>context</code> Json, <code>role</code>, <code>content</code>, <code>meta</code> Json</td><td>session → messages, cascade delete</td></tr>
+          <tr><td>AiInference</td><td><code>model</code>, <code>provider</code>, token counts, <code>cost</code>, <code>latencyMs</code></td><td>Flat cost-tracking table</td></tr>
+          <tr><td>DocumentChunk</td><td><code>content</code>, <code>embedding vector(1536)</code>, <code>metadata</code>, <code>source</code>, <code>documentId</code></td><td>Flat; embedding column is <strong>never written</strong> (§8)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h4>Entities the interview product needs, which do not exist</h4>
+      <p>
+        <code>Interview</code>, <code>InterviewGuide</code>, <code>GuideQuestion</code>,
+        <code>InterviewAssignment</code>, <code>Participant</code>, <code>Recording</code>,
+        <code>AudioSegment</code>, <code>TranscriptionJob</code>, <code>Transcript</code>,
+        <code>TranscriptSegment</code>, <code>Speaker</code>, <code>SpeakerTurn</code>,
+        <code>Theme</code>/<code>Code</code>, <code>Finding</code>, <code>Quotation</code>,
+        <code>EvidenceLink</code>, <code>ReviewDecision</code>, <code>Consent</code>,
+        <code>RetentionPolicy</code>. <span class="ev ev-n">Not found</span>
+      </p>
+      <p>
+        The closest existing analogues are <code>Assignment</code> (enumerator ↔ study),
+        <code>Submission</code> (a completed unit of fieldwork with a Json answer blob), and
+        <code>Media</code> (a file attached to a submission). These are a plausible extension
+        point but they are shaped for forms, not conversations: there is no place to put a
+        timecoded transcript, a speaker, or a quotation anchored to a time range.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== 6 ===================== -->
+  <section id="s6">
+    <h2><span class="n">06</span> Existing Features</h2>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>Feature</th><th>Status</th><th>Relevant files</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Email/password auth</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/auth/*</code>, <code>auth/jwt.strategy.ts</code>, <code>auth/auth.module.ts</code></td>
+            <td>Logic is sound; sign/verify claim mismatch makes it non-functional end-to-end. 7-second token lifetime by default.</td>
+          </tr>
+          <tr>
+            <td>Organizations &amp; workspaces</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/organizations/*</code></td><td>CRUD, members, roles, permissions endpoints all present.</td>
+          </tr>
+          <tr>
+            <td>RBAC enforcement</td><td><span class="chip c-missing">Missing</span></td>
+            <td><code>common/guards/permission.guard.ts</code>, <code>tenant.guard.ts</code></td>
+            <td>Guards written, never applied. UI-level gating only.</td>
+          </tr>
+          <tr>
+            <td>Projects &amp; studies</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/projects/*</code>, <code>src/studies/*</code>, <code>app/(dashboard)/studies/*</code></td>
+            <td>Includes an 11-state study lifecycle with transition validation and a design workspace (overview, research, methodology, ToC, logframe, indicators, instruments, review).</td>
+          </tr>
+          <tr>
+            <td>Questionnaire builder</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/questionnaires/*</code>, <code>components/forms/*</code></td>
+            <td>Sections, 20+ question types, skip logic, validations, per-locale translations, clone, publish, JSON import/export.</td>
+          </tr>
+          <tr>
+            <td>Audio question type</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>components/forms/question-type-selector.tsx:27</code>, <code>form-preview.tsx:171</code></td>
+            <td>Selectable as a question type; preview renders a static "Record audio response" div. No capture implementation.</td>
+          </tr>
+          <tr>
+            <td>Assignments</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/assignments/*</code></td>
+            <td>Single + batch create, approve/reject, progress, per-enumerator load. Tied to <em>study</em>, not to a guide or a named participant.</td>
+          </tr>
+          <tr>
+            <td>Submissions &amp; review</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/submissions/*</code>, <code>components/submissions/*</code></td>
+            <td>Complete, approve, reject, flag, quality assessment, CSV-ish export, reviewer stamped on the row.</td>
+          </tr>
+          <tr>
+            <td>Media upload</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/media/media.service.ts</code></td>
+            <td>Local disk only. 50 MB cap. MIME allowlist excludes <code>audio/webm</code>. No ownership check on download.</td>
+          </tr>
+          <tr>
+            <td>Chunked/resumable upload</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>media.service.ts</code> — <code>initChunkedUpload</code>, <code>uploadChunk</code>, <code>completeChunkedUpload</code></td>
+            <td>Reassembles chunks but hard-codes the result to <code>application/octet-stream</code> / <code>FILE</code>, losing audio typing. No checksum verification, no resume, no expiry.</td>
+          </tr>
+          <tr>
+            <td>Offline sync API (server)</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/sync/sync.service.ts</code></td>
+            <td>Delta pull by <code>updatedAt</code>, push with last-write-wins. Contains a defect that makes every push throw after applying changes (§7).</td>
+          </tr>
+          <tr>
+            <td>Offline client</td><td><span class="chip c-missing">Missing</span></td>
+            <td>—</td><td>No service worker, manifest, IndexedDB, or outbox anywhere in <code>apps/frontend</code>.</td>
+          </tr>
+          <tr>
+            <td>Indicators &amp; logframes</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/indicators/*</code>, <code>src/logframes/*</code></td>
+            <td>Values, targets, trends, approval, supersede; hierarchical logframe rows linked to indicators.</td>
+          </tr>
+          <tr>
+            <td>Dashboards</td><td><span class="chip c-complete">Complete</span></td>
+            <td><code>src/dashboards/*</code>, <code>components/dashboard/*</code></td>
+            <td>Widgets, KPI cards, alerts with logs, per-user layout preferences, ECharts.</td>
+          </tr>
+          <tr>
+            <td>Report generation</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/reports/reports.service.ts</code> — <code>generate()</code></td>
+            <td>Deterministic string interpolation of entity counts. The "Key Findings" section is a hard-coded placeholder sentence. No AI, no evidence.</td>
+          </tr>
+          <tr>
+            <td>Report export</td><td><span class="chip c-missing">Missing</span></td>
+            <td><code>reports.service.ts</code> — <code>exportReport()</code></td>
+            <td>Validates <code>pdf|csv|excel</code> then returns a JSON object. No renderer for any format. Frontend requests a blob.</td>
+          </tr>
+          <tr>
+            <td>Report scheduling</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/reports/report-schedules.service.ts</code></td>
+            <td>Schedules are stored with a cron string; nothing executes them.</td>
+          </tr>
+          <tr>
+            <td>AI chat</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/ai/ai.service.ts</code>, <code>ai-gateway.service.ts</code></td>
+            <td>Real call path exists for OpenAI. Silent fabricated fallback on any failure.</td>
+          </tr>
+          <tr>
+            <td>AI specialist agents (×9)</td><td><span class="chip c-missing">Missing</span></td>
+            <td><code>src/ai/*-agent.ts</code>, <code>specialist-agent.ts</code></td>
+            <td>All return hard-coded advice strings. The abstract base class has no model dependency, so none of them <em>can</em> call an LLM.</td>
+          </tr>
+          <tr>
+            <td>RAG / citations</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/ai/rag.service.ts</code></td>
+            <td>Schema has a <code>vector(1536)</code> column; the service does a case-insensitive <code>contains</code> query and a JS word-overlap score. No embeddings are ever generated.</td>
+          </tr>
+          <tr>
+            <td>Transcription</td><td><span class="chip c-missing">Missing</span></td>
+            <td>—</td><td>No Whisper, Deepgram, AssemblyAI, or any STT reference in application code.</td>
+          </tr>
+          <tr>
+            <td>Audit log</td><td><span class="chip c-unclear">Unclear</span></td>
+            <td><code>common/interceptors/audit-log.interceptor.ts</code></td>
+            <td>Wired globally, but the route-key parser almost certainly never matches under the <code>api/v1</code> prefix (§11). <code>checksum</code> is written as <code>null</code> always.</td>
+          </tr>
+          <tr>
+            <td>Notifications</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>src/notifications/*</code></td>
+            <td>In-app rows only. No email/SMS/push transport in the backend.</td>
+          </tr>
+          <tr>
+            <td>i18n</td><td><span class="chip c-partial">Partial</span></td>
+            <td><code>next-intl</code> dependency, <code>QuestionTranslation</code> model, <code>User.locale</code></td>
+            <td>Infrastructure present; no message catalogues found in <code>apps/frontend</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 7 ===================== -->
+  <section id="s7">
+    <h2><span class="n">07</span> End-to-End Workflow Analysis</h2>
+
+    <p>
+      Each workflow below is traced from UI through API to database. "Blocked by auth" refers to
+      the token claim mismatch in §10 which, until fixed, prevents <em>every</em> authenticated
+      call from succeeding against the real backend.
+    </p>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">A</span><span class="wf-name">Create a project</span><span class="chip c-complete">Complete</span></div>
+      <div class="wf-body"><dl>
+        <dt>UI</dt><dd><code>app/(dashboard)/projects/new/page.tsx</code>, <code>components/projects/project-form.tsx</code>, <code>hooks/use-projects.ts</code></dd>
+        <dt>API</dt><dd><code>POST /api/v1/projects</code> → <code>ProjectsController.create</code> → <code>ProjectsService.create(dto, user.id)</code></dd>
+        <dt>Tables</dt><dd><code>projects</code>, plus <code>project_activities</code>, <code>project_teams</code>, <code>project_tags</code></dd>
+        <dt>Jobs</dt><dd>None</dd>
+        <dt>Risks</dt><dd><code>GET /projects</code> takes <code>organizationId</code> from the <strong>query string</strong>, not from the token — any org's projects can be listed by guessing an id. <code>status</code> is an unconstrained string, not an enum.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">B</span><span class="wf-name">Create an interview guide</span><span class="chip c-missing">Missing</span></div>
+      <div class="wf-body"><dl>
+        <dt>Nearest thing</dt><dd>The questionnaire builder: <code>components/forms/form-builder-layout.tsx</code>, <code>question-editor.tsx</code>, <code>skip-logic-editor.tsx</code>; <code>POST /questionnaires</code>, <code>/sections</code>, <code>/questions</code>.</dd>
+        <dt>Gap</dt><dd>A questionnaire is a structured instrument with typed answers. An interview guide needs open probes, topic areas, prompts, estimated durations, and no requirement that answers be captured as discrete values. There is no <code>InterviewGuide</code> model and no notion of a guide being <em>followed</em> during a recorded conversation.</dd>
+        <dt>Reusable</dt><dd>Versioning (<code>version</code> int), publish/archive states, clone, per-locale translations, and JSON import/export are all directly applicable to guides.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">C</span><span class="wf-name">Create or invite users</span><span class="chip c-partial">Partial</span></div>
+      <div class="wf-body"><dl>
+        <dt>UI</dt><dd><code>app/(dashboard)/admin/users/page.tsx</code>, <code>components/users/user-form.tsx</code>, <code>user-role-selector.tsx</code></dd>
+        <dt>API</dt><dd><code>POST /organizations/:orgId/members</code>, <code>PUT …/members/:userId/role</code>, plus <code>src/users/*</code> CRUD</dd>
+        <dt>Tables</dt><dd><code>users</code>, <code>roles</code>, <code>role_user</code></dd>
+        <dt>Gap</dt><dd>This is <strong>direct creation, not invitation</strong>. <code>emailVerificationToken</code> and reset-token columns exist, but no mail transport is configured in the NestJS app — the only mail settings live in a stale Laravel-era <code>.env.example</code>. An invited user cannot receive a link. Verification and reset tokens are stored as plaintext columns.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">D</span><span class="wf-name">Assign an interview</span><span class="chip c-partial">Partial</span></div>
+      <div class="wf-body"><dl>
+        <dt>UI</dt><dd><code>app/(dashboard)/assignments/new/page.tsx</code>, <code>components/assignments/assignment-form.tsx</code>, <code>assignment-batch-form.tsx</code></dd>
+        <dt>API</dt><dd><code>POST /assignments</code>, <code>POST /assignments/batch</code>, <code>POST /assignments/:id/approve|reject</code>, <code>GET /assignments/:id/progress</code></dd>
+        <dt>Tables</dt><dd><code>assignments</code> (enumerator ↔ study, status, notes, timestamps)</dd>
+        <dt>Gap</dt><dd>An assignment points at a <strong>study</strong>, not at a guide, a named or pseudonymous participant, a site, a scheduled time, or a language. There is no capacity or quota model beyond a count, and no concept of an interview that is scheduled, rescheduled, or refused.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">E</span><span class="wf-name">Record or upload an interview</span><span class="chip c-missing">Missing</span></div>
+      <div class="wf-body"><dl>
+        <dt>Recording</dt><dd><strong>Does not exist.</strong> No <code>MediaRecorder</code>, <code>getUserMedia</code>, or Web Audio reference anywhere in <code>apps/frontend</code>. The audio question type renders a non-functional placeholder.</dd>
+        <dt>Upload</dt><dd><code>POST /media/upload</code> (multipart, <code>FileInterceptor</code>) via <code>hooks/use-media.ts</code> → <code>useUploadMedia</code>. A chunked path exists: <code>POST /media/chunked/init</code> → <code>PUT /media/chunked/:identifier</code> → <code>POST /media/chunked/:identifier/complete</code>.</dd>
+        <dt>Tables</dt><dd><code>media</code>, <code>media_chunks</code></dd>
+        <dt>Failure points</dt><dd>50 MB hard cap — roughly 50 minutes of 128 kbps MP3, and far less for uncompressed WAV. The MIME allowlist accepts <code>audio/mpeg|wav|ogg|mp4</code> but <strong>not <code>audio/webm</code></strong>, which is what Chrome's <code>MediaRecorder</code> produces by default; a browser-recorded file would be rejected unless a <code>type</code> override is passed. No virus scanning, no duration or sample-rate validation, no client-side compression.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">F</span><span class="wf-name">Store and process the audio</span><span class="chip c-partial">Partial</span></div>
+      <div class="wf-body"><dl>
+        <dt>Storage</dt><dd><code>media.service.ts</code> writes with <code>fs.writeFileSync</code> to <code>UPLOADS_ROOT/YYYY/MM/DD/&lt;uuid&gt;&lt;ext&gt;</code>.</dd>
+        <dt>Critical</dt><dd>On Vercel, <code>UPLOADS_ROOT</code> becomes <code>/tmp/uploads</code> — <strong>ephemeral, per-invocation storage</strong>. Uploaded interviews would disappear. On Kubernetes without a shared volume, files land on one pod's local disk and are invisible to the others.</dd>
+        <dt>Processing</dt><dd>None. <code>processingStatus</code> is set to <code>COMPLETED</code> at write time regardless — the enum's <code>PENDING</code>/<code>PROCESSING</code>/<code>FAILED</code> states are never used. No transcoding, normalization, waveform extraction, or duration probe.</dd>
+        <dt>Chunked-upload defects</dt><dd><code>completeChunkedUpload</code> hard-codes <code>mimeType = 'application/octet-stream'</code> and <code>type = MediaType.FILE</code>, so a chunk-uploaded interview is not recorded as audio. Chunk rows are created with no <code>mediaId</code>, then deleted, so <code>MediaChunk.media</code> is never populated. Chunk <code>checksum</code> is explicitly written as <code>undefined</code> and never verified. Reassembly uses <code>writeStream.write()</code> in a loop followed by <code>end()</code> without awaiting drain or the <code>finish</code> event, then creates the DB row — a large file may still be flushing when the row is returned.</dd>
+        <dt>Integrity</dt><dd>No encryption at rest, no signed URLs, no lifecycle/retention rules.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">G</span><span class="wf-name">Generate a transcript</span><span class="chip c-missing">Missing</span></div>
+      <div class="wf-body"><dl>
+        <dt>Evidence</dt><dd>A repository-wide search across <code>apps/</code> for <em>whisper, transcri*, deepgram, assembly, speech, diariz*</em> matches only three files: two agent files where the words appear inside advice prose, and the frontend mock. <span class="ev ev-c">Confirmed</span></dd>
+        <dt>Missing pieces</dt><dd>No STT provider integration, no <code>Transcript</code> or <code>TranscriptSegment</code> model, no speaker diarization, no language detection, no job queue to run any of it, no cost accounting for audio minutes.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">H</span><span class="wf-name">Generate AI summaries or insights</span><span class="chip c-partial">Partial</span></div>
+      <div class="wf-body"><dl>
+        <dt>What exists</dt><dd><code>POST /ai/chat</code> → <code>AiService.chat</code> → <code>AiGatewayService.sendMessage</code>, persisting <code>AiSession</code>/<code>AiMessage</code> and logging an <code>AiInference</code> row with tokens, cost and latency. The frontend declares <code>/ai/assist/generate-summary</code> and <code>/ai/assist/extract-themes</code> in <code>api-client.ts</code>.</dd>
+        <dt>Critical gap</dt><dd>Those two <code>/ai/assist/*</code> routes are <strong>declared on the client but not implemented on the server</strong> — <code>ai.controller.ts</code> exposes <code>chat</code>, <code>sessions</code>, <code>agents/*</code>, <code>rag/*</code>, <code>prompts</code>, <code>metrics</code>, <code>inferences</code>, and nothing under <code>assist</code>. Calling them returns 404.</dd>
+        <dt>Evidence linking</dt><dd>None. Nothing in the AI path accepts a transcript, returns spans, or writes a link between generated text and a source.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">I</span><span class="wf-name">Review and edit the transcript</span><span class="chip c-missing">Missing</span></div>
+      <div class="wf-body"><dl>
+        <dt>Nearest thing</dt><dd><code>components/submissions/submission-review.tsx</code> — approve, reject with reason, flag an individual answer by question id.</dd>
+        <dt>Gap</dt><dd>No transcript editor, no synchronized audio playback, no segment-level correction, no speaker re-attribution, no edit history or provenance (who changed what, and whether a quotation still matches the audio after an edit).</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">J</span><span class="wf-name">Approve findings</span><span class="chip c-missing">Missing</span></div>
+      <div class="wf-body"><dl>
+        <dt>Existing approval machinery</dt><dd>Three separate patterns exist and could be generalized: <code>SubmissionsService.approve/reject</code> (stamps <code>reviewedById</code>/<code>reviewedAt</code>), <code>AssignmentsService.approve/reject</code>, <code>IndicatorsService.approve</code> (<code>isApproved</code>, <code>approvedById</code>, <code>approvedAt</code>), and the 11-state study lifecycle with <code>DESIGN_REVIEW</code> → <code>APPROVED</code>.</dd>
+        <dt>Gap</dt><dd>There is no <code>Finding</code> entity to approve, no multi-stage or multi-reviewer workflow, no sign-off record, and no immutability guarantee after approval beyond <code>Study.isLocked</code>.</dd>
+      </dl></div>
+    </div>
+
+    <div class="wf">
+      <div class="wf-head"><span class="wf-letter">K</span><span class="wf-name">Generate and export a report</span><span class="chip c-partial">Partial</span></div>
+      <div class="wf-body"><dl>
+        <dt>UI</dt><dd><code>app/(dashboard)/reports/*</code>, <code>app/(dashboard)/studies/[studyId]/report/page.tsx</code>, <code>components/reports/report-generator.tsx</code>, <code>report-viewer.tsx</code></dd>
+        <dt>API</dt><dd><code>POST /reports/:id/generate</code>, <code>GET /reports/:id/export/:format</code>, <code>/report-templates</code>, <code>/reports/:id/schedules</code></dd>
+        <dt>Generate</dt><dd><code>ReportsService.generate</code> builds a fixed three-section object by interpolating study counts. <code>ReportTemplate.config</code> and <code>Report.config</code> are <strong>never read</strong> by <code>generate()</code> — so "configurable reporting" is currently a stored Json blob with no effect on output.</dd>
+        <dt>Export</dt><dd><code>exportReport</code> checks the format against <code>['pdf','csv','excel']</code> and then returns <code>{ reportId, title, format, data, exportedAt }</code> as JSON. There is no PDF, CSV, or XLSX library in <code>package.json</code>. The frontend requests <code>responseType: 'blob'</code> and would receive JSON.</dd>
+        <dt>Study report page</dt><dd>Collects a title, audience, section checklist and free-text instructions, then calls <code>API.ai.chat</code> for a narrative — subject to the fabricated-fallback behaviour in §8, with no citations.</dd>
+      </dl></div>
+    </div>
+
+    <h3>Cross-cutting: the sync push defect</h3>
+    <div class="callout alarm">
+      <p>
+        <code>SyncService.push</code> creates a <code>SyncBatch</code> whose primary key is a
+        generated UUID, while the local <code>batchId</code> variable is stored in the separate
+        <code>batchId</code> <em>column</em>. At the end it calls
+        <code>prisma.syncBatch.update({ where: { id: batchId } })</code> — looking up the column
+        value as a primary key. That record does not exist, so Prisma raises
+        <code>P2025</code> and the request fails with a 500 <strong>after</strong> all changes
+        have already been written and logged. The client sees a failed sync for work that
+        actually landed, and will likely retry it. <span class="ev ev-c">Confirmed by code reading</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== 8 ===================== -->
+  <section id="s8">
+    <h2><span class="n">08</span> AI and Transcription Capabilities</h2>
+
+    <h3>Transcription</h3>
+    <p>
+      <strong>None exists.</strong> There is no speech-to-text code, dependency, configuration
+      key, queue, or model in the repository. This is the largest single build item for the
+      proposed product. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h3>What the AI layer actually does</h3>
+    <p>
+      There is exactly one path that reaches a real language model:
+      <code>POST /api/v1/ai/chat</code> → <code>AiService.chat()</code> →
+      <code>AiGatewayService.sendMessage()</code>. It builds an OpenAI-style
+      <code>/chat/completions</code> request and posts it with a
+      <code>Authorization: Bearer</code> header.
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Provider</th><th>Configured endpoint</th><th>Will it work?</th></tr></thead>
+        <tbody>
+          <tr><td>OpenAI</td><td><code>…/v1/chat/completions</code>, Bearer</td><td><strong>Yes</strong> — correct shape</td></tr>
+          <tr><td>Anthropic</td><td><code>…/v1/chat/completions</code>, Bearer + <code>anthropic-version</code></td><td><strong>No</strong> — the API is <code>/v1/messages</code> with an <code>x-api-key</code> header and a different body/response shape. Model ids are also undated aliases.</td></tr>
+          <tr><td>Google</td><td><code>…/v1/chat/completions</code>, Bearer</td><td><strong>No</strong> — Gemini uses <code>:generateContent</code> with a different auth and payload</td></tr>
+          <tr><td>OpenRouter</td><td><code>…/api/v1/chat/completions</code>, Bearer</td><td><strong>Yes</strong> — OpenAI-compatible</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout alarm">
+      <h4>The fabricated-response fallback</h4>
+      <p>
+        <code>sendMessage</code> loops over every provider that has a key. If all of them throw —
+        or if no key is configured at all — it does not raise. It returns
+        <code>generateSimulatedResponse()</code>: a hand-written block of MERL-flavoured filler
+        ("Based on the available information and best practices in MERL… 1. I have analyzed the
+        key aspects of your request…"), tagged <code>model: 'simulated'</code>,
+        <code>provider: 'fallback'</code>, <code>cost: 0</code>.
+      </p>
+      <p>
+        That object flows through the normal success path into <code>AiMessage</code> and back to
+        the user interface. Whether a given answer came from a model or from a string literal is
+        recorded only in a metadata field that no inspected UI component surfaces. For a product
+        whose output will inform programme decisions about real beneficiaries, this is the
+        highest-severity design flaw in the codebase. <span class="ev ev-c">Confirmed</span>
+      </p>
+    </div>
+
+    <h3>The nine "specialist agents"</h3>
+    <p>
+      <code>research-design</code>, <code>survey-design</code>, <code>indicator</code>,
+      <code>data-quality</code>, <code>reporting</code>, <code>knowledge</code>,
+      <code>qualitative</code>, <code>executive</code>, <code>translation</code> — all exposed at
+      <code>POST /ai/agents/{type}</code> and routed by <code>AgentOrchestratorService</code>.
+    </p>
+    <p>
+      <strong>None of them calls a model.</strong> Each <code>process()</code> returns a template
+      literal of generic advice, optionally interpolating the user's message and a count or two
+      from the database. The abstract base class <code>SpecialistAgent</code> declares no
+      gateway dependency and the orchestrator injects none, so this is structural rather than
+      incidental. The <code>QualitativeAgent</code> — the one closest to this product — returns a
+      fixed bulleted list recommending informed consent and thematic analysis.
+      <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h3>RAG and citations</h3>
+    <p>
+      <code>DocumentChunk</code> carries an <code>Unsupported("vector(1536)")</code> embedding
+      column. <code>RagService.ingestDocument</code> splits text into 2,000-character chunks with
+      200-character overlap and inserts them — <strong>without ever computing an embedding</strong>.
+      <code>RagService.search</code> does a Prisma <code>contains</code> (case-insensitive
+      substring) and then sorts by a local word-overlap score. There is no vector search, no
+      pgvector index, and no reranking. A UI component <code>ai-citation-card.tsx</code> exists
+      and renders a quote plus a source string, but nothing in the backend produces the citation
+      data it would display. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h3>Guardrails and cost tracking</h3>
+    <p>
+      <code>GuardrailService</code> applies a small regex blocklist — <code>&lt;script&gt;</code>,
+      <code>DROP TABLE</code>, <code>DELETE FROM</code>, SQL comment markers — and length caps of
+      100k input / 500k output characters. This defends against nothing relevant: it does not
+      address prompt injection, and <code>/DELETE\s+FROM/i</code> or <code>/--\s+.*$/m</code> will
+      false-positive on ordinary interview transcript text. <code>AiInference</code> rows do
+      capture model, provider, token counts, computed cost and latency, which is a genuinely
+      useful foundation for cost control. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h3>Evidence linkage — the core product requirement</h3>
+    <p>
+      <strong>Nothing in the system links an AI output to a source.</strong> There is no span
+      model, no offset or timecode anchor, no quotation entity, and no schema path from a
+      generated sentence back to the audio or transcript it came from. "Evidence-linked findings
+      and quotations" is a from-scratch build. <span class="ev ev-n">Not found</span>
+    </p>
+  </section>
+
+  <!-- ===================== 9 ===================== -->
+  <section id="s9">
+    <h2><span class="n">09</span> PWA and Offline Capabilities</h2>
+
+    <div class="callout alarm">
+      <p>
+        <strong>There are no offline or PWA capabilities in the client.</strong> A search of
+        <code>apps/frontend/src</code> and the Next config for <em>serviceWorker, service-worker,
+        manifest.json, IndexedDB, idb, workbox, next-pwa, navigator.onLine, MediaRecorder,
+        getUserMedia</em> returns <strong>zero matches</strong>. <code>apps/frontend/public</code>
+        contains only <code>favicon-32.png</code> and seven brand images.
+        <span class="ev ev-c">Confirmed</span>
+      </p>
+    </div>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Capability</th><th>State</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Web app manifest</td><td><span class="chip c-missing">Missing</span></td><td>No <code>manifest.json</code>, no icon set, no <code>&lt;link rel="manifest"&gt;</code>. The app is not installable.</td></tr>
+          <tr><td>Service worker</td><td><span class="chip c-missing">Missing</span></td><td>No registration, no precache, no runtime caching, no <code>next-pwa</code>/Workbox dependency.</td></tr>
+          <tr><td>IndexedDB</td><td><span class="chip c-missing">Missing</span></td><td>No local database. Nothing survives a reload offline.</td></tr>
+          <tr><td>localStorage</td><td><span class="chip c-partial">Partial</span></td><td>Zustand stores exist for auth, UI, preferences and the form builder. Persistence middleware was not confirmed; the auth token is also read from a <code>merline-auth-token</code> cookie by <code>middleware.ts</code>.</td></tr>
+          <tr><td>Sync queue / outbox</td><td><span class="chip c-missing">Missing</span></td><td>The <em>server</em> endpoints exist (<code>/sync/pull</code>, <code>/sync/push</code>, <code>/sync/status</code>, <code>/sync/log</code>, <code>/sync/full</code>) and a monitoring UI exists (<code>components/data-collection/sync-monitor.tsx</code>). No client ever queues anything into them.</td></tr>
+          <tr><td>Upload retry</td><td><span class="chip c-missing">Missing</span></td><td>Axios has a 15-second timeout and no retry. A failed upload surfaces a toast and is lost.</td></tr>
+          <tr><td>Conflict handling</td><td><span class="chip c-partial">Partial</span></td><td>Server-side last-write-wins: on <code>UPDATE</code>, the client's <code>updatedAt</code> is compared to the server's and the write is silently dropped if older. No merge, no user-facing conflict resolution, no vector clocks. The <code>SyncLog.conflict</code> column is only populated with an exception message.</td></tr>
+          <tr><td>Binary sync</td><td><span class="chip c-missing">Missing</span></td><td><code>media</code> is in the sync entity map, but the push protocol carries a JSON <code>payload</code> — audio bytes cannot travel this path. There is no story for syncing a queued recording.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The <code>mobile/</code> directory contains nine detailed design documents describing a
+      Flutter app with Drift/SQLite, delta sync, SQLCipher and remote wipe. <strong>None of it is
+      implemented</strong> — there is no Dart code in the repository. For the proposed PWA, these
+      documents are useful requirements input and nothing more.
+    </p>
+  </section>
+
+  <!-- ===================== 10 ===================== -->
+  <section id="s10">
+    <h2><span class="n">10</span> Security, Privacy, and Consent</h2>
+
+    <p>I am listing only controls for which I found concrete code.</p>
+
+    <h3>Controls that exist</h3>
+    <ul>
+      <li><strong>Password hashing</strong> — bcrypt, cost factor 12. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Token revocation</strong> — <code>User.tokenVersion</code> is embedded as the <code>tkn</code> claim and compared on every request; incrementing it invalidates all sessions. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Active-user check</strong> — <code>JwtStrategy.validate</code> re-reads the user and rejects inactive accounts. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Input validation</strong> — global <code>ValidationPipe</code> with <code>whitelist</code> and <code>forbidNonWhitelisted</code>; class-validator DTOs throughout. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Helmet + CORS allowlist</strong> — configured in <code>main.ts</code>; production origin derived from <code>CORS_ORIGINS</code> or <code>APP_URL</code>. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Production env guard</strong> — <code>configuration.ts</code> throws if <code>DATABASE_URL</code> or <code>JWT_SECRET</code> is absent in production, preventing the dev-secret default from shipping. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Soft delete</strong> — <code>deletedAt</code> on most entities. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>Audit log table</strong> — schema supports before/after values, IP, user agent, checksum. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>ORM parameterization</strong> — Prisma throughout; no raw SQL string building observed. <span class="ev ev-c">Confirmed</span></li>
+    </ul>
+
+    <h3>Confirmed defects</h3>
+
+    <div class="risks">
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">JWT issuer/audience mismatch breaks all authentication</span></div>
+        <p>
+          <code>AuthModule</code> signs with <code>{ secret, signOptions: { expiresIn } }</code> —
+          no <code>issuer</code>, no <code>audience</code>. <code>JwtStrategy</code> verifies with
+          <code>issuer: 'merline'</code> and <code>audience: 'merline-api'</code>. I reproduced
+          this with the installed <code>jsonwebtoken</code>:
+          <code>JsonWebTokenError: jwt audience invalid. expected: merline-api</code>.
+          Every authenticated request against the real backend returns 401.
+          <span class="ev ev-c">Confirmed by execution</span>
+        </p>
+      </div>
+
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Access tokens expire after 7 seconds</span></div>
+        <p>
+          <code>parseInt(configService.get('jwt.expiresIn', '604800'), 10)</code> is applied to a
+          configuration default of the <em>string</em> <code>'7d'</code>.
+          <code>parseInt('7d', 10)</code> evaluates to <code>7</code>, which
+          <code>jsonwebtoken</code> interprets as seconds. Verified: a token signed this way has
+          <code>exp - iat = 7</code>. The same expression appears in both
+          <code>auth.module.ts</code> and <code>auth.service.ts</code>.
+          <span class="ev ev-c">Confirmed by execution</span>
+        </p>
+      </div>
+
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Cross-tenant data exposure on list and detail endpoints</span></div>
+        <p>
+          <code>StudiesService.findAll</code> and <code>SubmissionsService.findAll</code> build
+          their <code>where</code> clause from query parameters only — there is no
+          <code>organizationId</code> filter, and the controllers do not inject one from the
+          token. <code>ReportsService.findAll</code> is the same.
+          <code>ProjectsController.findAll</code> takes <code>organizationId</code> from the
+          <strong>query string</strong>, so it is caller-controlled.
+        </p>
+        <p>
+          Detail endpoints are equally open: <code>findById</code> for studies, projects,
+          submissions and media looks up by primary key with no tenant check, and
+          <code>GET /media/:id/download</code> streams any file to any authenticated user who
+          knows its UUID. With <code>PermissionGuard</code> and <code>TenantGuard</code> unused,
+          nothing compensates. <span class="ev ev-c">Confirmed</span>
+        </p>
+      </div>
+
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Password-reset and verification tokens stored in plaintext</span></div>
+        <p>
+          <code>resetPasswordToken</code> and <code>emailVerificationToken</code> are plain
+          <code>String?</code> columns. Anyone with read access to the users table can take over
+          any account. These should be stored hashed. <span class="ev ev-c">Confirmed</span>
+        </p>
+      </div>
+
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Rate limiting configured but not enforced</span></div>
+        <p>
+          <code>ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }])</code> is imported, but no
+          <code>APP_GUARD</code> provider binds <code>ThrottlerGuard</code>. Login and the AI
+          endpoints — the two places that most need it, for credential stuffing and for token
+          spend — are unthrottled. <span class="ev ev-c">Confirmed</span>
+        </p>
+      </div>
+
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Seeded demo administrator with a weak hard-coded password</span></div>
+        <p>
+          <code>prisma/seed.ts</code> creates <code>admin@merline.org</code> with a short
+          hard-coded password, marks the email verified, and prints the credentials to stdout. If
+          the seed is ever run against a shared or production database this is an immediate
+          full-tenant compromise. <span class="ev ev-c">Confirmed</span>
+        </p>
+      </div>
+    </div>
+
+    <h3>Privacy, consent and retention</h3>
+
+    <p>
+      This is the weakest area relative to the product direction, and the one with regulatory
+      exposure. Qualitative interviews with programme beneficiaries are special-category personal
+      data in most jurisdictions: a voice recording is biometric-adjacent, and the content
+      routinely includes health, household, and protection information.
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Control</th><th>Found?</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Consent capture / storage</td><td><span class="ev ev-n">Not found</span></td><td>No consent model, field, or UI. The only occurrences of the word "consent" in the codebase are inside AI advice strings telling the user to obtain it.</td></tr>
+          <tr><td>Consent withdrawal</td><td><span class="ev ev-n">Not found</span></td><td>No mechanism to revoke and cascade deletion of a participant's data.</td></tr>
+          <tr><td>Retention policy / TTL</td><td><span class="ev ev-n">Not found</span></td><td>Soft delete only; no purge job, no schedule, no per-entity retention.</td></tr>
+          <tr><td>PII classification</td><td><span class="ev ev-n">Not found</span></td><td>No field-level tagging, masking, or redaction anywhere.</td></tr>
+          <tr><td>Encryption at rest</td><td><span class="ev ev-n">Not found</span></td><td>Audio is written with <code>fs.writeFileSync</code> unencrypted. No application-level DB encryption.</td></tr>
+          <tr><td>Signed / expiring media URLs</td><td><span class="ev ev-n">Not found</span></td><td>Download is a direct authenticated stream with no authorization check.</td></tr>
+          <tr><td>Data residency</td><td><span class="ev ev-i">Inference</span></td><td>No residency logic. <code>deploy.yml</code> and config default to <code>eu-west-1</code>, which is a deployment default, not a control.</td></tr>
+          <tr><td>Subject access / export / erasure</td><td><span class="ev ev-n">Not found</span></td><td>No DSAR endpoints.</td></tr>
+          <tr><td>MFA / SSO</td><td><span class="ev ev-n">Not found</span></td><td>Documented in planning files; no implementation.</td></tr>
+          <tr><td>Secrets handling</td><td><span class="ev ev-c">Confirmed OK</span></td><td>All credentials read from environment variables. <code>.env.example</code> contains placeholders only. No hard-coded live secrets were found — but note it is a stale Laravel-era file listing MinIO, Redis, Mailpit and Reverb keys the NestJS app does not read.</td></tr>
+          <tr><td>AI data handling</td><td><span class="ev ev-n">Not found</span></td><td>No data-processing agreement logic, no redaction before sending content to third-party models, no per-organization opt-out, no region pinning for inference.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 11 ===================== -->
+  <section id="s11">
+    <h2><span class="n">11</span> Testing and Reliability</h2>
+
+    <h3>Automated tests</h3>
+    <p>
+      The entire repository contains <strong>two</strong> test files:
+      <code>src/auth/auth.controller.spec.ts</code> and <code>test/app.e2e-spec.ts</code>.
+      <code>apps/frontend</code> contains <strong>zero</strong>.
+      <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h4>Test run result</h4>
+    <p>
+      I ran the backend suite read-only (<code>npx jest --silent</code>). It fails to execute:
+    </p>
+    <p>
+      <code>Cannot find module '…/node_modules/bcrypt/lib/binding/napi-v3/bcrypt_lib.node'</code>
+      — the native bcrypt binding is not built in this checkout, so importing
+      <code>auth.service.ts</code> throws before any assertion runs.
+    </p>
+    <p>
+      <strong>Result: 1 suite failed, 0 tests executed.</strong> Effective automated coverage of
+      this codebase is zero. <code>PROGRESS.md</code>'s claim of 1,230 backend and 600 frontend
+      tests refers to a test <em>plan</em>, not to code.
+    </p>
+
+    <h3>CI/CD — three broken references</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Workflow</th><th>Problem</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>frontend-ci.yml</code></td><td>Runs <code>npm run test:ci</code>; <code>apps/frontend/package.json</code> defines <code>test</code>, <code>test:run</code> and <code>test:e2e</code> but <strong>not <code>test:ci</code></strong>.</td><td>Job fails every run.</td></tr>
+          <tr><td><code>frontend-ci.yml</code></td><td>Runs <code>npx playwright test</code>; there is no <code>playwright.config.*</code> and no <code>tests/</code> directory. It also uploads <code>tests/results/</code>, which does not exist.</td><td>E2E job fails or no-ops. No vitest config file either.</td></tr>
+          <tr><td><code>deploy.yml</code></td><td>Runs <code>helm upgrade --install … ./charts/merline-api</code> and <code>./charts/merline-frontend</code>. <strong>There is no <code>charts/</code> directory.</strong></td><td>Deployment cannot succeed as written.</td></tr>
+          <tr><td><code>deploy.yml</code></td><td>Smoke tests <code>curl</code> <code>/api/health</code> and <code>/api/v1/status</code>. <strong>No health or status endpoint exists</strong> in the NestJS app.</td><td>Smoke tests would fail even if Helm succeeded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      What CI <em>does</em> usefully enforce: ESLint, <code>tsc --noEmit</code>, and
+      <code>npm audit --audit-level=moderate</code> on the backend, plus a frontend production
+      build. Those are real gates and they have value.
+    </p>
+
+    <h3>Error handling and observability</h3>
+    <ul>
+      <li><code>AllExceptionsFilter</code> and <code>TransformInterceptor</code> are registered globally, giving a consistent response envelope. <span class="ev ev-c">Confirmed</span></li>
+      <li>The frontend has <code>error.tsx</code>, <code>global-error.tsx</code>, <code>loading.tsx</code>, <code>not-found.tsx</code> and a new <code>components/shared/error-boundary.tsx</code>. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>No structured logging.</strong> The only backend log statement found is a <code>console.log</code> of the port in <code>main.ts</code>, plus a <code>console.warn</code> if the uploads directory cannot be created. <span class="ev ev-c">Confirmed</span></li>
+      <li><strong>No APM, error tracker, metrics, or tracing.</strong> No Sentry, OpenTelemetry, Prometheus, or Datadog dependency. The planning docs describe a Prometheus/Grafana/Loki/OTel stack; none is wired. <span class="ev ev-n">Not found</span></li>
+      <li><strong>No health check endpoint</strong>, so no readiness or liveness probe is possible. <span class="ev ev-c">Confirmed</span></li>
+    </ul>
+
+    <h3>Audit trail</h3>
+    <div class="callout">
+      <p>
+        <code>AuditLogInterceptor</code> is registered as a global <code>APP_INTERCEPTOR</code>,
+        but <code>getRouteKey()</code> takes the <em>first</em> path segment and looks it up in a
+        7-entry map (<code>projects</code>, <code>studies</code>, <code>submissions</code>,
+        <code>assignments</code>, <code>questionnaires</code>, <code>users</code>,
+        <code>roles</code>). Because <code>main.ts</code> sets a global prefix of
+        <code>api/v1</code>, the first segment is <code>api</code> — which is not in the map, so
+        the function returns <code>null</code> and the interceptor short-circuits.
+        <strong>I expect no audit rows are ever written.</strong>
+        <span class="ev ev-i">Inference — strong, but I did not run the server to observe it</span>
+      </p>
+      <p>
+        Independent of that: <code>auditableId</code> is taken from <code>request.params.id</code>,
+        so every create logs <code>'unknown'</code>; <code>oldValues</code> is never captured, so
+        there is no before/after diff; media, reports, AI and auth events are outside the map
+        entirely; <code>checksum</code> is explicitly written as <code>null</code>, so the
+        tamper-evidence column is decorative; and failures are swallowed by
+        <code>.catch(() =&gt; {})</code>. <span class="ev ev-c">Confirmed</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== 12 ===================== -->
+  <section id="s12">
+    <h2><span class="n">12</span> Technical Risks and Gaps</h2>
+
+    <h3>Critical</h3>
+    <div class="risks">
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Authentication is non-functional</span></div>
+        <p>JWT claim mismatch plus a 7-second expiry. Nothing can be validated end-to-end against the real API until this is fixed, which also means none of the "working" features have ever been exercised through the live stack.</p>
+      </div>
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Unsupported AI conclusions — fabricated fallback</span></div>
+        <p>The gateway silently substitutes invented text for a model response on any provider failure, and all nine specialist agents are static templates. Applied to interview analysis, the system can present fabricated "findings" about vulnerable people as AI output, with no visible marker. Compounded by the absence of any evidence-linking mechanism.</p>
+      </div>
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Sensitive personal data with no protective controls</span></div>
+        <p>Interview audio and transcripts are special-category data. Today there is no consent record, no retention limit, no PII handling, no encryption at rest, no access check on media download, and no redaction before content is sent to third-party model providers.</p>
+      </div>
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Cross-tenant data exposure</span></div>
+        <p>List and detail endpoints do not scope by the caller's organization, and both authorization guards are unused. One customer's interviews would be reachable by another's users.</p>
+      </div>
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Audio storage is ephemeral and single-node</span></div>
+        <p>Files are written to local disk — <code>/tmp/uploads</code> under Vercel. Recordings that field teams may have travelled hours to collect can be irrecoverably lost. Irreplaceable data with no durability guarantee is the worst possible combination.</p>
+      </div>
+      <div class="risk critical">
+        <div class="risk-head"><span class="risk-sev">Critical</span><span class="risk-title">Offline-first is claimed but entirely absent</span></div>
+        <p>No service worker, manifest, IndexedDB, outbox, or retry. The stated core use case — recording interviews in low-connectivity field settings — is unbuildable on the current client. Field teams would lose recordings on any network interruption.</p>
+      </div>
+    </div>
+
+    <h3>High</h3>
+    <div class="risks">
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Poor audio quality has no mitigation path</span></div>
+        <p>No level metering, no pre-flight microphone check, no noise floor or clipping detection, no minimum-bitrate enforcement, no duration probe, and no quality score. Field recordings on cheap handsets in noisy environments are the norm, and transcription accuracy degrades sharply. The <code>Submission.qualityScore</code> field exists for form data and has no audio analogue.</p>
+      </div>
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Speaker attribution has no model and no correction path</span></div>
+        <p>No diarization, no <code>Speaker</code> entity, no speaker labels, and no UI to reassign a turn. In a two-or-more-person interview, misattributing a statement to the interviewer rather than the participant invalidates the quotation. Without a correction workflow, errors propagate into findings and reports unchallenged.</p>
+      </div>
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Transcription and storage costs are unmodelled</span></div>
+        <p><code>AiInference</code> tracks text tokens only. There is no audio-minute accounting, no per-organization quota, no budget cap, and no storage-growth model. A single 90-minute interview is roughly 80–170 MB of uncompressed audio and a meaningful STT spend; a study of 200 interviews is a material and currently invisible cost line. The 50 MB upload cap will also reject many real interviews.</p>
+      </div>
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Sync push fails after writing</span></div>
+        <p>The <code>SyncBatch</code> primary-key defect makes every push return 500 having already committed its changes, inviting duplicate retries. Combined with last-write-wins and no idempotency key, offline reconciliation is not trustworthy.</p>
+      </div>
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">No audit trail in practice</span></div>
+        <p>The interceptor almost certainly never fires; where it would, it records no before-values and no checksum. For research ethics and donor assurance, "who listened to, edited, or approved this interview" must be answerable. It currently is not.</p>
+      </div>
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">Zero effective test coverage on a deploy pipeline with a manual production gate</span></div>
+        <p>Two test files, one unrunnable. The canary deploy machinery is elaborate but rests on no correctness signal, and its Helm charts and health endpoints do not exist.</p>
+      </div>
+      <div class="risk high">
+        <div class="risk-head"><span class="risk-sev">High</span><span class="risk-title">No database migrations</span></div>
+        <p>No <code>prisma/migrations</code> directory, yet deploy runs <code>prisma migrate deploy</code>. The schema has only ever been applied via <code>db push</code>. There is no reproducible schema history and no rollback path — a serious problem before any production data exists, and a blocking one after.</p>
+      </div>
+    </div>
+
+    <h3>Medium</h3>
+    <div class="risks">
+      <div class="risk medium">
+        <div class="risk-head"><span class="risk-sev">Medium</span><span class="risk-title">Report formats are rigid and non-configurable</span></div>
+        <p>A fixed three-section template with hard-coded prose, ignoring <code>Report.config</code> and <code>ReportTemplate.config</code>, and no export renderer for any of the three advertised formats. Donor reporting demands per-funder structures; this needs rebuilding as a real template engine rather than extending.</p>
+      </div>
+      <div class="risk medium">
+        <div class="risk-head"><span class="risk-sev">Medium</span><span class="risk-title">Chunked upload is not production-safe</span></div>
+        <p>Loses MIME type and media type, never links chunks to media, never verifies checksums, does not await stream flush, has no expiry or orphan cleanup, and writes chunks to the same ephemeral disk.</p>
+      </div>
+      <div class="risk medium">
+        <div class="risk-head"><span class="risk-sev">Medium</span><span class="risk-title">Documentation contradicts the code</span></div>
+        <p><code>README.md</code> names Laravel/PHP and Flutter; <code>PROGRESS.md</code> claims completeness that does not exist; <code>.env.example</code> describes a Laravel stack the app never reads. Any engineer onboarding from the docs will build on false assumptions.</p>
+      </div>
+      <div class="risk medium">
+        <div class="risk-head"><span class="risk-sev">Medium</span><span class="risk-title">Client declares endpoints the server does not implement</span></div>
+        <p><code>/ai/assist/generate-summary</code>, <code>/ai/assist/extract-themes</code> and the other four assist routes, plus <code>/auth/sessions</code> and the <code>/teams/*</code> family, are declared in <code>api-client.ts</code> with no backend counterpart. The mock adapter hides this in demo mode.</p>
+      </div>
+      <div class="risk medium">
+        <div class="risk-head"><span class="risk-sev">Medium</span><span class="risk-title">Two divergent deployment targets</span></div>
+        <p>EKS/Helm in CI, Vercel artifacts in both apps, and a media service that branches on <code>process.env.VERCEL</code>. Neither path is complete; the storage behaviour differs between them in a data-losing way.</p>
+      </div>
+      <div class="risk medium">
+        <div class="risk-head"><span class="risk-sev">Medium</span><span class="risk-title">Guardrails will corrupt legitimate interview text</span></div>
+        <p><code>/DELETE\s+FROM/i</code> and <code>/--\s+.*$/m</code> will match ordinary transcript content and reject it as "blocked content", while providing no defence against actual prompt injection from transcript text — which is the real threat in this product.</p>
+      </div>
+    </div>
+
+    <h3>Low</h3>
+    <div class="risks">
+      <div class="risk low">
+        <div class="risk-head"><span class="risk-sev">Low</span><span class="risk-title">Stale model identifiers and pricing table</span></div>
+        <p>The gateway hard-codes Claude 3 / GPT-4o / Gemini 1.5 aliases and a per-1k-token price map that will drift from reality and silently mis-report cost.</p>
+      </div>
+      <div class="risk low">
+        <div class="risk-head"><span class="risk-sev">Low</span><span class="risk-title">Loose typing at API boundaries</span></div>
+        <p><code>@CurrentUser() user: any</code> and <code>const where: any</code> are pervasive, discarding the type safety the stack otherwise provides.</p>
+      </div>
+      <div class="risk low">
+        <div class="risk-head"><span class="risk-sev">Low</span><span class="risk-title">Untracked binaries and OS files in the repo root</span></div>
+        <p>Screenshots, <code>desktop.ini</code>, <code>logo/</code> and <code>idea/</code> are untracked working-tree clutter; <code>desktop.ini</code> suggests a cloud-synced folder, which can corrupt <code>node_modules</code> and git state.</p>
+      </div>
+      <div class="risk low">
+        <div class="risk-head"><span class="risk-sev">Low</span><span class="risk-title">No monorepo tooling</span></div>
+        <p>No root <code>package.json</code> or workspace config; the two apps are installed and versioned independently with no shared types package, so API contracts are duplicated by hand.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 13 ===================== -->
+  <section id="s13">
+    <h2><span class="n">13</span> Recommended Next Steps</h2>
+
+    <h3>Immediate fixes — days, before any new feature work</h3>
+    <ol>
+      <li>
+        <strong>Repair authentication.</strong> Add <code>issuer</code>/<code>audience</code> to
+        <code>signOptions</code> (or remove them from the strategy), and fix the expiry parsing so
+        <code>'7d'</code> is passed through as a duration string rather than
+        <code>parseInt</code>ed. Add a test that signs and verifies a token. Without this nothing
+        else can be validated.
+      </li>
+      <li>
+        <strong>Close the tenant boundary.</strong> Apply <code>TenantGuard</code> globally, derive
+        <code>organizationId</code> from the token rather than the query string, and add an
+        <code>organizationId</code> filter to every <code>findAll</code> and an ownership check to
+        every <code>findById</code> — starting with media download. Then apply
+        <code>PermissionGuard</code> with real <code>@Permissions()</code> decorators, and bind
+        <code>ThrottlerGuard</code> as an <code>APP_GUARD</code>.
+      </li>
+      <li>
+        <strong>Make the AI layer fail loudly.</strong> Delete
+        <code>generateSimulatedResponse</code> and propagate provider errors. If a demo mode is
+        needed, gate it behind an explicit flag and label it unmistakably in the UI. Fix or remove
+        the Anthropic and Google provider entries rather than leaving them to fail into the
+        fallback.
+      </li>
+      <li>
+        <strong>Fix the sync push defect</strong> (update the batch by its real primary key) and
+        the audit interceptor's route parsing, and hash reset/verification tokens at rest.
+      </li>
+      <li>
+        <strong>Make CI honest.</strong> Add the missing <code>test:ci</code> script and vitest
+        config, add or remove the Playwright job, add a <code>/health</code> endpoint, and either
+        commit the Helm charts or cut <code>deploy.yml</code> back to what actually exists.
+        Generate a real initial Prisma migration.
+      </li>
+    </ol>
+
+    <h3>MVP product work — the interview pipeline</h3>
+    <ol start="6">
+      <li>
+        <strong>Move media to durable object storage.</strong> The AWS SDK is already a
+        dependency. Write to S3 (or a compatible service) with server-side encryption, serve via
+        short-lived signed URLs, raise the size cap to something realistic for a 90-minute
+        interview, and accept <code>audio/webm</code>. This is a prerequisite for every
+        subsequent step and the single highest-value change available.
+      </li>
+      <li>
+        <strong>Model the interview domain.</strong> Add <code>InterviewGuide</code> (versioned,
+        reusing the questionnaire versioning pattern), <code>Interview</code>,
+        <code>Recording</code>, <code>Transcript</code>, <code>TranscriptSegment</code> (with
+        start/end offsets and a speaker), <code>Speaker</code>, <code>Finding</code>,
+        <code>Quotation</code> (anchored to a segment and time range), and
+        <code>Consent</code>. Design the evidence link as a first-class foreign key from the
+        outset — retrofitting it later is the expensive path.
+      </li>
+      <li>
+        <strong>Introduce a job queue and a transcription service.</strong> There is no async
+        infrastructure at all today. Add a queue, then a transcription worker with retry,
+        progress, and a real use of the existing <code>ProcessingStatus</code> enum. Choose a
+        provider on language coverage and diarization quality (§14), and record audio-minute
+        cost per organization alongside the existing token accounting.
+      </li>
+      <li>
+        <strong>Build the PWA recording client.</strong> Manifest and icons, a service worker,
+        IndexedDB for queued recordings and guide content, <code>MediaRecorder</code> capture with
+        level metering, and a resumable background-sync outbox that drives the existing chunked
+        upload endpoints once they are fixed. Treat "the recording is safe on the device until the
+        server confirms it" as the central invariant.
+      </li>
+      <li>
+        <strong>Build the review and approval surface.</strong> A transcript editor with
+        synchronized playback, segment editing, speaker reassignment, an edit history, and an
+        explicit approval step that freezes a transcript version before findings are drawn from
+        it. Model AI output as a <em>proposal</em> that a human accepts or rejects, and make every
+        proposed finding carry its quotation and timecode. Generalize the three existing
+        approve/reject patterns into one reviewable-entity mechanism.
+      </li>
+    </ol>
+
+    <h3>Later enhancements</h3>
+    <ol start="11">
+      <li>
+        <strong>Rebuild reporting as a real template engine</strong> that reads
+        <code>ReportTemplate.config</code>, composes approved findings with their evidence, and
+        renders genuine PDF/DOCX/CSV output. Add a scheduler to make <code>ReportSchedule</code>
+        functional.
+      </li>
+      <li>
+        <strong>Make RAG real</strong> — generate embeddings, add a pgvector index, use the
+        <code>vector(1536)</code> column that already exists, and wire the existing
+        <code>ai-citation-card</code> component to genuine retrieved sources.
+      </li>
+      <li>
+        <strong>Add qualitative analysis depth</strong> — a codebook, thematic coding across
+        interviews, saturation tracking, and inter-coder agreement. This is what distinguishes the
+        product from a transcription tool.
+      </li>
+      <li>
+        <strong>Complete the compliance layer</strong> — retention schedules with automated purge,
+        consent withdrawal that cascades, DSAR export/erasure, PII redaction before third-party
+        inference, observability, and SSO/MFA.
+      </li>
+    </ol>
+  </section>
+
+  <!-- ===================== 14 ===================== -->
+  <section id="s14">
+    <h2><span class="n">14</span> Questions Requiring Product Decisions</h2>
+
+    <p>None of these can be inferred from the code. Each materially changes the build.</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Area</th><th>Decision needed</th><th>Why it changes the build</th></tr></thead>
+        <tbody>
+          <tr><td>Product identity</td><td>Is this "Merlin", a new product, or an interview module inside Merline?</td><td>Determines whether interviews attach to the existing Study hierarchy or stand alone. Everything downstream follows from this.</td></tr>
+          <tr><td>Primary users</td><td>Are field interviewers employees, contractors, or community members? What devices do they carry?</td><td>Drives PWA browser targets, storage quotas, offline duration, and the authentication model for shared or low-trust devices.</td></tr>
+          <tr><td>Languages</td><td>Which spoken languages must be transcribed, and is translation required? Code-switching within one interview?</td><td>The dominant STT provider choice. Many African and South Asian languages are poorly supported; this may force a human-in-the-loop transcription tier.</td></tr>
+          <tr><td>Consent model</td><td>Written, verbal-recorded, or both? Who witnesses it? Can it be withdrawn, and what must then be deleted?</td><td>Determines whether consent is a blocking gate before recording, and the entire deletion-cascade design.</td></tr>
+          <tr><td>Participant identity</td><td>Named, pseudonymous, or anonymous? Are participants ever re-interviewed longitudinally?</td><td>Anonymity conflicts with voice recording; longitudinal linkage conflicts with anonymity. This is the hardest privacy trade-off in the product.</td></tr>
+          <tr><td>Hosting region</td><td>Where must audio, transcripts and PII reside? Is cross-border inference permitted?</td><td>If data cannot leave a jurisdiction, third-party STT and LLM APIs may be ruled out entirely — a foundational architecture constraint.</td></tr>
+          <tr><td>Retention</td><td>How long are audio, transcripts and findings kept? Is audio deleted after transcription?</td><td>Deleting audio post-transcription eliminates most storage cost and much privacy risk, but destroys the ability to verify a quotation. A defining trade-off.</td></tr>
+          <tr><td>Approval requirements</td><td>Who must approve a transcript and a finding? One reviewer or two? Can AI output ever reach a report unreviewed?</td><td>Single-reviewer versus dual-control changes the state machine and the audit requirements.</td></tr>
+          <tr><td>Report formats</td><td>Which donor templates must be produced — PDF, DOCX, structured data? Who authors templates?</td><td>Decides whether to build a template engine or a fixed set of exporters.</td></tr>
+          <tr><td>AI posture</td><td>Is AI a drafting assistant only, or may it produce findings directly? Must every claim carry a quotation?</td><td>Determines how much of the evidence-linking machinery is mandatory versus optional.</td></tr>
+          <tr><td>Cost ownership</td><td>Who pays for transcription minutes and storage — platform or customer? Per-organization caps?</td><td>Requires quota enforcement and billing hooks that do not exist today.</td></tr>
+          <tr><td>Offline duration</td><td>How long must a device operate disconnected, and how many recordings must it hold?</td><td>Drives IndexedDB quota strategy, on-device compression, and whether audio must be chunked during capture.</td></tr>
+          <tr><td>Existing deployment</td><td>Is there a live instance with real data, and is the Laravel-era stack in <code>.env.example</code> genuinely dead?</td><td>Determines whether the tenancy and auth fixes are urgent production incidents or pre-launch cleanup.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 15 ===================== -->
+  <section id="s15">
+    <h2><span class="n">15</span> Appendix</h2>
+
+    <h3>15.1 Important file paths</h3>
+    <ul class="kv-list">
+      <li><span class="k">apps/backend-nestjs/prisma/schema.prisma</span><span>40 models — the system of record</span></li>
+      <li><span class="k">apps/backend-nestjs/src/main.ts</span><span>bootstrap, prefix, CORS, helmet, pipes</span></li>
+      <li><span class="k">apps/backend-nestjs/src/app.module.ts</span><span>19 modules, global audit interceptor</span></li>
+      <li><span class="k">apps/backend-nestjs/src/config/configuration.ts</span><span>env loading + production guard</span></li>
+      <li><span class="k">apps/backend-nestjs/src/auth/auth.module.ts</span><span>JWT signOptions — missing iss/aud</span></li>
+      <li><span class="k">apps/backend-nestjs/src/auth/jwt.strategy.ts</span><span>verification with iss/aud</span></li>
+      <li><span class="k">apps/backend-nestjs/src/auth/auth.service.ts</span><span>expiry parseInt defect (~line 397)</span></li>
+      <li><span class="k">apps/backend-nestjs/src/common/guards/permission.guard.ts</span><span>defined, never applied</span></li>
+      <li><span class="k">apps/backend-nestjs/src/common/guards/tenant.guard.ts</span><span>defined, never applied</span></li>
+      <li><span class="k">apps/backend-nestjs/src/common/interceptors/audit-log.interceptor.ts</span><span>route-key parsing defect</span></li>
+      <li><span class="k">apps/backend-nestjs/src/media/media.service.ts</span><span>local-disk storage, chunked upload</span></li>
+      <li><span class="k">apps/backend-nestjs/src/sync/sync.service.ts</span><span>delta sync + SyncBatch defect</span></li>
+      <li><span class="k">apps/backend-nestjs/src/ai/ai-gateway.service.ts</span><span>providers + simulated fallback</span></li>
+      <li><span class="k">apps/backend-nestjs/src/ai/specialist-agent.ts</span><span>base class with no model access</span></li>
+      <li><span class="k">apps/backend-nestjs/src/ai/qualitative-agent.ts</span><span>static template output</span></li>
+      <li><span class="k">apps/backend-nestjs/src/ai/rag.service.ts</span><span>substring search, no embeddings</span></li>
+      <li><span class="k">apps/backend-nestjs/src/reports/reports.service.ts</span><span>generate() and exportReport()</span></li>
+      <li><span class="k">apps/frontend/src/lib/api-client.ts</span><span>full API surface + mock toggle</span></li>
+      <li><span class="k">apps/frontend/src/lib/api-mock.ts</span><span>~800-line demo data adapter</span></li>
+      <li><span class="k">apps/frontend/src/lib/permissions.ts</span><span>12×7 UI permission matrix</span></li>
+      <li><span class="k">apps/frontend/src/middleware.ts</span><span>cookie-based route protection</span></li>
+      <li><span class="k">apps/frontend/src/components/forms/form-preview.tsx</span><span>audio placeholder at line 171</span></li>
+      <li><span class="k">.github/workflows/deploy.yml</span><span>references non-existent charts/</span></li>
+    </ul>
+
+    <h3>15.2 API endpoint inventory</h3>
+    <p>All routes are prefixed <code>/api/v1</code>. Compiled from the NestJS controllers.</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Module</th><th>Endpoints</th></tr></thead>
+        <tbody>
+          <tr><td>auth</td><td><code>POST /auth/register</code> · <code>POST /auth/login</code> · <code>POST /auth/refresh</code> · <code>POST /auth/logout</code> · <code>GET /auth/me</code> · <code>PUT /auth/me</code> · <code>POST /auth/forgot-password</code> · <code>POST /auth/reset-password</code> · <code>POST /auth/change-password</code> · <code>POST /auth/verify-email</code></td></tr>
+          <tr><td>organizations</td><td><code>GET|PUT /organizations</code> · <code>/organizations/:id/members</code> (list, create, update role, remove) · <code>/workspaces</code> CRUD · <code>/roles</code> CRUD + <code>/roles/:id/permissions</code> · <code>/permissions</code></td></tr>
+          <tr><td>users</td><td><code>GET|POST /users</code> · <code>GET|PUT|DELETE /users/:id</code> · <code>PUT /users/:id/roles</code></td></tr>
+          <tr><td>projects</td><td><code>GET|POST /projects</code> · <code>GET|PUT|DELETE /projects/:id</code> · <code>POST /projects/:id/archive|restore|clone</code> · <code>/projects/:id/team</code> · <code>/projects/:id/timeline</code> · <code>/projects/:id/stats</code> · <code>/projects/:id/tags</code> · <code>/projects/:id/logframe</code> (+ rows, row indicators)</td></tr>
+          <tr><td>studies</td><td><code>GET|POST /studies</code> · <code>GET|PUT|DELETE /studies/:id</code> · <code>POST /studies/:id/transition</code> · <code>GET /studies/:id/transitions</code> · <code>/studies/:id/team</code> · archive/restore/clone</td></tr>
+          <tr><td>indicators</td><td><code>GET|POST /indicators</code> · <code>GET|PUT|DELETE /indicators/:id</code> · <code>POST /indicators/:id/approve</code> · <code>/indicators/:id/values</code> · <code>/indicators/:id/targets</code> · <code>/indicators/:id/trend</code></td></tr>
+          <tr><td>questionnaires</td><td><code>GET|POST /questionnaires</code> · <code>GET|PUT|DELETE /questionnaires/:id</code> · <code>POST /questionnaires/:id/clone|publish|archive</code> · <code>/sections</code> · <code>/questions</code> · <code>/options</code> · <code>/skip-logic</code> · <code>/validations</code> · <code>/translations</code> · <code>GET /questionnaires/export/:id</code> · <code>POST /questionnaires/import</code></td></tr>
+          <tr><td>assignments</td><td><code>GET|POST /assignments</code> · <code>GET|PUT|DELETE /assignments/:id</code> · <code>POST /assignments/batch</code> · <code>POST /assignments/:id/approve|reject</code> · <code>GET /assignments/:id/progress</code></td></tr>
+          <tr><td>submissions</td><td><code>GET|POST /submissions</code> · <code>GET|PUT|DELETE /submissions/:id</code> · <code>POST /submissions/:id/complete|approve|reject|flag</code> · <code>GET /submissions/:id/quality</code> · export · by-enumerator</td></tr>
+          <tr><td>media</td><td><code>POST /media/upload</code> · <code>POST /media/chunked/init</code> · <code>PUT /media/chunked/:identifier</code> · <code>POST /media/chunked/:identifier/complete</code> · <code>GET /media/:id</code> · <code>GET /media/:id/download</code> · <code>GET /media/:id/status</code> · <code>DELETE /media/:id</code> · <code>GET /submissions/:submissionId/media</code></td></tr>
+          <tr><td>sync</td><td><code>POST /sync/pull</code> · <code>POST /sync/push</code> · <code>POST /sync/full</code> · <code>GET /sync/status</code> · <code>GET /sync/log</code></td></tr>
+          <tr><td>reports</td><td><code>GET|POST /reports</code> · <code>GET|PUT|DELETE /reports/:id</code> · <code>POST /reports/:id/generate</code> · <code>GET /reports/:id/export/:format</code> · <code>POST /reports/:id/clone</code> · <code>/report-templates</code> · <code>/reports/:id/schedules</code></td></tr>
+          <tr><td>dashboards</td><td><code>/dashboards/*</code> summary and widgets · <code>/dashboard-alerts</code> · user preferences</td></tr>
+          <tr><td>ai</td><td><code>POST /ai/chat</code> · <code>/ai/sessions</code> (list, create, get, delete) · <code>POST /ai/agents/{research-design|survey-design|indicator|data-quality|reporting|knowledge|qualitative|executive|translation}</code> · <code>POST /ai/rag/search</code> · <code>POST /ai/rag/ingest</code> · <code>GET /ai/rag/documents</code> · <code>/ai/prompts</code> CRUD · <code>GET /ai/metrics</code> · <code>GET /ai/inferences</code></td></tr>
+          <tr><td>audit-log</td><td><code>GET /audit-logs</code> (+ filters)</td></tr>
+          <tr><td>notifications</td><td><code>GET /notifications</code> · mark read · delete</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Declared by the client but absent from the server</h4>
+    <p>
+      <code>/ai/assist/improve-wording</code>, <code>/ai/assist/suggest-indicators</code>,
+      <code>/ai/assist/suggest-questions</code>, <code>/ai/assist/generate-summary</code>,
+      <code>/ai/assist/detect-anomalies</code>, <code>/ai/assist/extract-themes</code>,
+      <code>/auth/sessions</code>, <code>/teams/*</code>. <span class="ev ev-c">Confirmed</span>
+    </p>
+
+    <h3>15.3 Database model inventory</h3>
+    <p>40 Prisma models / tables:</p>
+    <ul class="cols2">
+      <li><code>organizations</code></li><li><code>users</code></li><li><code>roles</code></li>
+      <li><code>permissions</code></li><li><code>role_user</code></li><li><code>permission_role</code></li>
+      <li><code>workspaces</code></li><li><code>projects</code></li><li><code>project_teams</code></li>
+      <li><code>project_tags</code></li><li><code>project_project_tag</code></li><li><code>project_activities</code></li>
+      <li><code>logframes</code></li><li><code>logframe_rows</code></li><li><code>logframe_row_indicators</code></li>
+      <li><code>studies</code></li><li><code>study_teams</code></li><li><code>indicators</code></li>
+      <li><code>indicator_values</code></li><li><code>indicator_targets</code></li><li><code>questionnaires</code></li>
+      <li><code>sections</code></li><li><code>questions</code></li><li><code>question_options</code></li>
+      <li><code>skip_logic</code></li><li><code>question_validations</code></li><li><code>question_translations</code></li>
+      <li><code>assignments</code></li><li><code>submissions</code></li><li><code>media</code></li>
+      <li><code>media_chunks</code></li><li><code>sync_logs</code></li><li><code>sync_batches</code></li>
+      <li><code>dashboard_alerts</code></li><li><code>dashboard_alert_logs</code></li><li><code>dashboard_widgets</code></li>
+      <li><code>user_dashboard_preferences</code></li><li><code>notifications</code></li><li><code>reports</code></li>
+      <li><code>report_templates</code></li><li><code>report_schedules</code></li><li><code>audit_logs</code></li>
+      <li><code>ai_sessions</code></li><li><code>ai_messages</code></li><li><code>ai_inferences</code></li>
+      <li><code>prompts</code></li><li><code>document_chunks</code></li>
+    </ul>
+    <p>
+      Enums: <code>StudyStatus</code> (11), <code>StudyType</code> (22, including
+      <code>QUALITATIVE</code>, <code>FOCUS_GROUP</code>, <code>KEY_INFORMANT</code>),
+      <code>SubmissionStatus</code> (6), <code>AssignmentStatus</code> (5),
+      <code>MediaType</code> (5, including <code>AUDIO</code>), <code>ProcessingStatus</code> (4),
+      <code>SyncAction</code> (3), <code>SyncStatus</code> (3).
+    </p>
+
+    <h3>15.4 Environment variables (names only)</h3>
+    <h4>Read by the NestJS backend</h4>
+    <ul class="cols2">
+      <li><code>NODE_ENV</code></li><li><code>PORT</code></li><li><code>DATABASE_URL</code></li>
+      <li><code>JWT_SECRET</code></li><li><code>JWT_EXPIRES_IN</code></li><li><code>APP_URL</code></li>
+      <li><code>CORS_ORIGINS</code></li><li><code>UPLOADS_DIR</code></li><li><code>VERCEL</code></li>
+      <li><code>REDIS_HOST</code> <em>(unused)</em></li><li><code>REDIS_PORT</code> <em>(unused)</em></li>
+      <li><code>AWS_REGION</code> <em>(unused)</em></li><li><code>AWS_ACCESS_KEY_ID</code> <em>(unused)</em></li>
+      <li><code>AWS_SECRET_ACCESS_KEY</code> <em>(unused)</em></li><li><code>AWS_BUCKET</code> <em>(unused)</em></li>
+      <li><code>AWS_ENDPOINT</code> <em>(unused)</em></li><li><code>OPENAI_API_KEY</code></li>
+      <li><code>ANTHROPIC_API_KEY</code></li><li><code>GOOGLE_AI_API_KEY</code></li><li><code>OPENROUTER_API_KEY</code></li>
+    </ul>
+    <h4>Read by the frontend</h4>
+    <ul class="cols2">
+      <li><code>NEXT_PUBLIC_API_BASE_URL</code></li><li><code>NEXT_PUBLIC_USE_MOCK</code></li>
+      <li><code>NEXT_PUBLIC_API_URL</code> <em>(CI only)</em></li><li><code>NEXT_PUBLIC_APP_URL</code> <em>(CI only)</em></li>
+      <li><code>NEXT_PUBLIC_WS_URL</code> <em>(CI only)</em></li>
+    </ul>
+    <h4>CI/CD secrets and variables referenced</h4>
+    <ul class="cols2">
+      <li><code>AWS_ACCOUNT_ID</code></li><li><code>GITHUB_TOKEN</code></li>
+      <li><code>SLACK_BOT_TOKEN</code></li><li><code>PRODUCTION_APPROVERS</code></li>
+    </ul>
+    <p>
+      <code>.env.example</code> additionally lists a stale Laravel-era set —
+      <code>APP_KEY</code>, <code>DB_*</code>, <code>MAIL_*</code>, <code>REVERB_*</code>,
+      <code>QUEUE_CONNECTION</code>, <code>FILESYSTEM_DISK</code> and others — none of which the
+      NestJS application reads. <strong>No values are reproduced anywhere in this report, and no
+      live secrets were found in the repository.</strong>
+    </p>
+
+    <h3>15.5 Commands used for inspection</h3>
+    <p>All read-only. No application code, schema, infrastructure or configuration was modified.</p>
+    <ul class="kv-list">
+      <li><span class="k">ls -la · find … -type f</span><span>directory and source enumeration</span></li>
+      <li><span class="k">cat / sed -n / head</span><span>reading source, configs and workflows</span></li>
+      <li><span class="k">ripgrep (Grep tool)</span><span>searches for S3, transcription, queue, PWA, guard-usage, TODO markers</span></li>
+      <li><span class="k">sed -E 's/=.*/=&lt;REDACTED&gt;/' .env.example</span><span>env var names only — values never printed</span></li>
+      <li><span class="k">npx jest --silent</span><span>backend test run (no DB writes; suite failed to load)</span></li>
+      <li><span class="k">node -e "…jsonwebtoken sign/verify…"</span><span>reproduced the JWT claim and expiry defects in isolation</span></li>
+      <li><span class="k">git log --oneline | wc -l · git log -1</span><span>history size and recency</span></li>
+    </ul>
+    <p>
+      Not executed: the backend server, the frontend dev server, Prisma migrations, the seed
+      script, Docker Compose, and any command requiring external credentials or a live database.
+    </p>
+
+    <h3>15.6 Test results</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Suite</th><th>Command</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>Backend unit (Jest)</td><td><code>npx jest --silent</code></td><td><strong>1 suite failed, 0 tests run</strong> — <code>auth.controller.spec.ts</code> could not load: missing native bcrypt binding. 19.2s.</td></tr>
+          <tr><td>Backend e2e</td><td><code>jest --config ./test/jest-e2e.json</code></td><td>Not run — requires a live database.</td></tr>
+          <tr><td>Frontend unit (Vitest)</td><td><code>npm run test</code></td><td>Not run — <strong>no test files and no vitest config exist</strong>.</td></tr>
+          <tr><td>Frontend e2e (Playwright)</td><td><code>npx playwright test</code></td><td>Not run — <strong>no config and no tests exist</strong>.</td></tr>
+          <tr><td>JWT defect reproduction</td><td><code>node -e</code> with <code>jsonwebtoken</code></td><td><strong>Both defects reproduced.</strong> <code>exp - iat = 7</code> seconds; verify threw <code>jwt audience invalid. expected: merline-api</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== closing ===================== -->
+  <div class="closing">
+    <h2>In plain English</h2>
+    <p>
+      <strong>What Merline can do today:</strong> it is a web dashboard and API for managing
+      quantitative research projects. You can set up an organization and users, create projects
+      and studies, build detailed survey questionnaires with skip logic and translations, define
+      indicators and logframes, assign fieldwork to enumerators, review and approve submitted form
+      data, view dashboards, and ask an AI chat assistant general questions. Much of what has been
+      demonstrated so far runs on built-in mock data, and the live backend currently cannot log
+      anyone in because of a token configuration mistake.
+    </p>
+    <p>
+      <strong>What it cannot do:</strong> anything in the proposed interview product. It cannot
+      record audio, work offline, install as an app on a phone, transcribe speech, identify who
+      said what, link an insight back to the moment in the recording it came from, capture consent,
+      or produce a real report file. Its AI does not analyse your data — eight of the nine
+      "agents" return fixed advice text, and when the AI service cannot reach a provider it
+      invents a plausible-sounding answer rather than reporting an error.
+    </p>
+    <p>
+      <strong>What needs building:</strong> first, a short round of repairs — fix login, stop one
+      organization from seeing another's data, and make the AI fail honestly instead of inventing
+      answers. Then the interview pipeline itself, which is largely new construction: durable
+      cloud storage for audio, a database design for guides, interviews, transcripts, quotations
+      and consent, a background job system with a transcription service, an offline-capable
+      recording app, and a review screen where a person listens, corrects and approves before any
+      finding reaches a report. The existing platform is a reasonable foundation to attach that
+      to — but it is a foundation, not a head start on the interview work itself.
+    </p>
+  </div>
+
+</div>
+</div>
