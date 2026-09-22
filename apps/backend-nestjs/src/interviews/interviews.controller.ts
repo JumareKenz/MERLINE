@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   Put,
@@ -18,6 +20,14 @@ import type { AuthenticatedUser } from '../common/interfaces';
 import { InterviewsService } from './interviews.service';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import { UpdateInterviewStatusDto } from './dto/update-interview-status.dto';
+import { CompleteRecordingUploadDto } from './dto/complete-recording-upload.dto';
+
+/**
+ * Resumable-upload parts are small by design (the field app sends 512 KiB);
+ * the cap leaves headroom for other clients without letting one "part"
+ * become a whole-file upload in disguise.
+ */
+const MAX_PART_BYTES = 8 * 1024 * 1024;
 
 @Controller('interviews')
 export class InterviewsController {
@@ -30,12 +40,13 @@ export class InterviewsController {
     @Query('participantId') participantId?: string,
     @Query('projectId') projectId?: string,
     @Query('status') status?: InterviewStatus,
+    @Query('interviewerId') interviewerId?: string,
   ) {
-    return this.interviewsService.findAll(user.organizationId, {
-      participantId,
-      projectId,
-      status,
-    });
+    return this.interviewsService.findAll(
+      user.organizationId,
+      { participantId, projectId, status, interviewerId },
+      user.id,
+    );
   }
 
   @Post()
@@ -53,7 +64,7 @@ export class InterviewsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.interviewsService.findById(id, user.organizationId);
+    return this.interviewsService.findById(id, user.organizationId, user.id);
   }
 
   @Put(':id/status')
@@ -67,6 +78,7 @@ export class InterviewsController {
       id,
       dto.status,
       user.organizationId,
+      user.id,
     );
   }
 
@@ -103,7 +115,11 @@ export class InterviewsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.interviewsService.listRecordings(id, user.organizationId);
+    return this.interviewsService.listRecordings(
+      id,
+      user.organizationId,
+      user.id,
+    );
   }
 
   @Get(':id/recordings/:mediaId/download')
@@ -116,6 +132,70 @@ export class InterviewsController {
     return this.interviewsService.getRecordingDownloadUrl(
       id,
       mediaId,
+      user.organizationId,
+      user.id,
+    );
+  }
+
+  /**
+   * PHASE 2 — resumable recording upload, used by the field app's offline
+   * outbox. The upload id is the device's own recording id (a UUID), so
+   * every call below is idempotent and safe to retry after a dropped
+   * connection. Consent is re-checked on every call.
+   */
+  @Get(':id/recordings/uploads/:uploadId')
+  @Permissions('upload.recordings')
+  async getRecordingUploadStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('uploadId', ParseUUIDPipe) uploadId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.getRecordingUploadStatus(
+      id,
+      uploadId,
+      user.id,
+      user.organizationId,
+    );
+  }
+
+  @Put(':id/recordings/uploads/:uploadId/parts/:index')
+  @Permissions('upload.recordings')
+  @UseInterceptors(
+    FileInterceptor('chunk', { limits: { fileSize: MAX_PART_BYTES } }),
+  )
+  async putRecordingPart(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('uploadId', ParseUUIDPipe) uploadId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file?.buffer) {
+      throw new BadRequestException('Missing "chunk" file field');
+    }
+    return this.interviewsService.putRecordingPart(
+      id,
+      uploadId,
+      index,
+      file.buffer,
+      user.id,
+      user.organizationId,
+    );
+  }
+
+  @Post(':id/recordings/uploads/:uploadId/complete')
+  @Permissions('upload.recordings')
+  async completeRecordingUpload(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('uploadId', ParseUUIDPipe) uploadId: string,
+    @Body() dto: CompleteRecordingUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.completeRecordingUpload(
+      id,
+      uploadId,
+      dto,
+      user.id,
       user.organizationId,
     );
   }

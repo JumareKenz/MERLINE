@@ -26,7 +26,11 @@ export class ParticipantsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('projectId') projectId?: string,
   ) {
-    return this.participantsService.findAll(user.organizationId, projectId);
+    return this.participantsService.findAll(
+      user.organizationId,
+      projectId,
+      user.id,
+    );
   }
 
   @Post()
@@ -44,7 +48,7 @@ export class ParticipantsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.participantsService.findById(id, user.organizationId);
+    return this.participantsService.findById(id, user.organizationId, user.id);
   }
 
   @Put(':id')
@@ -54,7 +58,12 @@ export class ParticipantsController {
     @Body() dto: UpdateParticipantDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.participantsService.update(id, dto, user.organizationId);
+    return this.participantsService.update(
+      id,
+      dto,
+      user.organizationId,
+      user.id,
+    );
   }
 
   @Delete(':id')
@@ -63,6 +72,6 @@ export class ParticipantsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.participantsService.remove(id, user.organizationId);
+    return this.participantsService.remove(id, user.organizationId, user.id);
   }
 }

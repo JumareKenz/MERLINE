@@ -7,6 +7,7 @@ import {
 import { InterviewStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
+import { resolveFieldScope } from '../common/scoping/field-scope';
 import { ConsentsService } from '../consents/consents.service';
 import { MediaService } from '../media/media.service';
 import { CreateInterviewDto } from './dto/create-interview.dto';
@@ -19,6 +20,24 @@ const ALLOWED_TRANSITIONS: Record<InterviewStatus, InterviewStatus[]> = {
   CANCELLED: [],
 };
 
+/** Summary relations returned with every interview read. */
+const INTERVIEW_SUMMARY_INCLUDE = {
+  participant: { select: { id: true, displayName: true } },
+  interviewer: { select: { id: true, firstName: true, lastName: true } },
+  _count: {
+    select: {
+      recordings: { where: { deletedAt: null } },
+      transcripts: true,
+    },
+  },
+} as const;
+
+/**
+ * `viewerId` on read/write methods is the calling user. Controllers always
+ * pass it; a caller whose only role is field-interviewer is narrowed to
+ * interviews assigned to them (see common/scoping/field-scope.ts). Internal
+ * callers that omit it get tenant scope only.
+ */
 @Injectable()
 export class InterviewsService extends BaseService {
   constructor(
@@ -35,8 +54,15 @@ export class InterviewsService extends BaseService {
       participantId?: string;
       projectId?: string;
       status?: InterviewStatus;
+      interviewerId?: string;
     },
+    viewerId?: string,
   ) {
+    const scopedTo = await resolveFieldScope(
+      this.prisma,
+      viewerId,
+      organizationId,
+    );
     return this.prisma.interview.findMany({
       where: {
         organizationId,
@@ -44,14 +70,29 @@ export class InterviewsService extends BaseService {
         ...(filters.participantId && { participantId: filters.participantId }),
         ...(filters.projectId && { projectId: filters.projectId }),
         ...(filters.status && { status: filters.status }),
+        ...(filters.interviewerId && { interviewerId: filters.interviewerId }),
+        // Applied last so a field worker cannot widen it with a filter.
+        ...(scopedTo && { interviewerId: scopedTo }),
       },
+      include: INTERVIEW_SUMMARY_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findById(id: string, organizationId: string) {
+  async findById(id: string, organizationId: string, viewerId?: string) {
+    const scopedTo = await resolveFieldScope(
+      this.prisma,
+      viewerId,
+      organizationId,
+    );
     const interview = await this.prisma.interview.findFirst({
-      where: { id, organizationId, deletedAt: null },
+      where: {
+        id,
+        organizationId,
+        deletedAt: null,
+        ...(scopedTo && { interviewerId: scopedTo }),
+      },
+      include: INTERVIEW_SUMMARY_INCLUDE,
     });
 
     if (!interview) {
@@ -71,7 +112,47 @@ export class InterviewsService extends BaseService {
     userId: string,
     organizationId: string,
   ) {
+    // A field interviewer conducts their own interviews; assigning work to
+    // someone else is a research-lead action.
+    const scopedTo = await resolveFieldScope(
+      this.prisma,
+      userId,
+      organizationId,
+    );
+    if (scopedTo && dto.interviewerId && dto.interviewerId !== scopedTo) {
+      throw new ForbiddenException(
+        'Field interviewers can only create interviews assigned to themselves',
+      );
+    }
+
     return this.executeTransaction(async (tx) => {
+      // Ids in the request body are untrusted: each must resolve inside the
+      // caller's tenant, or an interview could reference another
+      // organization's user or project.
+      if (dto.interviewerId) {
+        const interviewer = await tx.user.findFirst({
+          where: {
+            id: dto.interviewerId,
+            organizationId,
+            deletedAt: null,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        if (!interviewer) {
+          throw new NotFoundException('Interviewer not found');
+        }
+      }
+      if (dto.projectId) {
+        const project = await tx.project.findFirst({
+          where: { id: dto.projectId, organizationId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!project) {
+          throw new NotFoundException('Project not found');
+        }
+      }
+
       const participant = await tx.participant.findFirst({
         where: { id: dto.participantId, organizationId, deletedAt: null },
       });
@@ -111,8 +192,9 @@ export class InterviewsService extends BaseService {
     id: string,
     status: InterviewStatus,
     organizationId: string,
+    viewerId?: string,
   ) {
-    const interview = await this.findById(id, organizationId);
+    const interview = await this.findById(id, organizationId, viewerId);
 
     const allowed = ALLOWED_TRANSITIONS[interview.status];
     if (!allowed.includes(status)) {
@@ -132,12 +214,7 @@ export class InterviewsService extends BaseService {
     });
   }
 
-  /**
-   * The recording gate: consent is checked here, before any bytes reach
-   * storage. `MediaService.upload` has no notion of consent — it only knows
-   * how to store an object — so this is the one and only path that may
-   * create a Media row with `interviewId` set.
-   */
+  /** Single-request upload (file picker). Gated by `assertRecordingPermitted`. */
   async uploadRecording(
     id: string,
     file: Express.Multer.File,
@@ -145,13 +222,7 @@ export class InterviewsService extends BaseService {
     userId: string,
     organizationId: string,
   ) {
-    const interview = await this.findById(id, organizationId);
-    const consent = await this.consentsService.findById(
-      interview.consentId,
-      organizationId,
-    );
-
-    this.consentsService.assertScope(consent, 'allowRecording');
+    await this.assertRecordingPermitted(id, userId, organizationId);
 
     return this.mediaService.upload(
       file,
@@ -161,8 +232,8 @@ export class InterviewsService extends BaseService {
     );
   }
 
-  async listRecordings(id: string, organizationId: string) {
-    await this.findById(id, organizationId);
+  async listRecordings(id: string, organizationId: string, viewerId?: string) {
+    await this.findById(id, organizationId, viewerId);
 
     return this.prisma.media.findMany({
       where: { interviewId: id, organizationId, deletedAt: null },
@@ -174,8 +245,9 @@ export class InterviewsService extends BaseService {
     id: string,
     mediaId: string,
     organizationId: string,
+    viewerId?: string,
   ) {
-    await this.findById(id, organizationId);
+    await this.findById(id, organizationId, viewerId);
 
     const { url, expiresIn, media } = await this.mediaService.getDownloadUrl(
       mediaId,
@@ -189,5 +261,125 @@ export class InterviewsService extends BaseService {
     }
 
     return { url, expiresIn };
+  }
+
+  /**
+   * PHASE 2 — resumable recording upload (field app outbox).
+   *
+   * The consent gate runs on every step, before any bytes are stored: the
+   * status probe (so a device learns immediately that it must not send),
+   * each part, and completion. A consent withdrawn mid-upload therefore
+   * stops the upload at the next part instead of after 90 minutes of audio
+   * have already landed in storage.
+   */
+  async getRecordingUploadStatus(
+    id: string,
+    uploadId: string,
+    userId: string,
+    organizationId: string,
+  ) {
+    const completed = await this.mediaService.findCompletedRecording(
+      uploadId,
+      id,
+      organizationId,
+    );
+    if (completed) {
+      // Already done — even if consent has since been withdrawn, the device
+      // only needs to learn it can stop retrying.
+      await this.findById(id, organizationId, userId);
+      return { uploadId, receivedParts: [], completed };
+    }
+
+    await this.assertRecordingPermitted(id, userId, organizationId);
+    const parts = await this.mediaService.listRecordingParts(uploadId, userId);
+    return {
+      uploadId,
+      receivedParts: parts.map((p) => p.index),
+      completed: null,
+    };
+  }
+
+  async putRecordingPart(
+    id: string,
+    uploadId: string,
+    index: number,
+    body: Buffer,
+    userId: string,
+    organizationId: string,
+  ) {
+    await this.assertRecordingPermitted(id, userId, organizationId);
+    return this.mediaService.putRecordingPart(
+      uploadId,
+      index,
+      body,
+      userId,
+      organizationId,
+    );
+  }
+
+  async completeRecordingUpload(
+    id: string,
+    uploadId: string,
+    options: {
+      totalParts: number;
+      mimeType: string;
+      originalName: string;
+      checksum?: string;
+      durationMs?: number;
+      recordedAt?: string;
+    },
+    userId: string,
+    organizationId: string,
+  ) {
+    const completed = await this.mediaService.findCompletedRecording(
+      uploadId,
+      id,
+      organizationId,
+    );
+    if (completed) {
+      await this.findById(id, organizationId, userId);
+      return completed;
+    }
+
+    await this.assertRecordingPermitted(id, userId, organizationId);
+    return this.mediaService.completeRecordingUpload(
+      uploadId,
+      userId,
+      organizationId,
+      {
+        interviewId: id,
+        totalParts: options.totalParts,
+        mimeType: options.mimeType,
+        originalName: options.originalName,
+        checksum: options.checksum,
+        metadata: {
+          source: 'field-recorder',
+          ...(options.durationMs !== undefined && {
+            durationMs: options.durationMs,
+          }),
+          ...(options.recordedAt && { recordedAt: options.recordedAt }),
+        },
+      },
+    );
+  }
+
+  /**
+   * The recording gate: consent is checked here, before any bytes reach
+   * storage. `MediaService` has no notion of consent — it only stores
+   * objects — so every path that attaches audio to an interview goes
+   * through this check first.
+   */
+  private async assertRecordingPermitted(
+    id: string,
+    viewerId: string,
+    organizationId: string,
+  ) {
+    const interview = await this.findById(id, organizationId, viewerId);
+    const consent = await this.consentsService.findById(
+      interview.consentId,
+      organizationId,
+    );
+    this.consentsService.assertScope(consent, 'allowRecording');
+    return interview;
   }
 }

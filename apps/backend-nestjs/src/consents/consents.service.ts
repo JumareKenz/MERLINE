@@ -6,6 +6,7 @@ import {
 import { Consent } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
+import { resolveFieldScope } from '../common/scoping/field-scope';
 import { CreateConsentDto } from './dto/create-consent.dto';
 
 type ConsentScope =
@@ -29,9 +30,22 @@ export class ConsentsService extends BaseService {
     super(prisma);
   }
 
-  async findById(id: string, organizationId: string): Promise<Consent> {
+  /**
+   * `viewerId` narrows a field-interviewer-only caller to consent records of
+   * participants they can see (see common/scoping). Internal callers — the
+   * recording and transcription gates — omit it and check by tenant only.
+   */
+  async findById(
+    id: string,
+    organizationId: string,
+    viewerId?: string,
+  ): Promise<Consent> {
     const consent = await this.prisma.consent.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId,
+        ...(await this.participantScopeWhere(viewerId, organizationId)),
+      },
     });
 
     if (!consent) {
@@ -41,11 +55,41 @@ export class ConsentsService extends BaseService {
     return consent;
   }
 
-  async findForParticipant(participantId: string, organizationId: string) {
+  async findForParticipant(
+    participantId: string,
+    organizationId: string,
+    viewerId?: string,
+  ) {
     return this.prisma.consent.findMany({
-      where: { participantId, organizationId },
+      where: {
+        participantId,
+        organizationId,
+        ...(await this.participantScopeWhere(viewerId, organizationId)),
+      },
       orderBy: { grantedAt: 'desc' },
     });
+  }
+
+  private async participantScopeWhere(
+    viewerId: string | undefined,
+    organizationId: string,
+  ) {
+    const scopedTo = await resolveFieldScope(
+      this.prisma,
+      viewerId,
+      organizationId,
+    );
+    if (!scopedTo) return {} as { participant?: Record<string, unknown> };
+    return {
+      participant: {
+        OR: [
+          { createdById: scopedTo },
+          {
+            interviews: { some: { interviewerId: scopedTo, deletedAt: null } },
+          },
+        ],
+      },
+    };
   }
 
   /**
@@ -54,9 +98,15 @@ export class ConsentsService extends BaseService {
    * participant between the two.
    */
   async create(dto: CreateConsentDto, actorId: string, organizationId: string) {
+    const scope = await this.participantScopeWhere(actorId, organizationId);
     return this.executeTransaction(async (tx) => {
       const participant = await tx.participant.findFirst({
-        where: { id: dto.participantId, organizationId, deletedAt: null },
+        where: {
+          id: dto.participantId,
+          organizationId,
+          deletedAt: null,
+          ...(scope.participant ?? {}),
+        },
       });
 
       if (!participant) {

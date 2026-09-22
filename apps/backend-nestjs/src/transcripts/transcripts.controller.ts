@@ -12,21 +12,35 @@ import { Permissions } from '../common/decorators/permissions.decorator';
 import type { AuthenticatedUser } from '../common/interfaces';
 import { TranscriptsService } from './transcripts.service';
 import { CreateTranscriptDto } from './dto/create-transcript.dto';
+import { AskTranscriptDto } from './dto/ask-transcript.dto';
+import { TranscriptDialogueService } from './transcript-dialogue.service';
 
 @Controller('transcripts')
 export class TranscriptsController {
-  constructor(private readonly transcriptsService: TranscriptsService) {}
+  constructor(
+    private readonly transcriptsService: TranscriptsService,
+    private readonly dialogueService: TranscriptDialogueService,
+  ) {}
 
+  /**
+   * With `interviewId`, that interview's transcripts. Without it, every
+   * transcript in the organization (newest first, with interview and
+   * participant context) for the Transcripts workspace.
+   */
   @Get()
   @Permissions('view.transcripts')
-  async findForInterview(
-    @Query('interviewId', ParseUUIDPipe) interviewId: string,
+  async list(
     @CurrentUser() user: AuthenticatedUser,
+    @Query('interviewId', new ParseUUIDPipe({ optional: true }))
+    interviewId?: string,
   ) {
-    return this.transcriptsService.findForInterview(
-      interviewId,
-      user.organizationId,
-    );
+    if (interviewId) {
+      return this.transcriptsService.findForInterview(
+        interviewId,
+        user.organizationId,
+      );
+    }
+    return this.transcriptsService.findAllForOrganization(user.organizationId);
   }
 
   @Post()
@@ -59,5 +73,16 @@ export class TranscriptsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.transcriptsService.retry(id, user.organizationId);
+  }
+
+  /** AI Dialogue: a grounded, cited answer from one transcript. Nothing is stored. */
+  @Post(':id/ask')
+  @Permissions('view.transcripts', 'use.ai')
+  async ask(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AskTranscriptDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.dialogueService.ask(id, dto.question, user.organizationId);
   }
 }

@@ -11,6 +11,7 @@ import { BaseService } from '../common/base/base.service';
 import { PrismaService } from '../database/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { InitChunkedUploadDto } from './dto/init-chunked-upload.dto';
+import { jsonObject } from '../common/utils/prisma-json';
 
 /**
  * PHASE 1 — PLATFORM SAFETY
@@ -81,6 +82,13 @@ const ALLOWED_MIME_TYPES: Record<string, MediaType> = {
 
 /** 90 minutes of 128 kbps audio is roughly 86 MB; uncompressed WAV far more. */
 const DEFAULT_MAX_FILE_BYTES = 512 * 1024 * 1024;
+
+/**
+ * Upper bound on parts in one resumable recording upload. At the field
+ * app's 512 KiB part size this is ~2 GB, far above any real interview; it
+ * exists so a hostile client cannot create unbounded chunk rows.
+ */
+const MAX_RECORDING_PARTS = 4096;
 
 @Injectable()
 export class MediaService extends BaseService {
@@ -210,15 +218,23 @@ export class MediaService extends BaseService {
       metadata: { identifier, index: String(index) },
     });
 
-    await this.prisma.mediaChunk.create({
-      data: {
-        identifier,
-        index,
-        size: file.size,
-        checksum,
-        uploadedById: userId,
-      },
-    });
+    // A retried chunk replaces its earlier row rather than adding a second
+    // one — duplicate rows would be concatenated twice on completion and
+    // silently corrupt the reassembled file.
+    await this.prisma.$transaction([
+      this.prisma.mediaChunk.deleteMany({
+        where: { identifier, index, uploadedById: userId },
+      }),
+      this.prisma.mediaChunk.create({
+        data: {
+          identifier,
+          index,
+          size: file.size,
+          checksum,
+          uploadedById: userId,
+        },
+      }),
+    ]);
 
     return { identifier, chunkIndex: index, received: file.size, checksum };
   }
@@ -230,7 +246,7 @@ export class MediaService extends BaseService {
     options: { originalName?: string; mimeType?: string } = {},
   ) {
     const chunks = await this.prisma.mediaChunk.findMany({
-      where: { identifier },
+      where: { identifier, uploadedById: userId },
       orderBy: { index: 'asc' },
     });
 
@@ -310,9 +326,226 @@ export class MediaService extends BaseService {
           .catch(() => undefined),
       ),
     );
-    await this.prisma.mediaChunk.deleteMany({ where: { identifier } });
+    await this.prisma.mediaChunk.deleteMany({
+      where: { identifier, uploadedById: userId },
+    });
 
     return media;
+  }
+
+  /**
+   * PHASE 2 — resumable recording upload primitives.
+   *
+   * The field app records offline and uploads later over whatever
+   * connection it finds, so an upload is a series of small, independently
+   * retryable parts rather than one long request. These methods only store
+   * bytes; the consent gate lives in InterviewsService, which is the only
+   * caller, exactly as with `upload()`.
+   *
+   * The upload id is generated on the device (it is the local recording's
+   * id), which makes every step naturally idempotent across app restarts:
+   *  - a part re-sent after a dropped response overwrites itself;
+   *  - completion re-sent after a dropped response returns the Media row it
+   *    already created instead of failing or duplicating it.
+   * Object keys include the uploader, so one user can never write into
+   * another user's in-flight upload even with a guessed id.
+   */
+  async putRecordingPart(
+    uploadId: string,
+    index: number,
+    body: Buffer,
+    userId: string,
+    organizationId: string,
+  ) {
+    if (!body?.length) {
+      throw new BadRequestException('No chunk content received');
+    }
+    if (!Number.isInteger(index) || index < 0 || index > MAX_RECORDING_PARTS) {
+      throw new BadRequestException('Chunk index is out of range');
+    }
+
+    const { checksum } = await this.storage.putObject({
+      key: this.recordingPartKey(organizationId, userId, uploadId, index),
+      body,
+      contentType: 'application/octet-stream',
+      metadata: { uploadId, index: String(index) },
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.mediaChunk.deleteMany({
+        where: { identifier: uploadId, index, uploadedById: userId },
+      }),
+      this.prisma.mediaChunk.create({
+        data: {
+          identifier: uploadId,
+          index,
+          size: body.length,
+          checksum,
+          uploadedById: userId,
+        },
+      }),
+    ]);
+
+    return { index, received: body.length, checksum };
+  }
+
+  async listRecordingParts(uploadId: string, userId: string) {
+    const parts = await this.prisma.mediaChunk.findMany({
+      where: { identifier: uploadId, uploadedById: userId },
+      orderBy: { index: 'asc' },
+      select: { index: true, size: true },
+    });
+    return parts;
+  }
+
+  /** The Media row a completed upload produced, if completion already ran. */
+  async findCompletedRecording(
+    uploadId: string,
+    interviewId: string,
+    organizationId: string,
+  ) {
+    return this.prisma.media.findFirst({
+      where: {
+        organizationId,
+        interviewId,
+        deletedAt: null,
+        metadata: { path: ['uploadId'], equals: uploadId },
+      },
+    });
+  }
+
+  async completeRecordingUpload(
+    uploadId: string,
+    userId: string,
+    organizationId: string,
+    options: {
+      interviewId: string;
+      totalParts: number;
+      mimeType: string;
+      originalName: string;
+      checksum?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    const existing = await this.findCompletedRecording(
+      uploadId,
+      options.interviewId,
+      organizationId,
+    );
+    if (existing) return existing;
+
+    const baseMime = options.mimeType.split(';')[0].trim().toLowerCase();
+    if (ALLOWED_MIME_TYPES[baseMime] !== MediaType.AUDIO) {
+      throw new BadRequestException(
+        `Recording type ${baseMime} is not an accepted audio format`,
+      );
+    }
+
+    const parts = await this.listRecordingParts(uploadId, userId);
+    const missing: number[] = [];
+    for (let i = 0; i < options.totalParts; i++) {
+      if (!parts.some((p) => p.index === i)) missing.push(i);
+    }
+    if (missing.length > 0 || parts.length !== options.totalParts) {
+      throw new BadRequestException(
+        `Upload is incomplete: missing part(s) ${missing.slice(0, 10).join(', ') || 'unknown'}`,
+      );
+    }
+
+    const buffers: Buffer[] = [];
+    for (const part of parts) {
+      const stream = await this.storage.getObjectStream(
+        this.recordingPartKey(organizationId, userId, uploadId, part.index),
+      );
+      buffers.push(await this.readStream(stream));
+    }
+    const body = Buffer.concat(buffers);
+
+    if (body.length > this.maxFileBytes) {
+      throw new BadRequestException(
+        'Reassembled recording exceeds the maximum upload size',
+      );
+    }
+
+    const id = uuidv4();
+    const extension =
+      path.extname(options.originalName).replace(/^\./, '') || 'webm';
+    const key = this.storage.buildKey({
+      organizationId,
+      kind: 'media',
+      id,
+      extension,
+    });
+
+    const { checksum, bytes } = await this.storage.putObject({
+      key,
+      body,
+      contentType: baseMime,
+      metadata: { organizationId, uploadedBy: userId, uploadId },
+    });
+
+    if (options.checksum && options.checksum !== checksum) {
+      // The device told us what it recorded and the bytes disagree. Keep
+      // nothing: drop the assembled object and the parts, so the device
+      // re-sends from scratch rather than resuming onto corrupt parts.
+      await this.storage.deleteObject(key).catch(() => undefined);
+      await this.discardRecordingParts(uploadId, userId, organizationId, parts);
+      throw new BadRequestException(
+        'Recording checksum mismatch; the upload was discarded and must be re-sent',
+      );
+    }
+
+    const media = await this.prisma.media.create({
+      data: {
+        id,
+        filename: path.basename(key),
+        originalName: options.originalName,
+        mimeType: baseMime,
+        size: bytes,
+        type: MediaType.AUDIO,
+        processingStatus: ProcessingStatus.COMPLETED,
+        path: key,
+        checksum,
+        metadata: jsonObject({ ...(options.metadata ?? {}), uploadId }),
+        uploadedById: userId,
+        organizationId,
+        interviewId: options.interviewId,
+      },
+    });
+
+    // Best-effort: the Media row is already durable.
+    await this.discardRecordingParts(uploadId, userId, organizationId, parts);
+
+    return media;
+  }
+
+  private async discardRecordingParts(
+    uploadId: string,
+    userId: string,
+    organizationId: string,
+    parts: { index: number }[],
+  ) {
+    await Promise.all(
+      parts.map((part) =>
+        this.storage
+          .deleteObject(
+            this.recordingPartKey(organizationId, userId, uploadId, part.index),
+          )
+          .catch(() => undefined),
+      ),
+    );
+    await this.prisma.mediaChunk
+      .deleteMany({ where: { identifier: uploadId, uploadedById: userId } })
+      .catch(() => undefined);
+  }
+
+  private recordingPartKey(
+    organizationId: string,
+    userId: string,
+    uploadId: string,
+    index: number,
+  ): string {
+    return `org/${organizationId}/recording-parts/${userId}/${uploadId}/${String(index).padStart(6, '0')}`;
   }
 
   /** Tenant-scoped. All reads go through here. */

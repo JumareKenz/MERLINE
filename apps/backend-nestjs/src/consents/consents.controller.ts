@@ -26,6 +26,7 @@ export class ConsentsController {
     return this.consentsService.findForParticipant(
       participantId,
       user.organizationId,
+      user.id,
     );
   }
 
@@ -44,7 +45,7 @@ export class ConsentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.consentsService.findById(id, user.organizationId);
+    return this.consentsService.findById(id, user.organizationId, user.id);
   }
 
   @Post(':id/withdraw')
