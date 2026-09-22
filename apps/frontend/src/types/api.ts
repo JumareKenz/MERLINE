@@ -1,3 +1,20 @@
+/**
+ * PHASE 2 — the real shape of every backend response, per
+ * TransformInterceptor (apps/backend-nestjs/src/common/interceptors/
+ * transform.interceptor.ts). Existing PaginatedResponse/SingleResponse below
+ * assume `response.data` IS the payload directly, which does not match this
+ * backend - it always wraps the payload one level deeper, under `data`, and
+ * legacy list endpoints nest again under `data.items`. New (Phase 2) code
+ * should use Envelope<T> and unwrap explicitly rather than relying on the
+ * older types.
+ */
+export interface Envelope<T> {
+  status: 'success' | 'error';
+  message: string;
+  data: T;
+  meta: { timestamp: string; version: string };
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   meta: {

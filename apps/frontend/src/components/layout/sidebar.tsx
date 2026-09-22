@@ -16,6 +16,9 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
+  UserRound,
+  Mic,
+  Quote,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { APP_HOME } from '@/lib/routes';
@@ -47,6 +50,9 @@ interface NavGroup {
  *
  * Interview Guides, Interviews, Approvals and Reports return in Phase 2 as
  * qualitative surfaces. See LEGACY.md.
+ *
+ * PHASE 2: Participants, Interviews and Findings are live — the "Fieldwork"
+ * group. Interview Guides remains a later slice.
  */
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -55,6 +61,15 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Projects', href: '/projects', icon: FolderKanban },
       { label: 'AI Assistant', href: '/ai', icon: Sparkles },
+    ],
+  },
+  {
+    id: 'fieldwork',
+    label: 'Fieldwork',
+    items: [
+      { label: 'Participants', href: '/participants', icon: UserRound },
+      { label: 'Interviews', href: '/interviews', icon: Mic },
+      { label: 'Findings', href: '/findings', icon: Quote },
     ],
   },
   {

@@ -15,6 +15,14 @@ export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOpt
   });
 }
 
+/** Formats a millisecond offset as mm:ss, for transcript segment timestamps. */
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 export function formatDateTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('en-US', {

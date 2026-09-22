@@ -478,6 +478,95 @@ export const API = {
       delete: (reportId: string) => apiClient.delete(`/reports/${reportId}/schedules`),
     },
   },
+  /**
+   * PHASE 2 — qualitative interview product. Every response here is a real
+   * Envelope<T> (see types/api.ts) — this backend wraps ALL payloads in
+   * {status, message, data, meta}, unlike the PaginatedResponse/SingleResponse
+   * shapes the legacy groups above assume.
+   */
+  participants: {
+    list: (projectId?: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/participant').ParticipantList>>(
+        '/participants',
+        { params: projectId ? { projectId } : undefined },
+      ),
+    get: (id: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/participant').Participant>>(`/participants/${id}`),
+    create: (data: import('@/types/participant').CreateParticipantDto) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/participant').Participant>>('/participants', data),
+    update: (id: string, data: import('@/types/participant').UpdateParticipantDto) =>
+      apiClient.put<import('@/types/api').Envelope<import('@/types/participant').Participant>>(`/participants/${id}`, data),
+    delete: (id: string) =>
+      apiClient.delete<import('@/types/api').Envelope<import('@/types/participant').DeleteResult>>(`/participants/${id}`),
+  },
+  consents: {
+    listForParticipant: (participantId: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/consent').ConsentList>>('/consents', {
+        params: { participantId },
+      }),
+    get: (id: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/consent').Consent>>(`/consents/${id}`),
+    create: (data: import('@/types/consent').CreateConsentDto) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/consent').Consent>>('/consents', data),
+    withdraw: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/consent').Consent>>(`/consents/${id}/withdraw`),
+  },
+  interviews: {
+    list: (params?: { participantId?: string; projectId?: string; status?: string }) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/interview').InterviewList>>('/interviews', { params }),
+    get: (id: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/interview').Interview>>(`/interviews/${id}`),
+    create: (data: import('@/types/interview').CreateInterviewDto) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/interview').Interview>>('/interviews', data),
+    updateStatus: (id: string, status: import('@/types/interview').InterviewStatus) =>
+      apiClient.put<import('@/types/api').Envelope<import('@/types/interview').Interview>>(`/interviews/${id}/status`, { status }),
+    uploadRecording: (id: string, data: FormData) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/interview').Recording>>(
+        `/interviews/${id}/recordings`,
+        data,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      ),
+    listRecordings: (id: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/interview').RecordingList>>(`/interviews/${id}/recordings`),
+    getRecordingDownloadUrl: (id: string, mediaId: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/interview').RecordingDownloadUrl>>(
+        `/interviews/${id}/recordings/${mediaId}/download`,
+      ),
+  },
+  transcripts: {
+    listForInterview: (interviewId: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/transcript').TranscriptList>>('/transcripts', {
+        params: { interviewId },
+      }),
+    get: (id: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/transcript').Transcript>>(`/transcripts/${id}`),
+    request: (data: { interviewId: string; mediaId: string }) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/transcript').Transcript>>('/transcripts', data),
+    retry: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/transcript').Transcript>>(`/transcripts/${id}/retry`),
+  },
+  findings: {
+    list: (projectId?: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/finding').FindingList>>('/findings', {
+        params: projectId ? { projectId } : undefined,
+      }),
+    get: (id: string) =>
+      apiClient.get<import('@/types/api').Envelope<import('@/types/finding').Finding>>(`/findings/${id}`),
+    create: (data: import('@/types/finding').CreateFindingDto) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Finding>>('/findings', data),
+    addQuotation: (id: string, data: import('@/types/finding').AddQuotationDto) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Quotation>>(`/findings/${id}/quotations`, data),
+    approve: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Finding>>(`/findings/${id}/approve`),
+    reject: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Finding>>(`/findings/${id}/reject`),
+    publish: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Finding>>(`/findings/${id}/publish`),
+    archive: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Finding>>(`/findings/${id}/archive`),
+    aiDraft: (transcriptId: string) =>
+      apiClient.post<import('@/types/api').Envelope<import('@/types/finding').Finding>>('/findings/ai-draft', { transcriptId }),
+  },
   auditLog: {
     list: (params?: import('@/types/api').ActivityLogParams) =>
       apiClient.get<import('@/types/api').PaginatedResponse<unknown>>('/audit-logs', { params }),
