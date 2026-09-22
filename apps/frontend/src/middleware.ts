@@ -4,6 +4,9 @@ import { APP_HOME } from '@/lib/routes';
 
 const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
+/** field.jrecc.org serves the dedicated field-worker app, under /field/* internally. */
+const FIELD_HOST = 'field.jrecc.org';
+
 /**
  * PHASE 2 — self-hosted (not Vercel) redirect origin fix.
  *
@@ -26,11 +29,20 @@ function resolveOrigin(request: NextRequest): string {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const host =
+    request.headers.get('x-forwarded-host') ??
+    request.headers.get('host') ??
+    request.nextUrl.host;
+  const isFieldHost = host === FIELD_HOST;
   const token = request.cookies.get('merline-auth-token')?.value;
 
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
-  const isRoot = pathname === '/';
+  // On the main domain, '/' is its own client-side redirector (src/app/page.tsx)
+  // and does not need a token yet. On field.jrecc.org, '/' rewrites straight
+  // into the field home page's real content below, so it needs the same
+  // server-side guard as every other field route.
+  const isRoot = pathname === '/' && !isFieldHost;
 
   if (!token && !isPublicRoute && !isRoot) {
     const origin = resolveOrigin(request);
@@ -40,7 +52,25 @@ export function middleware(request: NextRequest) {
   }
 
   if (token && isAuthPage) {
-    return NextResponse.redirect(new URL(APP_HOME, resolveOrigin(request)));
+    return NextResponse.redirect(new URL(isFieldHost ? '/' : APP_HOME, resolveOrigin(request)));
+  }
+
+  // Domain routing: field.jrecc.org's URLs stay clean (field.jrecc.org/ ,
+  // not field.jrecc.org/field) — rewritten transparently to the real,
+  // field-only route tree under src/app/field/. /login and friends stay
+  // shared, unprefixed, so there is exactly one login flow.
+  if (isFieldHost && !pathname.startsWith('/field') && !isPublicRoute) {
+    const rewritten = request.nextUrl.clone();
+    rewritten.pathname = pathname === '/' ? '/field' : `/field${pathname}`;
+    // The rewrite target is this same Next.js process — plain HTTP on
+    // 127.0.0.1:3001, TLS terminates at Nginx. `nextUrl.protocol` picks up
+    // the forwarded `https` scheme (inconsistently with `.host`, which does
+    // not — see resolveOrigin above), so a rewrite without this line has
+    // Next try to speak TLS to its own HTTP-only listener and fail with
+    // EPROTO "wrong version number" on every /field request.
+    rewritten.protocol = 'http:';
+    rewritten.port = '3001';
+    return NextResponse.rewrite(rewritten);
   }
 
   return NextResponse.next();
@@ -48,6 +78,9 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // manifest.json and sw.js must be reachable unauthenticated — the
+    // browser's install-prompt scanner and service worker registration
+    // never carry the auth cookie.
+    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|js)$).*)',
   ],
 };

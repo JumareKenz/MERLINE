@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { QueryProvider } from '@/providers/query-provider';
 import { ThemeProvider } from '@/providers/theme-provider';
 import { AuthProvider } from '@/providers/auth-provider';
+import { PwaRegister } from '@/components/shared/pwa-register';
 import { Toaster } from 'sonner';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -11,6 +12,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryProvider>
       <ThemeProvider>
         <AuthProvider>
+          <PwaRegister />
           {children}
           <Toaster
             position="bottom-right"

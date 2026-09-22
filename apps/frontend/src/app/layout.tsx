@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Sora } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
@@ -21,9 +21,22 @@ export const metadata: Metadata = {
     default: 'Merline — MERL Intelligence Platform',
   },
   description: 'Monitoring, Evaluation, Research and Learning Intelligence Platform. Insight. Evidence. Impact.',
+  manifest: '/manifest.json',
   icons: {
     icon: '/favicon-32.png',
+    apple: '/icons/apple-touch-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Merline',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0d4ac5',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
