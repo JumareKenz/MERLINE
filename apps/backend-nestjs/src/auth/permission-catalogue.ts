@@ -21,7 +21,11 @@ export interface PermissionDefinition {
   module: string;
 }
 
-function crud(module: string, label: string, actions: string[]): PermissionDefinition[] {
+function crud(
+  module: string,
+  label: string,
+  actions: string[],
+): PermissionDefinition[] {
   return actions.map((action) => ({
     slug: `${action}.${module}`,
     name: `${action[0].toUpperCase()}${action.slice(1)} ${label}`,
@@ -34,8 +38,8 @@ function crud(module: string, label: string, actions: string[]): PermissionDefin
  * questionnaires, submissions) are deliberately absent — those modules are
  * deregistered, so granting access to them would be meaningless.
  *
- * Phase 2 adds: guides, participants, consents, interviews, recordings,
- * transcripts, findings, approvals.
+ * Phase 2: participants, consents, interviews, recordings, transcripts and
+ * findings are live. `guides` and `approvals` remain for a later slice.
  */
 export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('projects', 'Projects', ['view', 'create', 'edit', 'delete']),
@@ -47,6 +51,18 @@ export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('ai', 'AI Assistant', ['use', 'view', 'configure']),
   ...crud('audit', 'Audit Log', ['view', 'export']),
   ...crud('reports', 'Reports', ['view', 'create', 'export']),
+  ...crud('participants', 'Participants', ['view', 'create', 'edit']),
+  ...crud('consents', 'Consent Records', ['view', 'create', 'withdraw']),
+  ...crud('interviews', 'Interviews', ['view', 'create', 'edit']),
+  ...crud('recordings', 'Interview Recordings', ['view', 'upload']),
+  ...crud('transcripts', 'Transcripts', ['view', 'create', 'edit']),
+  ...crud('findings', 'Findings', [
+    'view',
+    'create',
+    'edit',
+    'approve',
+    'publish',
+  ]),
 ];
 
 export const PERMISSION_SLUGS = PERMISSION_CATALOGUE.map((p) => p.slug);
@@ -82,12 +98,37 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Research Lead',
     description: 'Owns projects end to end, including approval',
     permissions: [
-      'view.projects', 'create.projects', 'edit.projects',
-      'view.media', 'upload.media',
+      'view.projects',
+      'create.projects',
+      'edit.projects',
+      'view.media',
+      'upload.media',
       'view.users',
-      'use.ai', 'view.ai',
-      'view.reports', 'create.reports', 'export.reports',
+      'use.ai',
+      'view.ai',
+      'view.reports',
+      'create.reports',
+      'export.reports',
       'view.audit',
+      'view.participants',
+      'create.participants',
+      'edit.participants',
+      'view.consents',
+      'create.consents',
+      'withdraw.consents',
+      'view.interviews',
+      'create.interviews',
+      'edit.interviews',
+      'view.recordings',
+      'upload.recordings',
+      'view.transcripts',
+      'create.transcripts',
+      'edit.transcripts',
+      'view.findings',
+      'create.findings',
+      'edit.findings',
+      'approve.findings',
+      'publish.findings',
     ],
   },
   {
@@ -95,29 +136,76 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Researcher',
     description: 'Designs research and analyses material; cannot approve',
     permissions: [
-      'view.projects', 'edit.projects',
-      'view.media', 'upload.media',
-      'use.ai', 'view.ai',
-      'view.reports', 'create.reports',
+      'view.projects',
+      'edit.projects',
+      'view.media',
+      'upload.media',
+      'use.ai',
+      'view.ai',
+      'view.reports',
+      'create.reports',
+      'view.participants',
+      'create.participants',
+      'edit.participants',
+      'view.consents',
+      'create.consents',
+      'withdraw.consents',
+      'view.interviews',
+      'create.interviews',
+      'edit.interviews',
+      'view.recordings',
+      'upload.recordings',
+      'view.transcripts',
+      'create.transcripts',
+      'edit.transcripts',
+      'view.findings',
+      'create.findings',
+      'edit.findings',
     ],
   },
   {
     slug: 'field-interviewer',
     name: 'Field Interviewer',
     description: 'Conducts assigned interviews in the field',
-    permissions: ['view.projects', 'upload.media'],
+    permissions: [
+      'view.projects',
+      'upload.media',
+      'view.participants',
+      'create.participants',
+      'view.consents',
+      'create.consents',
+      'view.interviews',
+      'create.interviews',
+      'edit.interviews',
+      'view.recordings',
+      'upload.recordings',
+      // Deliberately no transcript or finding access — a field device is the
+      // most likely thing to be lost or shared, so it carries the least
+      // authority once the interview leaves the field.
+    ],
   },
   {
     slug: 'reviewer',
     name: 'Reviewer',
     description: 'Independent quality gate for transcripts and findings',
-    permissions: ['view.projects', 'view.media', 'view.reports'],
+    permissions: [
+      'view.projects',
+      'view.media',
+      'view.reports',
+      'view.participants',
+      'view.consents',
+      'view.interviews',
+      'view.transcripts',
+      'edit.transcripts',
+      'view.findings',
+      'approve.findings',
+    ],
   },
   {
     slug: 'viewer',
     name: 'Viewer',
-    description: 'Read-only access to reports',
-    permissions: ['view.projects', 'view.reports'],
+    description: 'Read-only access to reports and published findings',
+    permissions: ['view.projects', 'view.reports', 'view.findings'],
   },
 ];
 

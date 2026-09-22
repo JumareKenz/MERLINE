@@ -108,6 +108,15 @@ model Organization {
   projects    Project[]
   studies     Study[]
 
+  // PHASE 2 — qualitative interview product
+  participants        Participant[]
+  consents            Consent[]
+  interviews          Interview[]
+  transcripts         Transcript[]
+  transcriptSegments  TranscriptSegment[]
+  findings            Finding[]
+  quotations          Quotation[]
+
   @@map("organizations")
 }
 
@@ -141,6 +150,16 @@ model User {
   projectsCreated Project[]    @relation("ProjectCreator")
   studyTeams      StudyTeam[]
   projectTeams    ProjectTeam[]
+
+  // PHASE 2 — qualitative interview product
+  participantsCreated  Participant[] @relation("ParticipantCreator")
+  consentsRecorded     Consent[]     @relation("ConsentActor")
+  consentsWithdrawn    Consent[]     @relation("ConsentWithdrawnBy")
+  interviewsConducted  Interview[]   @relation("InterviewInterviewer")
+  transcriptsRequested Transcript[]  @relation("TranscriptRequester")
+  findingsCreated      Finding[]     @relation("FindingCreator")
+  findingsReviewed     Finding[]     @relation("FindingReviewer")
+  quotationsCreated    Quotation[]   @relation("QuotationCreator")
 
   @@map("users")
 }
@@ -239,6 +258,11 @@ model Project {
   tags        ProjectProjectTag[]
   activities  ProjectActivity[]
   logframe    Logframe?
+
+  // PHASE 2 — qualitative interview product
+  participants Participant[]
+  interviews   Interview[]
+  findings     Finding[]
 
   @@map("projects")
 }
@@ -635,13 +659,19 @@ model Media {
   submissionId    String?         @map("submission_id")
   uploadedById    String          @map("uploaded_by_id")
   organizationId  String          @map("organization_id")
+  // PHASE 2: set when this object is an interview recording. Nullable because
+  // Media is also used for non-interview uploads (avatars, generic files).
+  interviewId     String?         @map("interview_id")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
   deletedAt       DateTime?       @map("deleted_at")
 
   submission      Submission?     @relation(fields: [submissionId], references: [id])
+  interview       Interview?      @relation(fields: [interviewId], references: [id])
   chunks          MediaChunk[]
+  transcripts     Transcript[]
 
+  @@index([interviewId])
   @@map("media")
 }
 
@@ -918,4 +948,243 @@ model DocumentChunk {
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("document_chunks")
+}
+
+// ─── PHASE 2 — QUALITATIVE INTERVIEW PRODUCT ───
+//
+// Consent is a first-class record, never implied. A Finding cannot be
+// approved or published without a Quotation resolving to a real
+// TranscriptSegment — enforced here by non-nullable foreign keys (an orphan
+// Quotation cannot exist at the database level) and by the approval
+// transition in FindingsService, which additionally requires at least one
+// Quotation to be present. See CLAUDE.md invariants 6 and 7.
+
+enum ConsentMethod {
+  VERBAL
+  WRITTEN
+  DIGITAL
+}
+
+model Participant {
+  id             String    @id @default(uuid())
+  displayName    String    @map("display_name")
+  externalRef    String?   @map("external_ref")
+  metadata       Json      @default("{}")
+  organizationId String    @map("organization_id")
+  projectId      String?   @map("project_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  createdBy    User         @relation("ParticipantCreator", fields: [createdById], references: [id])
+  consents     Consent[]
+  interviews   Interview[]
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@map("participants")
+}
+
+/**
+ * A consent record. Scopes are independent: a participant may permit
+ * recording without permitting AI analysis, for example. `withdrawnAt` is
+ * checked everywhere consent is relied on — withdrawal blocks future
+ * processing without deleting the record itself (the record of consent, and
+ * of its withdrawal, is retained).
+ */
+model Consent {
+  id                 String        @id @default(uuid())
+  version            String
+  method             ConsentMethod
+  allowRecording     Boolean       @default(false) @map("allow_recording")
+  allowTranscription Boolean       @default(false) @map("allow_transcription")
+  allowAiAnalysis    Boolean       @default(false) @map("allow_ai_analysis")
+  allowQuotation     Boolean       @default(false) @map("allow_quotation")
+  allowPublication   Boolean       @default(false) @map("allow_publication")
+  grantedAt          DateTime      @default(now()) @map("granted_at")
+  expiresAt          DateTime?     @map("expires_at")
+  withdrawnAt        DateTime?     @map("withdrawn_at")
+  withdrawnById      String?       @map("withdrawn_by_id")
+  metadata           Json          @default("{}")
+  organizationId     String        @map("organization_id")
+  participantId      String        @map("participant_id")
+  actorId            String        @map("actor_id")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  participant  Participant  @relation(fields: [participantId], references: [id])
+  actor        User         @relation("ConsentActor", fields: [actorId], references: [id])
+  withdrawnBy  User?        @relation("ConsentWithdrawnBy", fields: [withdrawnById], references: [id])
+  interviews   Interview[]
+
+  @@index([organizationId])
+  @@index([participantId])
+  @@map("consents")
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Interview {
+  id             String          @id @default(uuid())
+  status         InterviewStatus @default(SCHEDULED)
+  scheduledAt    DateTime?       @map("scheduled_at")
+  startedAt      DateTime?       @map("started_at")
+  endedAt        DateTime?       @map("ended_at")
+  location       String?
+  notes          String?
+  organizationId String          @map("organization_id")
+  projectId      String?         @map("project_id")
+  participantId  String          @map("participant_id")
+  // Required: an interview cannot exist without a consent record. Whether a
+  // *recording* may be made is a further, narrower check on
+  // consent.allowRecording performed by InterviewsService, since consent can
+  // be granted before recording is permitted (e.g. observation-only).
+  consentId      String          @map("consent_id")
+  interviewerId  String          @map("interviewer_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  participant  Participant  @relation(fields: [participantId], references: [id])
+  consent      Consent      @relation(fields: [consentId], references: [id])
+  interviewer  User         @relation("InterviewInterviewer", fields: [interviewerId], references: [id])
+  recordings   Media[]
+  transcripts  Transcript[]
+
+  @@index([organizationId])
+  @@index([participantId])
+  @@index([consentId])
+  @@map("interviews")
+}
+
+enum TranscriptStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Transcript {
+  id             String           @id @default(uuid())
+  status         TranscriptStatus @default(PENDING)
+  provider       String?
+  language       String?
+  errorMessage   String?          @map("error_message")
+  requestedAt    DateTime         @default(now()) @map("requested_at")
+  completedAt    DateTime?        @map("completed_at")
+  organizationId String           @map("organization_id")
+  interviewId    String           @map("interview_id")
+  mediaId        String           @map("media_id")
+  requestedById  String           @map("requested_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  interview    Interview           @relation(fields: [interviewId], references: [id])
+  media        Media               @relation(fields: [mediaId], references: [id])
+  requestedBy  User                @relation("TranscriptRequester", fields: [requestedById], references: [id])
+  segments     TranscriptSegment[]
+
+  @@index([organizationId])
+  @@index([interviewId])
+  @@map("transcripts")
+}
+
+model TranscriptSegment {
+  id             String   @id @default(uuid())
+  index          Int
+  startMs        Int      @map("start_ms")
+  endMs          Int      @map("end_ms")
+  speakerLabel   String?  @map("speaker_label")
+  text           String
+  organizationId String   @map("organization_id")
+  transcriptId   String   @map("transcript_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  transcript   Transcript   @relation(fields: [transcriptId], references: [id])
+  quotations   Quotation[]
+
+  @@unique([transcriptId, index])
+  @@index([organizationId])
+  @@map("transcript_segments")
+}
+
+enum FindingStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+  PUBLISHED
+}
+
+enum FindingSource {
+  HUMAN
+  AI
+}
+
+model Finding {
+  id              String        @id @default(uuid())
+  title           String
+  interpretation  String
+  theme           String?
+  status          FindingStatus @default(DRAFT)
+  source          FindingSource @default(HUMAN)
+  aiProvider      String?       @map("ai_provider")
+  aiModel         String?       @map("ai_model")
+  aiPromptVersion String?       @map("ai_prompt_version")
+  reviewedAt      DateTime?     @map("reviewed_at")
+  publishedAt     DateTime?     @map("published_at")
+  organizationId  String        @map("organization_id")
+  projectId       String?       @map("project_id")
+  createdById     String        @map("created_by_id")
+  reviewedById    String?       @map("reviewed_by_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  createdBy    User         @relation("FindingCreator", fields: [createdById], references: [id])
+  reviewedBy   User?        @relation("FindingReviewer", fields: [reviewedById], references: [id])
+  quotations   Quotation[]
+
+  @@index([organizationId])
+  @@map("findings")
+}
+
+/**
+ * The evidence link. A Quotation cannot be created except by resolving a real
+ * TranscriptSegment (non-nullable FK) — there is no code path that stores a
+ * quotation as free text disconnected from the transcript it came from.
+ */
+model Quotation {
+  id                  String   @id @default(uuid())
+  excerpt             String
+  organizationId      String   @map("organization_id")
+  findingId           String   @map("finding_id")
+  transcriptSegmentId String   @map("transcript_segment_id")
+  createdById         String   @map("created_by_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  finding           Finding           @relation(fields: [findingId], references: [id])
+  transcriptSegment TranscriptSegment @relation(fields: [transcriptSegmentId], references: [id])
+  createdBy         User              @relation("QuotationCreator", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([findingId])
+  @@map("quotations")
 }

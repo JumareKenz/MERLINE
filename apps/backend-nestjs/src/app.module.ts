@@ -17,6 +17,11 @@ import { StorageModule } from './storage/storage.module';
 import { AiModule } from './ai/ai.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ParticipantsModule } from './participants/participants.module';
+import { ConsentsModule } from './consents/consents.module';
+import { InterviewsModule } from './interviews/interviews.module';
+import { TranscriptsModule } from './transcripts/transcripts.module';
+import { FindingsModule } from './findings/findings.module';
 
 /**
  * PHASE 0 — QUALITATIVE RESET
@@ -49,6 +54,12 @@ import { NotificationsModule } from './notifications/notifications.module';
     AiModule,
     AuditLogModule,
     NotificationsModule,
+    // PHASE 2 — qualitative interview product
+    ParticipantsModule,
+    ConsentsModule,
+    InterviewsModule,
+    TranscriptsModule,
+    FindingsModule,
   ],
   providers: [
     // ─── PHASE 1: global guard chain ───

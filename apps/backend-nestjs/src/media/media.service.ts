@@ -68,9 +68,11 @@ const ALLOWED_MIME_TYPES: Record<string, MediaType> = {
 
   'application/pdf': MediaType.FILE,
   'application/msword': MediaType.FILE,
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': MediaType.FILE,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    MediaType.FILE,
   'application/vnd.ms-excel': MediaType.FILE,
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': MediaType.FILE,
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+    MediaType.FILE,
   'text/csv': MediaType.FILE,
   'application/json': MediaType.FILE,
   'text/plain': MediaType.FILE,
@@ -89,12 +91,18 @@ export class MediaService extends BaseService {
     private readonly storage: StorageService,
   ) {
     super(prisma);
-    this.maxFileBytes = Number(process.env.MAX_UPLOAD_BYTES ?? DEFAULT_MAX_FILE_BYTES);
+    this.maxFileBytes = Number(
+      process.env.MAX_UPLOAD_BYTES ?? DEFAULT_MAX_FILE_BYTES,
+    );
   }
 
   async upload(
     file: Express.Multer.File,
-    dto: { type?: MediaType; metadata?: Record<string, unknown> },
+    dto: {
+      type?: MediaType;
+      metadata?: Record<string, unknown>;
+      interviewId?: string;
+    },
     userId: string,
     organizationId: string,
   ) {
@@ -136,7 +144,9 @@ export class MediaService extends BaseService {
       // The client told us what it sent and the bytes disagree. Remove the
       // object rather than record a row pointing at corrupt content.
       await this.storage.deleteObject(key);
-      throw new BadRequestException('Upload checksum mismatch; the file was not stored');
+      throw new BadRequestException(
+        'Upload checksum mismatch; the file was not stored',
+      );
     }
 
     return this.prisma.media.create({
@@ -153,6 +163,10 @@ export class MediaService extends BaseService {
         metadata: (dto.metadata ?? {}) as any,
         uploadedById: userId,
         organizationId,
+        // PHASE 2: set when this upload is an interview recording. The
+        // caller (InterviewsService) is responsible for the consent check —
+        // this method has no notion of consent, only storage.
+        interviewId: dto.interviewId,
       },
     });
   }
@@ -183,7 +197,9 @@ export class MediaService extends BaseService {
       throw new BadRequestException('No chunk content received');
     }
     if (!Number.isInteger(index) || index < 0) {
-      throw new BadRequestException('Chunk index must be a non-negative integer');
+      throw new BadRequestException(
+        'Chunk index must be a non-negative integer',
+      );
     }
 
     const key = this.chunkKey(organizationId, identifier, index);
@@ -195,7 +211,13 @@ export class MediaService extends BaseService {
     });
 
     await this.prisma.mediaChunk.create({
-      data: { identifier, index, size: file.size, checksum, uploadedById: userId },
+      data: {
+        identifier,
+        index,
+        size: file.size,
+        checksum,
+        uploadedById: userId,
+      },
     });
 
     return { identifier, chunkIndex: index, received: file.size, checksum };
@@ -223,7 +245,8 @@ export class MediaService extends BaseService {
       .split(';')[0]
       .trim()
       .toLowerCase();
-    const mediaType = ALLOWED_MIME_TYPES[mimeType] ?? this.inferMediaType(mimeType);
+    const mediaType =
+      ALLOWED_MIME_TYPES[mimeType] ?? this.inferMediaType(mimeType);
 
     const parts: Buffer[] = [];
     for (const chunk of chunks) {
@@ -235,20 +258,31 @@ export class MediaService extends BaseService {
     const body = Buffer.concat(parts);
 
     if (body.length > this.maxFileBytes) {
-      throw new BadRequestException('Reassembled file exceeds the maximum upload size');
+      throw new BadRequestException(
+        'Reassembled file exceeds the maximum upload size',
+      );
     }
 
     const id = uuidv4();
     const extension = options.originalName
       ? path.extname(options.originalName).replace(/^\./, '')
       : '';
-    const key = this.storage.buildKey({ organizationId, kind: 'media', id, extension });
+    const key = this.storage.buildKey({
+      organizationId,
+      kind: 'media',
+      id,
+      extension,
+    });
 
     const { checksum, bytes } = await this.storage.putObject({
       key,
       body,
       contentType: mimeType,
-      metadata: { organizationId, uploadedBy: userId, assembledFrom: identifier },
+      metadata: {
+        organizationId,
+        uploadedBy: userId,
+        assembledFrom: identifier,
+      },
     });
 
     const media = await this.prisma.media.create({
@@ -304,11 +338,16 @@ export class MediaService extends BaseService {
     const media = await this.findById(id, organizationId);
 
     if (!(await this.storage.objectExists(media.path))) {
-      throw new NotFoundException('Stored object is missing for this media record');
+      throw new NotFoundException(
+        'Stored object is missing for this media record',
+      );
     }
 
     return {
-      url: await this.storage.getSignedDownloadUrl(media.path, media.originalName),
+      url: await this.storage.getSignedDownloadUrl(
+        media.path,
+        media.originalName,
+      ),
       expiresIn: Number(process.env.SIGNED_URL_TTL_SECONDS ?? 900),
       media,
     };
@@ -347,14 +386,18 @@ export class MediaService extends BaseService {
     });
   }
 
-  private chunkKey(organizationId: string, identifier: string, index: number): string {
+  private chunkKey(
+    organizationId: string,
+    identifier: string,
+    index: number,
+  ): string {
     return `org/${organizationId}/chunks/${identifier}/${String(index).padStart(6, '0')}`;
   }
 
   private async readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     return Buffer.concat(chunks);
   }

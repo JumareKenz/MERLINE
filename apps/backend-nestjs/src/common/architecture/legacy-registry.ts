@@ -42,6 +42,12 @@ export const ACTIVE_MODULE_DIRECTORIES = [
   'projects',
   'storage',
   'users',
+  // PHASE 2 — qualitative interview product
+  'participants',
+  'consents',
+  'interviews',
+  'transcripts',
+  'findings',
 ] as const;
 
 /** Shared foundations. Importable by both sides; owned by neither. */
