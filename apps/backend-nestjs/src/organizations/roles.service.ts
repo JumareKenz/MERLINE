@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { BaseService } from '../common/base/base.service';
 import { PrismaService } from '../database/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -37,7 +41,9 @@ export class RolesService extends BaseService {
       where: { slug_organizationId: { slug: dto.slug, organizationId: orgId } },
     });
     if (existing) {
-      throw new ConflictException('Role with this slug already exists in the organization');
+      throw new ConflictException(
+        'Role with this slug already exists in the organization',
+      );
     }
     return this.prisma.role.create({
       data: { ...dto, organizationId: orgId },
@@ -49,10 +55,14 @@ export class RolesService extends BaseService {
     await this.ensureRoleExists(orgId, id);
     if (dto.slug) {
       const existing = await this.prisma.role.findUnique({
-        where: { slug_organizationId: { slug: dto.slug, organizationId: orgId } },
+        where: {
+          slug_organizationId: { slug: dto.slug, organizationId: orgId },
+        },
       });
       if (existing && existing.id !== id) {
-        throw new ConflictException('Role with this slug already exists in the organization');
+        throw new ConflictException(
+          'Role with this slug already exists in the organization',
+        );
       }
     }
     return this.prisma.role.update({
@@ -69,10 +79,21 @@ export class RolesService extends BaseService {
 
   async updatePermissions(orgId: string, id: string, permissionIds: string[]) {
     await this.ensureRoleExists(orgId, id);
+    // Permission rows are per organization; another tenant's row would still
+    // carry a valid slug, so only this organization's ids are accepted.
+    const unique = [...new Set(permissionIds)];
+    const owned = await this.prisma.permission.count({
+      where: { id: { in: unique }, organizationId: orgId },
+    });
+    if (owned !== unique.length) {
+      throw new NotFoundException(
+        'One or more permissions do not belong to this organization',
+      );
+    }
     await this.prisma.permissionRole.deleteMany({ where: { roleId: id } });
-    if (permissionIds.length > 0) {
+    if (unique.length > 0) {
       await this.prisma.permissionRole.createMany({
-        data: permissionIds.map((permissionId) => ({
+        data: unique.map((permissionId) => ({
           permissionId,
           roleId: id,
         })),

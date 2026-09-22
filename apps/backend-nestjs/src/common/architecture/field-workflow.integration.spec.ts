@@ -27,6 +27,7 @@ import { StorageService } from '../../storage/storage.service';
 import { TranscriptDialogueService } from '../../transcripts/transcript-dialogue.service';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { AuthService } from '../../auth/auth.service';
+import { RolesService } from '../../organizations/roles.service';
 
 const shouldRun =
   process.env.RUN_DB_TESTS === '1' &&
@@ -629,6 +630,27 @@ describeDb('field workflow (database)', () => {
       await expect(
         orgs.updateMemberRole(orgAId, fieldId, foreignRole.id),
       ).rejects.toThrow(/role not found/i);
+    });
+
+    it('refuses to attach another organization’s permission rows to a role', async () => {
+      const foreignPerm = await prisma.permission.create({
+        data: {
+          slug: 'edit.users',
+          name: 'Edit Users',
+          module: 'users',
+          organizationId: orgBId,
+        },
+      });
+      const fieldRole = await prisma.role.findFirstOrThrow({
+        where: { organizationId: orgAId, slug: 'field-interviewer' },
+      });
+      const roles = new RolesService(prisma as any);
+      await expect(
+        roles.updatePermissions(orgAId, fieldRole.id, [foreignPerm.id]),
+      ).rejects.toThrow(/do not belong/i);
+      expect(
+        await prisma.permissionRole.count({ where: { roleId: fieldRole.id } }),
+      ).toBe(0);
     });
 
     it('reports effective permissions on /auth/me from own-organization roles only', async () => {
