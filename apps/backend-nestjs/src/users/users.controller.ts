@@ -9,8 +9,8 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { Permissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces';
 import { UsersService } from './users.service';
@@ -18,15 +18,22 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
 
+/**
+ * PHASE 2 — this controller had no `@Permissions()` on any route, and
+ * findById/update/delete/updateRoles took no organizationId at all: any
+ * authenticated user, from any organization, could view, edit, delete, or
+ * reassign the roles of a user in a *different* tenant by UUID. Found while
+ * building the field-worker access-code feature on top of this controller;
+ * fixed here rather than built on top of.
+ */
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
+  @Permissions('view.users')
   async findAll(
-    // PHASE 1: the `organizationId` query parameter is gone. It let any
-    // authenticated user list another organization's users by passing its id.
     @CurrentUser() user: AuthenticatedUser,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -47,11 +54,16 @@ export class UsersController {
   }
 
   @Get(':id')
-  async findById(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  @Permissions('view.users')
+  async findById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.findById(id, user.organizationId);
   }
 
   @Post()
+  @Permissions('create.users')
   async create(
     @Body() dto: CreateUserDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -60,20 +72,49 @@ export class UsersController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  @Permissions('edit.users')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.update(id, dto, user.organizationId);
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string) {
-    return this.usersService.delete(id);
+  @Permissions('delete.users')
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.delete(id, user.organizationId);
   }
 
   @Put(':id/roles')
+  @Permissions('edit.users')
   async updateRoles(
     @Param('id') id: string,
     @Body() dto: UpdateUserRolesDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.usersService.updateRoles(id, dto);
+    return this.usersService.updateRoles(id, dto, user.organizationId);
+  }
+
+  @Post(':id/field-access-code')
+  @Permissions('edit.users')
+  async generateFieldAccessCode(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.generateFieldAccessCode(id, user.organizationId);
+  }
+
+  @Delete(':id/field-access-code')
+  @Permissions('edit.users')
+  async revokeFieldAccessCode(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.revokeFieldAccessCode(id, user.organizationId);
   }
 }

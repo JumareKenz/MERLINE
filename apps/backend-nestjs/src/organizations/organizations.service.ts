@@ -1,12 +1,31 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { BaseService } from '../common/base/base.service';
+import { PrismaService } from '../database/prisma.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
 
+/**
+ * PHASE 2 — real bug fixed here: this class had no constructor of its own.
+ * `BaseService`'s constructor takes `PrismaService`, but a subclass with no
+ * explicit constructor emits no `design:paramtypes` metadata for TypeScript's
+ * decorator reflection, so Nest's DI container instantiated this with zero
+ * constructor arguments. Every method on this service has always thrown
+ * "Cannot read properties of undefined (reading 'organization')" (or
+ * similar) the instant it touched `this.prisma` — confirmed live against a
+ * running server: GET /organizations and GET /organizations/:orgId/members
+ * both 500'd with exactly that message before this fix. Every other service
+ * in the codebase that extends `BaseService` redeclares this constructor;
+ * these four (this file, roles.service.ts, permissions.service.ts,
+ * workspaces.service.ts) were the only ones that didn't.
+ */
 @Injectable()
 export class OrganizationsService extends BaseService {
+  constructor(protected readonly prisma: PrismaService) {
+    super(prisma);
+  }
+
   async create(dto: CreateOrganizationDto) {
     const existing = await this.prisma.organization.findUnique({
       where: { slug: dto.slug },
@@ -81,6 +100,7 @@ export class OrganizationsService extends BaseService {
         lastName: true,
         isActive: true,
         lastLoginAt: true,
+        fieldAccessCodeIssuedAt: true,
         createdAt: true,
         roles: {
           include: { role: { select: { id: true, name: true, slug: true } } },
@@ -121,7 +141,21 @@ export class OrganizationsService extends BaseService {
       });
     }
 
-    return { user, tempPassword };
+    // PHASE 2: real bug fixed here — this returned the full Prisma `User`
+    // row, bcrypt `passwordHash` included, to any caller with permission to
+    // add a member. Confirmed against a live server. `tempPassword` is
+    // already the deliberate one-time secret in this response; the hash
+    // never needs to leave this method.
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      isActive: user.isActive,
+      organizationId: user.organizationId,
+      createdAt: user.createdAt,
+    };
+    return { user: safeUser, tempPassword };
   }
 
   async updateMemberRole(orgId: string, userId: string, roleId: string) {

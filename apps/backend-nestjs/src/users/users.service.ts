@@ -4,11 +4,23 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
+
+/** Excludes 0/O/1/I/L — characters that are easy to mis-type or mis-read aloud. */
+const FIELD_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function generateFieldCode(): string {
+  const raw = Array.from(
+    { length: 10 },
+    () => FIELD_CODE_ALPHABET[randomInt(FIELD_CODE_ALPHABET.length)],
+  ).join('');
+  return `${raw.slice(0, 5)}-${raw.slice(5)}`;
+}
 
 @Injectable()
 export class UsersService extends BaseService {
@@ -32,7 +44,10 @@ export class UsersService extends BaseService {
     const sortOrder = query.sortOrder ?? 'desc';
 
     // PHASE 1: always tenant-scoped. Was an optional client-supplied filter.
-    const where: any = { deletedAt: null, organizationId: query.organizationId };
+    const where: any = {
+      deletedAt: null,
+      organizationId: query.organizationId,
+    };
 
     if (query.search) {
       where.OR = [
@@ -63,6 +78,7 @@ export class UsersService extends BaseService {
           isActive: true,
           emailVerifiedAt: true,
           lastLoginAt: true,
+          fieldAccessCodeIssuedAt: true,
           organizationId: true,
           createdAt: true,
           updatedAt: true,
@@ -81,9 +97,9 @@ export class UsersService extends BaseService {
     return { items, total, page, limit };
   }
 
-  async findById(id: string) {
+  async findById(id: string, organizationId: string) {
     const user = await this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       select: {
         id: true,
         email: true,
@@ -95,6 +111,7 @@ export class UsersService extends BaseService {
         isActive: true,
         emailVerifiedAt: true,
         lastLoginAt: true,
+        fieldAccessCodeIssuedAt: true,
         organizationId: true,
         createdAt: true,
         updatedAt: true,
@@ -166,9 +183,9 @@ export class UsersService extends BaseService {
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto) {
+  async update(id: string, dto: UpdateUserDto, organizationId: string) {
     const user = await this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
     });
 
     if (!user) {
@@ -212,6 +229,7 @@ export class UsersService extends BaseService {
         isActive: true,
         emailVerifiedAt: true,
         lastLoginAt: true,
+        fieldAccessCodeIssuedAt: true,
         organizationId: true,
         createdAt: true,
         updatedAt: true,
@@ -224,9 +242,9 @@ export class UsersService extends BaseService {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, organizationId: string) {
     const user = await this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
     });
 
     if (!user) {
@@ -239,13 +257,33 @@ export class UsersService extends BaseService {
     });
   }
 
-  async updateRoles(id: string, dto: UpdateUserRolesDto) {
+  async updateRoles(
+    id: string,
+    dto: UpdateUserRolesDto,
+    organizationId: string,
+  ) {
     const user = await this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
     });
 
     if (!user) {
       throw new NotFoundException(`User with id "${id}" not found`);
+    }
+
+    // Roles are per-tenant (see PermissionGuard). Assigning a role from
+    // another organization would not actually grant anything there — the
+    // guard filters by the caller's own organizationId — but it would leave
+    // a confusing, meaningless roleUser row, so refuse it outright rather
+    // than silently accept an id that isn't this tenant's.
+    if (dto.roleIds.length > 0) {
+      const validRoles = await this.prisma.role.count({
+        where: { id: { in: dto.roleIds }, organizationId },
+      });
+      if (validRoles !== dto.roleIds.length) {
+        throw new NotFoundException(
+          'One or more roles do not belong to this organization',
+        );
+      }
     }
 
     await this.prisma.roleUser.deleteMany({ where: { userId: id } });
@@ -256,6 +294,62 @@ export class UsersService extends BaseService {
       });
     }
 
-    return this.findById(id);
+    return this.findById(id, organizationId);
+  }
+
+  /**
+   * Issues a fresh field-worker access code, invalidating any previous one
+   * for this user. Returns the code in plaintext — this is the only time it
+   * is ever readable; it is not hashed (see the schema comment for why) but
+   * it is also never returned by any other endpoint, so this response is
+   * the admin's one chance to copy it for the field worker.
+   */
+  async generateFieldAccessCode(id: string, organizationId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, organizationId, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with id "${id}" not found`);
+    }
+
+    // Collision odds on a 10-char, 32-symbol alphabet are astronomically
+    // low, but @unique means a collision fails loudly rather than silently
+    // overwriting someone else's code — retry a handful of times rather
+    // than surface that as a 500.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = generateFieldCode();
+      try {
+        await this.prisma.user.update({
+          where: { id },
+          data: { fieldAccessCode: code, fieldAccessCodeIssuedAt: new Date() },
+        });
+        return { code, issuedAt: new Date() };
+      } catch (err) {
+        const isUniqueViolation =
+          typeof err === 'object' &&
+          err !== null &&
+          (err as { code?: string }).code === 'P2002';
+        if (!isUniqueViolation || attempt === 4) throw err;
+      }
+    }
+    throw new ConflictException(
+      'Could not generate a unique access code, try again',
+    );
+  }
+
+  async revokeFieldAccessCode(id: string, organizationId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, organizationId, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with id "${id}" not found`);
+    }
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { fieldAccessCode: null, fieldAccessCodeIssuedAt: null },
+    });
+
+    return { revoked: true };
   }
 }

@@ -125,8 +125,32 @@ export const apiClient = new ApiClient().client;
  */
 export const API = {
   auth: {
+    /**
+     * PHASE 2 — real bug fixed here: this was typed as `token: string;
+     * expires_at: string`, but the actual backend (auth.service.ts,
+     * generateToken()) returns `token: { accessToken, expiresIn }`. Every
+     * consumer destructuring `token` directly and using it as a string —
+     * auth-provider.tsx's login()/register() — was setting the auth cookie
+     * and the Authorization header to the *stringified object*
+     * "[object Object]". Confirmed by comparing this type against a live
+     * `curl .../auth/login` response, not assumed. This made the real
+     * browser login flow non-functional; only manually-extracted curl
+     * tests (which never went through this code) looked like they worked.
+     */
     login: (data: { email: string; password: string; device_name?: string }) =>
-      apiClient.post<{ data: { user: import('@/types/auth').AuthUser; token: string; expires_at: string } }>('/auth/login', data),
+      apiClient.post<
+        import('@/types/api').Envelope<{
+          user: import('@/types/auth').AuthUser;
+          token: { accessToken: string; expiresIn: number };
+        }>
+      >('/auth/login', data),
+    fieldLogin: (code: string) =>
+      apiClient.post<
+        import('@/types/api').Envelope<{
+          user: import('@/types/auth').AuthUser;
+          token: { accessToken: string; expiresIn: number };
+        }>
+      >('/auth/field-login', { code }),
     register: (data: import('@/types/auth').RegisterDto) =>
       apiClient.post<{ data: import('@/types/auth').RegisterResponse }>('/auth/register', data),
     logout: () => apiClient.post('/auth/logout'),
@@ -147,11 +171,24 @@ export const API = {
       apiClient.put<{ data: import('@/types/organization').Organization }>(`/organizations/${id}`, data),
     members: {
       list: (orgId: string, params?: import('@/types/api').UserFilterParams) =>
-        apiClient.get<import('@/types/api').PaginatedResponse<import('@/types/user').Member>>(`/organizations/${orgId}/members`, { params }),
+        apiClient.get<import('@/types/api').Envelope<import('@/types/user').Member[]> >(`/organizations/${orgId}/members`, { params }),
+      /**
+       * PHASE 2 — real bug fixed here: this sent `role_id` (the frontend
+       * form field's name), but the backend's `addMember` reads
+       * `body.roleId`. Confirmed against organizations.service.ts. The
+       * mismatch didn't error — there's no DTO class on that route for
+       * ValidationPipe to reject an unknown field against — it silently
+       * created every new user with no role at all.
+       */
       create: (orgId: string, data: import('@/types/user').CreateUserDto) =>
-        apiClient.post<{ data: import('@/types/user').User }>(`/organizations/${orgId}/members`, data),
+        apiClient.post<{ data: import('@/types/user').User }>(`/organizations/${orgId}/members`, {
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          roleId: data.role_id,
+        }),
       updateRole: (orgId: string, userId: string, data: { role_id: string }) =>
-        apiClient.put(`/organizations/${orgId}/members/${userId}/role`, data),
+        apiClient.put(`/organizations/${orgId}/members/${userId}/role`, { role_id: data.role_id }),
       remove: (orgId: string, userId: string) =>
         apiClient.delete(`/organizations/${orgId}/members/${userId}`),
     },
@@ -167,6 +204,22 @@ export const API = {
       apiClient.post(`/teams/${teamId}/members`, { user_id: userId }),
     removeMember: (teamId: string, userId: string) =>
       apiClient.delete(`/teams/${teamId}/members/${userId}`),
+  },
+  /**
+   * PHASE 2 — field-worker access codes. Distinct from `organizations.members`
+   * (which lists/creates/edits members): these two hit `/users/:id/...`
+   * directly, the tenant-scoped, permission-guarded controller the
+   * field-access-code backend work added. No client method previously called
+   * either endpoint — the backend feature existed with no way to reach it
+   * from the product.
+   */
+  users: {
+    generateFieldAccessCode: (id: string) =>
+      apiClient.post<import('@/types/api').Envelope<{ code: string; issuedAt: string }> >(
+        `/users/${id}/field-access-code`,
+      ),
+    revokeFieldAccessCode: (id: string) =>
+      apiClient.delete<import('@/types/api').Envelope<{ revoked: boolean }> >(`/users/${id}/field-access-code`),
   },
   roles: {
     list: () => apiClient.get<{ data: import('@/types/role').Role[] }>('/roles'),

@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { UserTable } from '@/components/users/user-table';
 import { UserForm } from '@/components/users/user-form';
 import { UserRoleSelector } from '@/components/users/user-role-selector';
+import { FieldAccessCodeDialog } from '@/components/users/field-access-code-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/use-users';
+import { useCurrentOrganizationId } from '@/hooks/use-organizations';
 import { useRoles } from '@/hooks/use-roles';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -18,9 +20,11 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showRoleChange, setShowRoleChange] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showFieldAccess, setShowFieldAccess] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Member | null>(null);
 
-  const { data: usersData, isLoading, isError, error, refetch } = useUsers();
+  const { data: orgId } = useCurrentOrganizationId();
+  const { data: usersData, isLoading, isError, error, refetch } = useUsers(orgId ?? undefined);
   const { data: rolesData } = useRoles();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -30,8 +34,9 @@ export default function UsersPage() {
   const roles = rolesData?.data?.data || [];
 
   const handleCreate = async (data: UserFormData) => {
+    if (!orgId) return;
     await createUser.mutateAsync({
-      orgId: '',
+      orgId,
       data: {
         email: data.email,
         firstName: data.first_name,
@@ -44,10 +49,10 @@ export default function UsersPage() {
   };
 
   const handleRoleChange = async (_userId: string, roleId: string) => {
-    if (!selectedUser) return;
+    if (!selectedUser || !orgId) return;
     await updateUser.mutateAsync({
-      orgId: '',
-      userId: selectedUser.user_id,
+      orgId,
+      userId: selectedUser.id,
       data: { role_id: roleId },
     });
     setShowRoleChange(false);
@@ -55,9 +60,9 @@ export default function UsersPage() {
   };
 
   const handleDelete = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser || !orgId) return;
     try {
-      await deleteUser.mutateAsync({ orgId: '', userId: selectedUser.user_id });
+      await deleteUser.mutateAsync({ orgId, userId: selectedUser.id });
       toast.success('User removed successfully');
     } catch {
       toast.error('Failed to remove user');
@@ -92,6 +97,10 @@ export default function UsersPage() {
           setSelectedUser(user);
           setShowDelete(true);
         }}
+        onFieldAccess={(user) => {
+          setSelectedUser(user);
+          setShowFieldAccess(true);
+        }}
       />
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -115,11 +124,17 @@ export default function UsersPage() {
         open={showDelete}
         onOpenChange={setShowDelete}
         title="Remove User"
-        description={`Are you sure you want to remove ${selectedUser?.user?.firstName} ${selectedUser?.user?.lastName} from the organization? This action cannot be undone.`}
+        description={`Are you sure you want to remove ${selectedUser?.firstName} ${selectedUser?.lastName} from the organization? This action cannot be undone.`}
         variant="danger"
         confirmLabel="Remove"
         loading={deleteUser.isPending}
         onConfirm={handleDelete}
+      />
+
+      <FieldAccessCodeDialog
+        open={showFieldAccess}
+        onOpenChange={setShowFieldAccess}
+        user={selectedUser}
       />
     </div>
   );

@@ -13,6 +13,25 @@ export function useOrganization() {
   });
 }
 
+/**
+ * PHASE 2 — real bug fixed here: every caller of `API.organizations.members.*`
+ * passed `orgId: ''`, producing `/organizations//members` — a guaranteed
+ * 404, confirmed against a live server. The org id was never fetched from
+ * anywhere. `/auth/me` already returns it (`organization.id`); this is the
+ * one place that resolves it, so every list/create/role-change/remove call
+ * can share it instead of re-deriving it.
+ */
+export function useCurrentOrganizationId() {
+  return useQuery({
+    queryKey: ['auth', 'me', 'organizationId'],
+    queryFn: async () => {
+      const response = await API.auth.me();
+      return response.data.data.organization?.id ?? null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useUpdateOrganization() {
   const queryClient = useQueryClient();
   return useMutation({

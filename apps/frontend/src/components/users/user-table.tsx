@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/shared/status-badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Edit, MoreHorizontal, Trash2, Shield, UserMinus } from 'lucide-react';
+import { Edit, MoreHorizontal, Trash2, Shield, UserMinus, KeyRound } from 'lucide-react';
 import { formatDateTime, getInitials } from '@/lib/utils';
 import type { Member } from '@/types/user';
 
@@ -20,17 +20,19 @@ interface UserTableProps {
   onEdit?: (user: Member) => void;
   onDelete?: (user: Member) => void;
   onChangeRole?: (user: Member) => void;
+  onFieldAccess?: (user: Member) => void;
 }
 
-export function UserTable({ data, isLoading, isError, error, onRetry, onEdit, onDelete, onChangeRole }: UserTableProps) {
+export function UserTable({ data, isLoading, isError, error, onRetry, onEdit, onDelete, onChangeRole, onFieldAccess }: UserTableProps) {
   const columnHelper = createColumnHelper<Member>();
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('user', {
+      {
+        id: 'user',
         header: 'User',
-        cell: ({ getValue }) => {
-          const user = getValue();
+        cell: ({ row }: { row: { original: Member } }) => {
+          const user = row.original;
           return (
             <div className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
@@ -43,32 +45,33 @@ export function UserTable({ data, isLoading, isError, error, onRetry, onEdit, on
             </div>
           );
         },
-      }),
-      columnHelper.accessor('role', {
+      },
+      {
+        id: 'role',
         header: 'Role',
-        cell: ({ getValue }) => {
-          const role = getValue();
+        cell: ({ row }: { row: { original: Member } }) => {
+          const role = row.original.roles?.[0]?.role;
           return <StatusBadge status={role?.slug || 'no-role'} />;
         },
-      }),
-      columnHelper.accessor('user.status', {
+      },
+      columnHelper.accessor('isActive', {
         header: 'Status',
-        cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <StatusBadge status={getValue() ? 'active' : 'inactive'} />,
       }),
-      columnHelper.accessor('user.last_login_at', {
+      columnHelper.accessor('lastLoginAt', {
         header: 'Last Login',
         cell: ({ getValue }) => {
           const date = getValue();
           return date ? formatDateTime(date) : 'Never';
         },
       }),
-      columnHelper.accessor('joined_at', {
+      columnHelper.accessor('createdAt', {
         header: 'Joined',
         cell: ({ getValue }) => formatDateTime(getValue()),
       }),
       {
         id: 'actions',
-        cell: ({ row }) => (
+        cell: ({ row }: { row: { original: Member } }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -86,6 +89,11 @@ export function UserTable({ data, isLoading, isError, error, onRetry, onEdit, on
                   <Shield className="mr-2 h-4 w-4" /> Change Role
                 </DropdownMenuItem>
               )}
+              {onFieldAccess && (
+                <DropdownMenuItem onClick={() => onFieldAccess(row.original)}>
+                  <KeyRound className="mr-2 h-4 w-4" /> Field Access
+                </DropdownMenuItem>
+              )}
               {onDelete && (
                 <DropdownMenuItem onClick={() => onDelete(row.original)} className="text-error">
                   <UserMinus className="mr-2 h-4 w-4" /> Remove
@@ -96,7 +104,7 @@ export function UserTable({ data, isLoading, isError, error, onRetry, onEdit, on
         ),
       },
     ] as ColumnDef<Member>[],
-    [onEdit, onDelete, onChangeRole, columnHelper]
+    [onEdit, onDelete, onChangeRole, onFieldAccess, columnHelper]
   );
 
   return (

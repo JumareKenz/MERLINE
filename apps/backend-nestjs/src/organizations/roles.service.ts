@@ -1,10 +1,16 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { BaseService } from '../common/base/base.service';
+import { PrismaService } from '../database/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
+/** PHASE 2 — missing constructor; see organizations.service.ts for why this made every method throw. */
 @Injectable()
 export class RolesService extends BaseService {
+  constructor(protected readonly prisma: PrismaService) {
+    super(prisma);
+  }
+
   async findAll(orgId: string) {
     await this.ensureOrganizationExists(orgId);
     return this.prisma.role.findMany({

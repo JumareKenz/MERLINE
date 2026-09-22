@@ -137,6 +137,17 @@ model User {
   resetPasswordTokenExpiresAt   DateTime? @map("reset_password_token_expires_at")
   tokenVersion                  Int       @default(0) @map("token_version")
   lastLoginAt                   DateTime? @map("last_login_at")
+  // PHASE 2: field-worker sign-in. An admin issues this from the users
+  // screen; the field app exchanges it for a session at POST
+  // /auth/field-login instead of email+password. Stored as an opaque,
+  // high-entropy random string (not hashed): it must be looked up by exact
+  // value on a public, unauthenticated endpoint, so a bcrypt-style "iterate
+  // and compare" lookup isn't practical at any real scale. Entropy plus
+  // ThrottlerGuard's existing rate limit on this route is the defense here,
+  // the same trust model as an API key. @unique makes the lookup O(1) and
+  // makes a collision on generation fail loudly instead of overwriting.
+  fieldAccessCode                String?   @unique @map("field_access_code")
+  fieldAccessCodeIssuedAt        DateTime? @map("field_access_code_issued_at")
   organizationId                String    @map("organization_id")
   createdAt                     DateTime  @default(now()) @map("created_at")
   updatedAt                     DateTime  @updatedAt @map("updated_at")

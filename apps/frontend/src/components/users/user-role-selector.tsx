@@ -17,14 +17,14 @@ interface UserRoleSelectorProps {
 }
 
 export function UserRoleSelector({ open, onOpenChange, user, roles, onSave }: UserRoleSelectorProps) {
-  const [selectedRoleId, setSelectedRoleId] = useState(user?.role?.id || '');
+  const [selectedRoleId, setSelectedRoleId] = useState(user?.roles?.[0]?.role?.id || '');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSave = async () => {
     if (!user || !selectedRoleId) return;
     setIsLoading(true);
     try {
-      await onSave(user.user_id, selectedRoleId);
+      await onSave(user.id, selectedRoleId);
       onOpenChange(false);
     } finally {
       setIsLoading(false);
@@ -37,7 +37,7 @@ export function UserRoleSelector({ open, onOpenChange, user, roles, onSave }: Us
         <DialogHeader>
           <DialogTitle>Change User Role</DialogTitle>
           <DialogDescription>
-            Update role for {user?.user?.firstName} {user?.user?.lastName}
+            Update role for {user?.firstName} {user?.lastName}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-4">

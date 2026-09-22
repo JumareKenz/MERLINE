@@ -21,7 +21,8 @@ import { randomUUID } from 'crypto';
 import { ProjectsService } from '../../projects/projects.service';
 import { UsersService } from '../../users/users.service';
 
-const shouldRun = process.env.RUN_DB_TESTS === '1' && Boolean(process.env.DATABASE_URL);
+const shouldRun =
+  process.env.RUN_DB_TESTS === '1' && Boolean(process.env.DATABASE_URL);
 const describeDb = shouldRun ? describe : describe.skip;
 
 describeDb('tenant isolation (database)', () => {
@@ -92,9 +93,15 @@ describeDb('tenant isolation (database)', () => {
   });
 
   afterAll(async () => {
-    await prisma.project.deleteMany({ where: { organizationId: { in: [orgAId, orgBId] } } });
-    await prisma.user.deleteMany({ where: { organizationId: { in: [orgAId, orgBId] } } });
-    await prisma.organization.deleteMany({ where: { id: { in: [orgAId, orgBId] } } });
+    await prisma.project.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
+    await prisma.user.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
+    await prisma.organization.deleteMany({
+      where: { id: { in: [orgAId, orgBId] } },
+    });
     await prisma.$disconnect();
   });
 
@@ -123,14 +130,18 @@ describeDb('tenant isolation (database)', () => {
         projects.update(projectBId, { name: 'hijacked' } as any, orgAId),
       ).rejects.toThrow();
 
-      const untouched = await prisma.project.findUnique({ where: { id: projectBId } });
+      const untouched = await prisma.project.findUnique({
+        where: { id: projectBId },
+      });
       expect(untouched?.name).toBe(`Project B ${run}`);
     });
 
     it('refuses to delete another organization project', async () => {
       await expect(projects.remove(projectBId, orgAId)).rejects.toThrow();
 
-      const untouched = await prisma.project.findUnique({ where: { id: projectBId } });
+      const untouched = await prisma.project.findUnique({
+        where: { id: projectBId },
+      });
       expect(untouched?.deletedAt).toBeNull();
     });
   });
@@ -142,6 +153,44 @@ describeDb('tenant isolation (database)', () => {
 
       expect(emails).toContain(`a-${run}@tenancy.test`);
       expect(emails).not.toContain(`b-${run}@tenancy.test`);
+    });
+
+    // PHASE 2: findById/update/delete/updateRoles previously took no
+    // organizationId at all — any authenticated user could reach any other
+    // tenant's user by UUID. These four prove the fix.
+    it('does not return another organization user by id', async () => {
+      await expect(users.findById(userBId, orgAId)).rejects.toThrow();
+    });
+
+    it('returns the caller own organization user by id', async () => {
+      const found = await users.findById(userAId, orgAId);
+      expect(found.id).toBe(userAId);
+    });
+
+    it('refuses to update another organization user', async () => {
+      await expect(
+        users.update(userBId, { firstName: 'Hijacked' } as any, orgAId),
+      ).rejects.toThrow();
+
+      const untouched = await prisma.user.findUnique({
+        where: { id: userBId },
+      });
+      expect(untouched?.firstName).toBe('B');
+    });
+
+    it('refuses to delete another organization user', async () => {
+      await expect(users.delete(userBId, orgAId)).rejects.toThrow();
+
+      const untouched = await prisma.user.findUnique({
+        where: { id: userBId },
+      });
+      expect(untouched?.deletedAt).toBeNull();
+    });
+
+    it('refuses to reassign roles for another organization user', async () => {
+      await expect(
+        users.updateRoles(userBId, { roleIds: [] } as any, orgAId),
+      ).rejects.toThrow();
     });
   });
 });

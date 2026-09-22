@@ -16,6 +16,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { FieldLoginDto } from './dto/field-login.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import type { AuthenticatedUser } from '../common/interfaces';
@@ -38,6 +39,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('field-login')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async fieldLogin(@Body() dto: FieldLoginDto) {
+    return this.authService.fieldLogin(dto);
   }
 
   @Post('logout')

@@ -41,11 +41,22 @@ export interface UserFilterParams {
   status?: string;
 }
 
+/**
+ * PHASE 2 — real bug fixed here: this type described a membership-wrapper
+ * shape ({user_id, organization_id, role, joined_at, user: {...}}) that
+ * nothing in the schema produces — there is no separate membership table,
+ * role and organization live directly on `User`. `GET
+ * /organizations/:orgId/members` actually returns a flat array of users
+ * with a `roles` array, confirmed against a live server. This is that shape.
+ */
 export interface Member {
   id: string;
-  user_id: string;
-  organization_id: string;
-  role: Role;
-  joined_at: string;
-  user: User;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  fieldAccessCodeIssuedAt?: string | null;
+  createdAt: string;
+  roles: Array<{ role: Role }>;
 }

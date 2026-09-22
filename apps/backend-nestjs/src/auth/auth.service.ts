@@ -17,6 +17,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { FieldLoginDto } from './dto/field-login.dto';
 import { expiresInSeconds, jwtSignOptions } from './jwt.constants';
 
 @Injectable()
@@ -74,7 +75,9 @@ export class AuthService {
           lastName: dto.lastName,
           organizationId: organization.id,
           emailVerificationToken,
-          emailVerificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          emailVerificationTokenExpiresAt: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ),
         },
       });
 
@@ -126,9 +129,62 @@ export class AuthService {
       throw new UnauthorizedException('Account is inactive');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const token = await this.generateToken(user);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        roles: user.roles.map((ru) => ru.role.name),
+      },
+      token: {
+        accessToken: token.accessToken,
+        expiresIn: token.expiresIn,
+      },
+    };
+  }
+
+  /**
+   * Field-worker sign-in: exchange an admin-issued access code for a normal
+   * session. Same token shape as email/password login — the field app is
+   * still just a normal authenticated client afterward, subject to the same
+   * tenancy and permission guards as everyone else. Codes are generated as
+   * XXXXX-XXXXX; this accepts the code with or without the dash and
+   * whitespace, uppercased, so a field worker typing it on a phone doesn't
+   * get tripped up by formatting.
+   */
+  async fieldLogin(dto: FieldLoginDto) {
+    const normalized = dto.code.trim().toUpperCase().replace(/\s+/g, '');
+    const code =
+      !normalized.includes('-') && normalized.length === 10
+        ? `${normalized.slice(0, 5)}-${normalized.slice(5)}`
+        : normalized;
+
+    const user = await this.prisma.user.findUnique({
+      where: { fieldAccessCode: code },
+      include: { roles: { include: { role: true } } },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired access code');
+    }
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is inactive');
     }
 
     await this.prisma.user.update({
@@ -198,7 +254,9 @@ export class AuthService {
     });
 
     if (!user) {
-      return { message: 'If that email exists, a password reset link has been sent' };
+      return {
+        message: 'If that email exists, a password reset link has been sent',
+      };
     }
 
     const resetToken = uuidv4();
@@ -380,13 +438,19 @@ export class AuthService {
     return { message: 'Password changed successfully' };
   }
 
-  private async generateToken(user: { id: string; email: string; organizationId?: string; tokenVersion?: number }) {
-    const dbUser = user.tokenVersion !== undefined
-      ? user
-      : await this.prisma.user.findUnique({
-          where: { id: user.id },
-          select: { tokenVersion: true },
-        });
+  private async generateToken(user: {
+    id: string;
+    email: string;
+    organizationId?: string;
+    tokenVersion?: number;
+  }) {
+    const dbUser =
+      user.tokenVersion !== undefined
+        ? user
+        : await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { tokenVersion: true },
+          });
 
     const payload = {
       sub: user.id,

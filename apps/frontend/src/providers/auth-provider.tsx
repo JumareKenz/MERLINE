@@ -15,6 +15,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
+  fieldLogin: (code: string) => Promise<void>;
   register: (data: {
     first_name: string;
     last_name: string;
@@ -30,7 +31,15 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
+/**
+ * PHASE 2 — real bug fixed here: '/field-login' was missing from this list,
+ * separate from and in addition to the one middleware.ts uses. This
+ * component's own effect below redirects unauthenticated visitors on any
+ * non-public route to '/login' — without this entry, an unauthenticated
+ * field worker landing on the field login page got bounced straight to the
+ * admin login before they could even see it.
+ */
+const PUBLIC_ROUTES = ['/login', '/field-login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -63,7 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (isAuthenticated && isPublicRoute) {
-        router.push(APP_HOME);
+        // An authenticated field worker revisiting /field-login belongs at
+        // '/' (the field app home), never APP_HOME — that's the admin app.
+        router.push(pathname === '/field-login' ? '/' : APP_HOME);
       }
     }
   }, [isAuthenticated, isLoading, pathname, router]);
@@ -78,10 +89,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string, remember?: boolean) => {
     const response = await API.auth.login({ email, password, device_name: remember ? 'web' : undefined });
-    const { user: authUser, token: authToken } = response.data.data;
-    setAuthCookie(authToken);
-    storeLogin(authUser, authToken);
+    const { user: authUser, token } = response.data.data;
+    setAuthCookie(token.accessToken);
+    storeLogin(authUser, token.accessToken);
     router.push(APP_HOME);
+  };
+
+  const fieldLogin = async (code: string) => {
+    const response = await API.auth.fieldLogin(code);
+    const { user: authUser, token } = response.data.data;
+    setAuthCookie(token.accessToken);
+    storeLogin(authUser, token.accessToken);
+    router.push('/');
   };
 
   const register = async (data: {
@@ -100,9 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: data.password,
       orgName: data.organization_name,
     });
-    const { user: authUser, token: authToken } = response.data.data;
-    setAuthCookie(authToken);
-    storeLogin(authUser, authToken);
+    const { user: authUser, token } = response.data.data;
+    setAuthCookie(token.accessToken);
+    storeLogin(authUser, token.accessToken);
     router.push(APP_HOME);
   };
 
@@ -137,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         isLoading,
         login,
+        fieldLogin,
         register,
         logout,
         refreshUser,
