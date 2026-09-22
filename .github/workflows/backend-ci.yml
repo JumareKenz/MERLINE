@@ -71,19 +71,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-          MINIO_DEFAULT_BUCKETS: merline-test
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,6 +81,26 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
 
+      # MinIO runs as a step, not a service container: the official image
+      # requires the `server /data` command and service containers cannot
+      # override a command. (bitnami/minio:latest no longer exists.)
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:9000/minio/health/live; then
+              echo "MinIO ready after ${i} attempts"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MinIO did not become ready" >&2
+          docker logs minio || true
+          exit 1
+
       # Phase 1: migrations are the source of truth. Applying them here also
       # proves `prisma migrate deploy` works on a clean database, which is what
       # the deploy pipeline runs.
@@ -103,6 +110,13 @@ jobs:
           DATABASE_URL: postgresql://merline:merline@localhost:5432/merline_test
 
       # Fails if schema.prisma has changes that no migration expresses.
+      # The shadow database must exist and be empty; prisma diffs into it.
+      - name: Create shadow database
+        run: |
+          PGPASSWORD=merline psql -h localhost -U merline -d postgres \
+            -c "DROP DATABASE IF EXISTS merline_shadow;" \
+            -c "CREATE DATABASE merline_shadow;"
+
       - name: Check for migration drift
         run: |
           npx prisma migrate diff \
