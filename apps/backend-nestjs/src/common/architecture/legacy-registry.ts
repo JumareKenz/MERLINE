@@ -48,6 +48,7 @@ export const ACTIVE_MODULE_DIRECTORIES = [
   'interviews',
   'transcripts',
   'findings',
+  'field',
 ] as const;
 
 /** Shared foundations. Importable by both sides; owned by neither. */

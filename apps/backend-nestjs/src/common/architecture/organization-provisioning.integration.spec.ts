@@ -5,6 +5,9 @@
  * permission-checked route). Runs with RUN_DB_TESTS=1 and DATABASE_URL.
  */
 import { PrismaClient } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { AuthService } from '../../auth/auth.service';
 import { randomUUID } from 'crypto';
 import { provisionOrganizationRoles } from '../../auth/organization-provisioning';
 import {
@@ -82,6 +85,41 @@ describeDb('organization provisioning (database)', () => {
     await provisionOrganizationRoles(prisma, orgId);
     expect(await counts()).toEqual(first);
     expect(first[0]).toBe(PERMISSION_SLUGS.length);
+  });
+
+  it('registration provisions a working administrator, even for a duplicate organization name', async () => {
+    const auth = new AuthService(
+      prisma as any,
+      new JwtService({ secret: 'test-secret' }),
+      new ConfigService({ jwt: { secret: 'test-secret', expiresIn: '1h' } }),
+    );
+    const name = `Same Name ${randomUUID().slice(0, 6)}`;
+    const register = (email: string) =>
+      auth.register({
+        email,
+        password: 'Str0ng-Passw0rd!',
+        firstName: 'Reg',
+        lastName: 'User',
+        orgName: name,
+      } as any);
+
+    const first = await register(`reg1-${randomUUID().slice(0, 8)}@t.test`);
+    const second = await register(`reg2-${randomUUID().slice(0, 8)}@t.test`);
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: [first.user.id, second.user.id] } },
+      include: { organization: true, roles: { include: { role: true } } },
+    });
+    orgIds.push(...users.map((u) => u.organizationId));
+    const [a, b] = users;
+    expect(a.organization.slug).not.toBe(b.organization.slug);
+    for (const u of users) {
+      expect(u.lastLoginAt).toBeTruthy();
+      const admin = u.roles.find((r) => r.role.slug === 'administrator')!;
+      expect(await grantedSlugs(admin.roleId)).toEqual(
+        [...PERMISSION_SLUGS].sort(),
+      );
+    }
   });
 
   it('repairs a self-registered organization whose administrator role granted nothing', async () => {

@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -24,6 +35,7 @@ export class ProjectsController {
   ) {
     return this.projectsService.findAll({
       organizationId: user.organizationId,
+      viewerId: user.id,
       status,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -46,7 +58,7 @@ export class ProjectsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.projectsService.findById(id, user.organizationId);
+    return this.projectsService.findById(id, user.organizationId, user.id);
   }
 
   @Put(':id')
@@ -69,6 +81,7 @@ export class ProjectsController {
   }
 
   @Post(':id/archive')
+  @Permissions('edit.projects')
   async archive(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -77,6 +90,7 @@ export class ProjectsController {
   }
 
   @Post(':id/restore')
+  @Permissions('edit.projects')
   async restore(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -85,6 +99,7 @@ export class ProjectsController {
   }
 
   @Post(':id/clone')
+  @Permissions('create.projects')
   async clone(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: any,
@@ -93,6 +108,7 @@ export class ProjectsController {
   }
 
   @Get(':id/timeline')
+  @Permissions('view.projects')
   async getTimeline(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -101,6 +117,7 @@ export class ProjectsController {
   }
 
   @Get(':id/stats')
+  @Permissions('view.projects')
   async getStats(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,

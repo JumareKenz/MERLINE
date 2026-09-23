@@ -38,10 +38,24 @@ export class AuthService {
       throw new ConflictException('Email is already registered');
     }
 
-    const slug = dto.orgName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+    // Organization slugs are unique: two organizations with the same name
+    // (or a name with no letters or digits, which slugged to "") made the
+    // second registration fail with a unique-constraint 500.
+    const base =
+      dto.orgName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 60) || 'organization';
+    let slug = base;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const taken = await this.prisma.organization.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!taken) break;
+      slug = `${base}-${uuidv4().slice(0, 6)}`;
+    }
 
     const emailVerificationToken = uuidv4();
 
@@ -72,6 +86,8 @@ export class AuthService {
           firstName: dto.firstName,
           lastName: dto.lastName,
           organizationId: organization.id,
+          // Registration signs the user in.
+          lastLoginAt: new Date(),
           emailVerificationToken,
           emailVerificationTokenExpiresAt: new Date(
             Date.now() + 24 * 60 * 60 * 1000,

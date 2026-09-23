@@ -22,6 +22,7 @@ import { ConsentsModule } from './consents/consents.module';
 import { InterviewsModule } from './interviews/interviews.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { FindingsModule } from './findings/findings.module';
+import { FieldModule } from './field/field.module';
 
 /**
  * PHASE 0 — QUALITATIVE RESET
@@ -60,6 +61,7 @@ import { FindingsModule } from './findings/findings.module';
     InterviewsModule,
     TranscriptsModule,
     FindingsModule,
+    FieldModule,
   ],
   providers: [
     // ─── PHASE 1: global guard chain ───

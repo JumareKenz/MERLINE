@@ -1,9 +1,14 @@
 import {
-  Controller, Get, Param, Query,
-  UseGuards, ParseUUIDPipe,
+  Controller,
+  Get,
+  Param,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissions } from '../common/decorators/permissions.decorator';
 import { AuditLogService } from './audit-log.service';
 
 @UseGuards(JwtAuthGuard)
@@ -12,6 +17,7 @@ export class AuditLogController {
   constructor(private readonly auditLogService: AuditLogService) {}
 
   @Get()
+  @Permissions('view.audit')
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -33,6 +39,7 @@ export class AuditLogController {
   }
 
   @Get(':id')
+  @Permissions('view.audit')
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.auditLogService.findById(id);
   }

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
+import { resolveFieldScope } from '../common/scoping/field-scope';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,6 +17,8 @@ export class ProjectsService extends BaseService {
     // token. Was optional and read straight from the query string, so any
     // authenticated user could list another organization's projects.
     organizationId: string;
+    /** Field-interviewer-only callers see just the projects they're assigned to. */
+    viewerId?: string;
     status?: string;
     page?: number;
     limit?: number;
@@ -29,6 +32,12 @@ export class ProjectsService extends BaseService {
       deletedAt: null,
       organizationId: query.organizationId,
     };
+    const scopedTo = await resolveFieldScope(
+      this.prisma,
+      query.viewerId,
+      query.organizationId,
+    );
+    if (scopedTo) where.teams = { some: { userId: scopedTo } };
 
     if (query.status) {
       where.status = query.status;
@@ -65,9 +74,19 @@ export class ProjectsService extends BaseService {
     return { items, total, page, limit };
   }
 
-  async findById(id: string, organizationId: string) {
+  async findById(id: string, organizationId: string, viewerId?: string) {
+    const scopedTo = await resolveFieldScope(
+      this.prisma,
+      viewerId,
+      organizationId,
+    );
     const project = await this.prisma.project.findFirst({
-      where: { id, deletedAt: null, organizationId },
+      where: {
+        id,
+        deletedAt: null,
+        organizationId,
+        ...(scopedTo && { teams: { some: { userId: scopedTo } } }),
+      },
     });
 
     if (!project) {

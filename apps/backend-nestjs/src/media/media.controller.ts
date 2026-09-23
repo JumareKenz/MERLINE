@@ -70,11 +70,13 @@ export class MediaController {
   }
 
   @Post('media/chunked/init')
+  @Permissions('upload.media')
   async initChunkedUpload(@Body() dto: InitChunkedUploadDto) {
     return this.mediaService.initChunkedUpload(dto);
   }
 
   @Put('media/chunked/:identifier')
+  @Permissions('upload.media')
   @UseInterceptors(FileInterceptor('chunk'))
   async uploadChunk(
     @Param('identifier', ParseUUIDPipe) identifier: string,
@@ -92,6 +94,7 @@ export class MediaController {
   }
 
   @Post('media/chunked/:identifier/complete')
+  @Permissions('upload.media')
   async completeChunkedUpload(
     @Param('identifier', ParseUUIDPipe) identifier: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -108,7 +111,10 @@ export class MediaController {
 
   @Get('media')
   @Permissions('view.media')
-  async list(@CurrentUser() user: AuthenticatedUser, @Query('type') type?: MediaType) {
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('type') type?: MediaType,
+  ) {
     return this.mediaService.listForOrganization(user.organizationId, type);
   }
 
@@ -135,6 +141,7 @@ export class MediaController {
   }
 
   @Get('media/:id/status')
+  @Permissions('view.media')
   async getStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
