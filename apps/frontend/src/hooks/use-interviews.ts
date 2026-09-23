@@ -42,6 +42,7 @@ export function useUpdateInterviewStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['interviews'] });
       queryClient.invalidateQueries({ queryKey: ['interviews', 'detail', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['field'] });
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update interview status');

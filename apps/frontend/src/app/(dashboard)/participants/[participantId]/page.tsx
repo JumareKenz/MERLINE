@@ -52,39 +52,40 @@ export default function ParticipantDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{participant.displayName}</h1>
-          <p className="text-[13px] text-foreground-tertiary mt-0.5">
+          <h1 className="type-title">{participant.displayName}</h1>
+          <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">
             {participant.externalRef ? `Ref: ${participant.externalRef} · ` : ''}
             Added {formatDate(participant.createdAt)}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {can('create.consents') && (
-            <Button size="sm" variant="outline" className="h-8 px-3 text-[13px]" onClick={() => setShowConsentForm(true)}>
-              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Record Consent
+            <Button variant="secondary" onClick={() => setShowConsentForm(true)}>
+              <ShieldCheck className="h-4 w-4" aria-hidden /> Record consent
             </Button>
           )}
           {can('create.interviews') && (
-            <Link href={hasUsableConsent ? `/interviews/new?participantId=${participantId}` : '#'}>
-              <Button
-                size="sm"
-                className="h-8 px-3 text-[13px]"
-                disabled={!hasUsableConsent}
-                title={hasUsableConsent ? undefined : 'Record consent before starting an interview'}
-              >
-                <Mic className="h-3.5 w-3.5 mr-1.5" /> Start Interview
+            hasUsableConsent ? (
+              <Button asChild>
+                <Link href={`/interviews/new?participantId=${participantId}`}>
+                  <Mic className="h-4 w-4" aria-hidden /> Start interview
+                </Link>
               </Button>
-            </Link>
+            ) : (
+              <Button disabled title="Record consent before starting an interview">
+                <Mic className="h-4 w-4" aria-hidden /> Start interview
+              </Button>
+            )
           )}
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Consent History</CardTitle>
+          <CardTitle className="type-section">Consent History</CardTitle>
         </CardHeader>
         <CardContent>
           <ConsentList consents={consents} />
@@ -94,12 +95,14 @@ export default function ParticipantDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium">Interviews ({interviews.length})</CardTitle>
+            <CardTitle className="type-section">Interviews ({interviews.length})</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           {interviews.length === 0 ? (
-            <p className="text-[13px] text-foreground-tertiary py-6 text-center">No interviews yet.</p>
+            <p className="py-6 text-center text-[14px] text-foreground-secondary">
+              No interviews yet.{hasUsableConsent ? '' : ' Record consent first — an interview cannot exist without it.'}
+            </p>
           ) : (
             <div className="divide-y divide-border">
               {interviews.map((interview) => (
@@ -113,7 +116,7 @@ export default function ParticipantDetailPage() {
                       {interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Unscheduled'}
                     </p>
                     {interview.location && (
-                      <p className="text-[12px] text-foreground-tertiary">{interview.location}</p>
+                      <p className="text-[13px] text-foreground-tertiary">{interview.location}</p>
                     )}
                   </div>
                   <StatusBadge status={interview.status} />
@@ -127,7 +130,7 @@ export default function ParticipantDetailPage() {
       <Dialog open={showConsentForm} onOpenChange={setShowConsentForm}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Record Consent</DialogTitle>
+            <DialogTitle>Record consent</DialogTitle>
           </DialogHeader>
           <ConsentForm
             onSubmit={handleRecordConsent}

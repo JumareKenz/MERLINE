@@ -1,392 +1,214 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useProject, useProjectStudies, useProjectStats, useUpdateProject } from '@/hooks/use-projects';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { StatusBadge } from '@/components/shared/status-badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ErrorState } from '@/components/shared/error-state';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Check, ClipboardList, Quote, Settings2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { formatDate } from '@/lib/utils';
-import { Calendar, FolderKanban, Users, BarChart3, Plus, Loader2, FlaskConical, Network } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/components/shared/empty-state';
+import { ErrorState } from '@/components/shared/error-state';
+import { LoadingState } from '@/components/shared/loading-state';
+import { StatusBadge } from '@/components/shared/status-badge';
+import { InterviewTable } from '@/components/interviews/interview-table';
+import { useResearchProject } from '@/hooks/use-research-projects';
+import { useSession } from '@/hooks/use-session';
+import { API } from '@/lib/api-client';
+import { cn, formatDate } from '@/lib/utils';
+import { methodLabel } from '@/types/research-project';
 
-export default function ProjectDetailPage() {
+type Tab = 'interviews' | 'participants' | 'findings';
+
+export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { data: projectData, isLoading, isError, error, refetch } = useProject(projectId);
-  const { data: studiesData } = useProjectStudies(projectId);
-  const { data: statsData } = useProjectStats(projectId);
-  const updateProject = useUpdateProject();
+  const session = useSession();
+  const [tab, setTab] = useState<Tab>('interviews');
+  const project = useResearchProject(projectId);
 
-  const project = projectData?.data?.data;
-  const studies = studiesData?.data?.data || [];
-  const stats = statsData?.data?.data;
+  const interviews = useQuery({
+    queryKey: ['interviews', 'list', { projectId }],
+    queryFn: async () => (await API.interviews.list({ projectId })).data.data,
+    enabled: !!projectId,
+  });
+  const participants = useQuery({
+    queryKey: ['participants', 'list', projectId],
+    queryFn: async () => (await API.participants.list(projectId)).data.data,
+    enabled: !!projectId,
+  });
+  const findings = useQuery({
+    queryKey: ['findings', 'list', projectId],
+    queryFn: async () => (await API.findings.list(projectId)).data.data,
+    enabled: !!projectId && session.can('view.findings'),
+  });
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState('');
-
-  useEffect(() => {
-    if (project) {
-      setName(project.name);
-      setDescription(project.description ?? '');
-      setStatus(project.status);
-    }
-  }, [project?.id]);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
-        </div>
-        <Skeleton className="h-64" />
-      </div>
-    );
+  if (project.isLoading) return <LoadingState message="Loading project" />;
+  if (project.isError || !project.data) {
+    const e = project.error as { message?: string; status?: number } | null;
+    return <ErrorState message={e?.message ?? 'This project could not be found.'} status={e?.status ?? 404} onRetry={() => project.refetch()} />;
   }
 
-  if (isError) {
-    return <ErrorState message={error?.message} onRetry={() => refetch()} />;
-  }
+  const p = project.data;
+  const interviewList = interviews.data ?? [];
+  const participantList = participants.data ?? [];
+  const findingList = findings.data ?? [];
+  const recorded = interviewList.filter((i) => (i._count?.recordings ?? 0) > 0).length;
 
-  if (!project) return <ErrorState message="Project not found" />;
+  // Setup: each step is derived from real data, and links to where it's done.
+  const steps = [
+    { label: 'Interview method chosen', done: !!p.settings?.method, href: `/projects/${projectId}/settings` },
+    { label: 'Participants registered', done: participantList.length > 0, href: '/participants/new' },
+    { label: 'Interviews assigned', done: interviewList.length > 0, href: '/assignments/new' },
+    { label: 'Audio collected', done: recorded > 0, href: '/interviews' },
+    { label: 'Findings drafted', done: findingList.length > 0, href: '/transcripts' },
+  ];
+  const nextStep = steps.find((s) => !s.done);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <StatusBadge status={project.status} />
-            <span className="text-[13px] text-foreground-secondary font-mono">{project.code}</span>
-          </div>
-          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{project.name}</h1>
-          {project.description && (
-            <p className="text-[13px] text-foreground-tertiary mt-1 max-w-2xl">{project.description}</p>
-          )}
+    <div>
+      <PageHeader
+        eyebrow={methodLabel(p.settings?.method) ?? 'Project'}
+        title={p.name}
+        meta={p.status !== 'active' ? <StatusBadge status={p.status} /> : undefined}
+        description={p.description ?? undefined}
+        actions={
+          <>
+            {session.can('edit.projects') && (
+              <Button variant="ghost" asChild>
+                <Link href={`/projects/${projectId}/settings`}>
+                  <Settings2 className="h-4 w-4" aria-hidden /> Settings
+                </Link>
+              </Button>
+            )}
+            {session.can('create.interviews') && (
+              <Button asChild>
+                <Link href="/assignments/new">
+                  <ClipboardList className="h-4 w-4" aria-hidden /> Assign interview
+                </Link>
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      <section aria-label="Project setup" className="mb-10 rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft">
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="type-section">Progress</h2>
+          <p className="text-[13px] text-foreground-tertiary">
+            {p.startDate ? `Fieldwork ${formatDate(p.startDate)}${p.endDate ? ` – ${formatDate(p.endDate)}` : ''}` : 'No fieldwork dates set'}
+          </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link href={`/projects/${projectId}/logframe`}>
-            <Button size="sm" variant="outline" className="h-8 px-3 text-[13px]">
-              <Network className="h-3.5 w-3.5 mr-1.5" />
-              Logframe
-            </Button>
-          </Link>
-          <Link href={`/studies/new?project_id=${projectId}`}>
-            <Button size="sm" className="h-8 px-3 text-[13px]">
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              New Study
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-5 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-              <FlaskConical className="h-[15px] w-[15px] text-primary" strokeWidth={1.75} />
-            </div>
-            <div>
-              <p className="text-xl font-semibold">{studies.length}</p>
-              <p className="text-xs text-foreground-tertiary">Studies</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-              <BarChart3 className="h-[15px] w-[15px] text-primary" strokeWidth={1.75} />
-            </div>
-            <div>
-              <p className="text-xl font-semibold">{stats?.total_indicators ?? '—'}</p>
-              <p className="text-xs text-foreground-tertiary">Indicators</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-              <Users className="h-[15px] w-[15px] text-primary" strokeWidth={1.75} />
-            </div>
-            <div>
-              <p className="text-xl font-semibold">{stats?.team_members ?? project.team_count ?? '—'}</p>
-              <p className="text-xs text-foreground-tertiary">Team Members</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-              <Calendar className="h-[15px] w-[15px] text-primary" strokeWidth={1.75} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">{formatDate(project.start_date)}</p>
-              <p className="text-xs text-foreground-tertiary">to {formatDate(project.end_date)}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {stats && (
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[13px] font-medium">Overall Progress</p>
-              <span className="text-[13px] font-semibold tabular-nums">{stats.completion_percentage ?? 0}%</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-neutral-100 dark:bg-neutral-800">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-500"
-                style={{ width: `${Math.min(stats.completion_percentage ?? 0, 100)}%` }}
-              />
-            </div>
-            <div className="flex items-center gap-6 mt-3 text-[12px] text-foreground-tertiary">
-              <span>{stats.active_studies} active {stats.active_studies === 1 ? 'study' : 'studies'}</span>
-              <span>{stats.total_questionnaires} questionnaires</span>
-              <span>{stats.total_indicators} indicators</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="studies">Studies ({studies.length})</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="pt-4 space-y-4">
-          {(project.donor || project.grant_ref || project.country || project.sector) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Project Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {project.donor && (
-                    <div>
-                      <p className="text-[12px] text-foreground-tertiary uppercase tracking-wide mb-0.5">Donor</p>
-                      <p className="text-[13px] font-medium">{project.donor}</p>
-                    </div>
-                  )}
-                  {project.grant_ref && (
-                    <div>
-                      <p className="text-[12px] text-foreground-tertiary uppercase tracking-wide mb-0.5">Grant Reference</p>
-                      <p className="text-[13px] font-medium">{project.grant_ref}</p>
-                    </div>
-                  )}
-                  {project.country && (
-                    <div>
-                      <p className="text-[12px] text-foreground-tertiary uppercase tracking-wide mb-0.5">Country</p>
-                      <p className="text-[13px] font-medium">{project.country}</p>
-                    </div>
-                  )}
-                  {project.sector && (
-                    <div>
-                      <p className="text-[12px] text-foreground-tertiary uppercase tracking-wide mb-0.5">Sector</p>
-                      <p className="text-[13px] font-medium">{project.sector}</p>
-                    </div>
-                  )}
-                  {project.budget && (
-                    <div>
-                      <p className="text-[12px] text-foreground-tertiary uppercase tracking-wide mb-0.5">Budget</p>
-                      <p className="text-[13px] font-medium">
-                        {project.currency} {project.budget.toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {studies.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">Studies</CardTitle>
-                  <Link href={`/studies/new?project_id=${projectId}`}>
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[12px]">
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="divide-y divide-border">
-                  {studies.slice(0, 5).map((study) => (
-                    <Link
-                      key={study.id}
-                      href={`/studies/${study.id}`}
-                      className="flex items-center justify-between py-2.5 hover:bg-background-hover -mx-5 px-5 transition-colors first:rounded-t-sm"
-                    >
-                      <div>
-                        <p className="text-[13px] font-medium">{study.title}</p>
-                        <p className="text-[12px] text-foreground-tertiary">
-                          {(study.study_type || study.type || '').replace(/_/g, ' ')}
-                          {study.methodology ? ` · ${study.methodology.replace(/_/g, ' ')}` : ''}
-                        </p>
-                      </div>
-                      <StatusBadge status={study.status} />
-                    </Link>
-                  ))}
-                </div>
-                {studies.length > 5 && (
-                  <p className="text-[12px] text-foreground-tertiary mt-3">
-                    +{studies.length - 5} more studies
-                  </p>
+        <ol className="grid gap-2 sm:grid-cols-5">
+          {steps.map((step, i) => (
+            <li key={step.label}>
+              <Link
+                href={step.href}
+                className={cn(
+                  'flex h-full items-start gap-2.5 rounded-lg border p-3 text-[13px] transition-colors hover:border-border-strong',
+                  step === nextStep ? 'border-primary/40 bg-primary-50' : 'border-border-subtle',
                 )}
-              </CardContent>
-            </Card>
+              >
+                <span
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold',
+                    step.done ? 'bg-primary text-primary-foreground' : 'border border-border-strong text-foreground-tertiary',
+                  )}
+                  aria-hidden
+                >
+                  {step.done ? <Check className="h-3 w-3" strokeWidth={3} /> : i + 1}
+                </span>
+                <span className={step.done ? 'text-foreground' : 'text-foreground-secondary'}>
+                  {step.label}
+                  <span className="sr-only">{step.done ? ' — done' : ' — to do'}</span>
+                  {step === nextStep && <span className="mt-0.5 block font-medium text-foreground-link">Next step</span>}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <div role="tablist" aria-label="Project records" className="mb-5 flex gap-6 border-b border-border-subtle">
+        {(
+          [
+            ['interviews', `Interviews · ${interviewList.length}`],
+            ['participants', `Participants · ${participantList.length}`],
+            ...(session.can('view.findings') ? [['findings', `Findings · ${findingList.length}`]] : []),
+          ] as [Tab, string][]
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={cn(
+              '-mb-px h-11 border-b-2 text-[14px] font-medium transition-colors',
+              tab === key ? 'border-primary text-foreground' : 'border-transparent text-foreground-secondary hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel">
+        {tab === 'interviews' && (
+          <InterviewTable
+            data={interviewList}
+            isLoading={interviews.isLoading}
+            isError={interviews.isError}
+            error={interviews.error as { message?: string } | null}
+            onRetry={() => interviews.refetch()}
+            emptyDescription="Assign a consented participant to a field interviewer to begin collecting interviews for this project."
+          />
+        )}
+
+        {tab === 'participants' &&
+          (participants.isLoading ? (
+            <LoadingState />
+          ) : participantList.length === 0 ? (
+            <EmptyState
+              size="inline"
+              icon={<UserRound />}
+              title="No participants in this project"
+              description="Register participants here or from the field app; consent is recorded per participant."
+              action={
+                <Button variant="secondary" asChild>
+                  <Link href="/participants/new">Register participant</Link>
+                </Button>
+              }
+            />
           ) : (
-            <Card>
-              <CardContent className="p-10 text-center">
-                <FlaskConical className="h-8 w-8 text-foreground-tertiary mx-auto mb-3" strokeWidth={1.5} />
-                <p className="text-[13px] font-medium mb-1">No studies yet</p>
-                <p className="text-[12px] text-foreground-tertiary mb-4">
-                  Create a baseline, endline, or other study to start designing your research.
-                </p>
-                <Link href={`/studies/new?project_id=${projectId}`}>
-                  <Button size="sm" className="h-8 px-3 text-[13px]">
-                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Create Study
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+            <ul className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-background-elevated shadow-soft">
+              {participantList.map((person) => (
+                <li key={person.id}>
+                  <Link href={`/participants/${person.id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-background-hover">
+                    <span className="text-[14px] font-medium text-foreground">{person.displayName}</span>
+                    <span className="text-[13px] text-foreground-tertiary">{person.externalRef ?? formatDate(person.createdAt)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ))}
 
-        <TabsContent value="studies" className="pt-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">All Studies</CardTitle>
-                <Link href={`/studies/new?project_id=${projectId}`}>
-                  <Button size="sm" className="h-8 px-3 text-[13px]">
-                    <Plus className="h-3.5 w-3.5 mr-1.5" /> New Study
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {studies.length === 0 ? (
-                <p className="text-[13px] text-foreground-tertiary py-8 text-center">No studies in this project yet.</p>
-              ) : (
-                <div className="divide-y divide-border">
-                  {studies.map((study) => (
-                    <Link
-                      key={study.id}
-                      href={`/studies/${study.id}`}
-                      className="flex items-center justify-between py-3 hover:bg-background-hover -mx-5 px-5 transition-colors"
-                    >
-                      <div>
-                        <p className="text-[13px] font-medium">{study.title}</p>
-                        <p className="text-[12px] text-foreground-tertiary mt-0.5">
-                          <span className="font-mono">{study.code}</span>
-                          {study.study_type || study.type
-                            ? ` · ${(study.study_type || study.type || '').replace(/_/g, ' ')}`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[12px] text-foreground-tertiary hidden sm:block">
-                          {formatDate(study.start_date ?? '')}
-                        </span>
-                        <StatusBadge status={study.status} />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Project Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="proj-name" className="text-[13px]">Project Name</Label>
-                  <Input
-                    id="proj-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-8 text-[13px]"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[13px]">Project Code</Label>
-                  <Input value={project.code} disabled className="h-8 text-[13px] bg-muted" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="proj-desc" className="text-[13px]">Description</Label>
-                <Textarea
-                  id="proj-desc"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="text-[13px] resize-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[13px]">Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="h-8 text-[13px] w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft" className="text-[13px]">Draft</SelectItem>
-                    <SelectItem value="active" className="text-[13px]">Active</SelectItem>
-                    <SelectItem value="completed" className="text-[13px]">Completed</SelectItem>
-                    <SelectItem value="archived" className="text-[13px]">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-[13px]"
-                  onClick={() => {
-                    setName(project.name);
-                    setDescription(project.description ?? '');
-                    setStatus(project.status);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 text-[13px]"
-                  disabled={updateProject.isPending}
-                  onClick={() =>
-                    updateProject.mutate({
-                      id: projectId,
-                      data: { name, description, status: status as any },
-                    })
-                  }
-                >
-                  {updateProject.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-                  Save Changes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        {tab === 'findings' &&
+          (findings.isLoading ? (
+            <LoadingState />
+          ) : findingList.length === 0 ? (
+            <EmptyState size="inline" icon={<Quote />} title="No findings yet" description="Quote transcript segments from this project's interviews to build findings." />
+          ) : (
+            <ul className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-background-elevated shadow-soft">
+              {findingList.map((f) => (
+                <li key={f.id}>
+                  <Link href={`/findings/${f.id}`} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-background-hover">
+                    <span className="min-w-0 truncate text-[14px] font-medium text-foreground">{f.title}</span>
+                    <StatusBadge status={f.status} size="sm" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ))}
+      </div>
     </div>
   );
 }

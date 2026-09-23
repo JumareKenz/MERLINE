@@ -1,162 +1,185 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ErrorState } from '@/components/shared/error-state';
+import { Check, Quote, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { EmptyState } from '@/components/shared/empty-state';
+import { ErrorState } from '@/components/shared/error-state';
+import { LoadingState } from '@/components/shared/loading-state';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { Sparkles, User, Quote as QuoteIcon } from 'lucide-react';
-import {
-  useFinding,
-  useApproveFinding,
-  useRejectFinding,
-  usePublishFinding,
-  useArchiveFinding,
-} from '@/hooks/use-findings';
-import { usePermissions } from '@/hooks/use-permissions';
-import { formatDate, formatDuration } from '@/lib/utils';
+import { EvidenceReference } from '@/components/findings/evidence-reference';
+import { useApproveFinding, useArchiveFinding, useFinding, usePublishFinding, useRejectFinding } from '@/hooks/use-findings';
+import { useSession } from '@/hooks/use-session';
+import { cn, formatDate } from '@/lib/utils';
+import type { FindingStatus } from '@/types/finding';
+
+const STAGES: { key: string; label: string; reached: (s: FindingStatus) => boolean }[] = [
+  { key: 'draft', label: 'Drafted', reached: () => true },
+  { key: 'approved', label: 'Approved', reached: (s) => s === 'APPROVED' || s === 'PUBLISHED' },
+  { key: 'published', label: 'Published', reached: (s) => s === 'PUBLISHED' },
+];
+
+function LifecycleRail({ status }: { status: FindingStatus }) {
+  if (status === 'REJECTED' || status === 'ARCHIVED') return null;
+  return (
+    <ol className="mb-8 flex items-center gap-2" aria-label="Finding progress">
+      {STAGES.map((stage, i) => {
+        const reached = stage.reached(status);
+        return (
+          <li key={stage.key} className="flex flex-1 items-center gap-2">
+            <span
+              className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold',
+                reached ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong text-foreground-tertiary',
+              )}
+            >
+              {reached ? <Check className="h-3.5 w-3.5" aria-hidden /> : i + 1}
+            </span>
+            <span className={cn('text-[13px] font-medium', reached ? 'text-foreground' : 'text-foreground-tertiary')}>
+              {stage.label}
+              <span className="sr-only">{reached ? ' (done)' : ' (not yet)'}</span>
+            </span>
+            {i < STAGES.length - 1 && <span aria-hidden className={cn('h-px flex-1', reached ? 'bg-primary' : 'bg-border')} />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export default function FindingDetailPage() {
   const { findingId } = useParams<{ findingId: string }>();
   const { data, isLoading, isError, error, refetch } = useFinding(findingId);
-  const { can } = usePermissions();
-
+  const session = useSession();
   const approve = useApproveFinding();
   const reject = useRejectFinding();
   const publish = usePublishFinding();
   const archive = useArchiveFinding();
+  const [confirm, setConfirm] = useState<'reject' | 'publish' | 'archive' | null>(null);
 
+  if (isLoading) return <LoadingState message="Loading finding" />;
   const finding = data?.data?.data;
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40" />
-      </div>
-    );
-  }
-
   if (isError || !finding) {
-    return <ErrorState message={error?.message || 'Finding not found'} onRetry={() => refetch()} />;
+    const e = error as { message?: string; status?: number } | null;
+    return <ErrorState message={e?.message ?? 'This finding could not be found.'} status={e?.status ?? 404} onRetry={() => refetch()} />;
   }
 
-  const canApprove = can('approve.findings') && ['DRAFT', 'IN_REVIEW'].includes(finding.status);
-  const canPublish = can('publish.findings') && finding.status === 'APPROVED';
-  const canArchive = can('edit.findings') && !['ARCHIVED', 'PUBLISHED'].includes(finding.status);
+  const quotations = finding.quotations ?? [];
+  const reviewable = ['DRAFT', 'IN_REVIEW'].includes(finding.status);
+  const canApprove = session.can('approve.findings') && reviewable;
+  const canPublish = session.can('publish.findings') && finding.status === 'APPROVED';
+  const canArchive = session.can('edit.findings') && !['ARCHIVED', 'PUBLISHED'].includes(finding.status);
+
+  const confirmCopy = {
+    reject: { title: 'Reject this finding?', description: 'It will be marked rejected. Its quotations stay linked for the record.', label: 'Reject', danger: true },
+    publish: {
+      title: 'Publish this finding?',
+      description: 'Publishing makes it part of the project’s reported results. The server re-checks that every quoted participant consented to publication.',
+      label: 'Publish',
+      danger: false,
+    },
+    archive: { title: 'Archive this finding?', description: 'It will be hidden from active work. Nothing is deleted.', label: 'Archive', danger: false },
+  } as const;
+
+  const run = async (action: 'reject' | 'publish' | 'archive') => {
+    const mutation = action === 'reject' ? reject : action === 'publish' ? publish : archive;
+    await mutation.mutateAsync(finding.id).catch(() => undefined);
+    setConfirm(null);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <StatusBadge status={finding.status} />
-            {finding.source === 'AI' ? (
-              <span className="inline-flex items-center gap-1 text-[12px] text-foreground-tertiary">
-                <Sparkles className="h-3 w-3" /> AI-drafted ({finding.aiModel})
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[12px] text-foreground-tertiary">
-                <User className="h-3 w-3" /> Human
-              </span>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        eyebrow={finding.theme ?? 'Finding'}
+        title={finding.title}
+        meta={<StatusBadge status={finding.status} />}
+        actions={
+          <>
+            {canArchive && (
+              <Button variant="ghost" onClick={() => setConfirm('archive')}>
+                Archive
+              </Button>
             )}
-            {finding.theme && <span className="text-[12px] text-foreground-tertiary">· {finding.theme}</span>}
-          </div>
-          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">{finding.title}</h1>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {canApprove && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-3 text-[13px]"
-                loading={reject.isPending}
-                onClick={() => reject.mutate(finding.id)}
-              >
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                className="h-8 px-3 text-[13px]"
-                loading={approve.isPending}
-                onClick={() => approve.mutate(finding.id)}
-              >
-                Approve
-              </Button>
-            </>
-          )}
-          {canPublish && (
-            <Button
-              size="sm"
-              className="h-8 px-3 text-[13px]"
-              loading={publish.isPending}
-              onClick={() => publish.mutate(finding.id)}
-            >
-              Publish
-            </Button>
-          )}
-          {canArchive && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 px-3 text-[13px]"
-              loading={archive.isPending}
-              onClick={() => archive.mutate(finding.id)}
-            >
-              Archive
-            </Button>
-          )}
-        </div>
-      </div>
+            {canApprove && (
+              <>
+                <Button variant="secondary" onClick={() => setConfirm('reject')}>
+                  Reject
+                </Button>
+                <Button onClick={() => approve.mutate(finding.id)} loading={approve.isPending} disabled={quotations.length === 0}>
+                  Approve
+                </Button>
+              </>
+            )}
+            {canPublish && <Button onClick={() => setConfirm('publish')}>Publish</Button>}
+          </>
+        }
+      />
+
+      <LifecycleRail status={finding.status} />
 
       {finding.source === 'AI' && (
-        <div className="rounded-md bg-info-bg text-info px-3 py-2 text-[12px] flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 shrink-0" />
-          This finding was drafted by AI ({finding.aiProvider} / {finding.aiModel}) and has not been reviewed by a human yet.
-        </div>
+        <p className="mb-6 flex items-start gap-2.5 rounded-lg bg-info-bg px-4 py-3 text-[14px] text-foreground">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
+          <span>
+            Drafted by AI ({finding.aiModel ?? finding.aiProvider}). Every quotation below was verified as verbatim against its segment before it was saved; the
+            interpretation still needs a researcher’s judgement.
+          </span>
+        </p>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Interpretation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-[13px] leading-relaxed">{finding.interpretation}</p>
-        </CardContent>
-      </Card>
+      <section className="mb-8">
+        <h2 className="type-eyebrow mb-3">Interpretation</h2>
+        <p className="whitespace-pre-wrap text-[16px] leading-[1.7] text-foreground">{finding.interpretation}</p>
+        <p className="mt-3 text-[13px] text-foreground-tertiary">
+          Created {formatDate(finding.createdAt)}
+          {finding.reviewedAt ? ` · reviewed ${formatDate(finding.reviewedAt)}` : ''}
+          {finding.publishedAt ? ` · published ${formatDate(finding.publishedAt)}` : ''}
+        </p>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">
-            Evidence ({finding.quotations?.length ?? 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!finding.quotations || finding.quotations.length === 0 ? (
-            <p className="text-[13px] text-foreground-tertiary py-6 text-center">
-              No quotations yet — this finding cannot be approved until at least one is added, from a transcript segment.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {finding.quotations.map((quotation) => (
-                <div key={quotation.id} className="rounded-md border border-border p-3">
-                  <div className="flex items-start gap-2">
-                    <QuoteIcon className="h-3.5 w-3.5 text-foreground-tertiary shrink-0 mt-0.5" />
-                    <p className="text-[13px] italic">&ldquo;{quotation.excerpt}&rdquo;</p>
-                  </div>
-                  {quotation.transcriptSegment && (
-                    <p className="text-[11px] text-foreground-tertiary mt-1.5 ml-5.5">
-                      Segment at {formatDuration(quotation.transcriptSegment.startMs)} · added {formatDate(quotation.createdAt)}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section aria-labelledby="evidence-heading">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 id="evidence-heading" className="type-eyebrow">
+            Evidence · {quotations.length}
+          </h2>
+          <Link href="/transcripts" className="text-[13px] font-medium text-foreground-link hover:underline">
+            Add from a transcript
+          </Link>
+        </div>
+        {quotations.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-warning/40 bg-warning-bg/50">
+            <EmptyState
+              size="inline"
+              icon={<Quote />}
+              title="No evidence yet"
+              description="This finding cannot be approved until at least one verbatim quotation from a transcript segment is attached."
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {quotations.map((q) => (
+              <EvidenceReference key={q.id} quotation={q} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {confirm && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setConfirm(null)}
+          title={confirmCopy[confirm].title}
+          description={confirmCopy[confirm].description}
+          confirmLabel={confirmCopy[confirm].label}
+          variant={confirmCopy[confirm].danger ? 'danger' : 'default'}
+          loading={reject.isPending || publish.isPending || archive.isPending}
+          onConfirm={() => run(confirm)}
+        />
+      )}
     </div>
   );
 }

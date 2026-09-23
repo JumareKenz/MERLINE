@@ -10,8 +10,8 @@ export default function AiAdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">AI Settings</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">
+        <h2 className="type-section">AI</h2>
+        <p className="mt-1 text-[14px] text-foreground-secondary">
           Monitor AI usage, manage documents, and review system prompts
         </p>
       </div>

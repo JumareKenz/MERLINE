@@ -1,85 +1,71 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronRight, Home } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { APP_HOME } from '@/lib/routes';
+import { usePathname } from 'next/navigation';
+import { ChevronRight } from 'lucide-react';
+import { findArea } from '@/lib/navigation';
 
-const BREADCRUMB_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard',
-  projects: 'Projects',
+const SEGMENT_LABELS: Record<string, string> = {
   new: 'New',
-  studies: 'Studies',
-  questionnaires: 'Questionnaires',
-  indicators: 'Indicators',
-  library: 'Library',
-  'data-collection': 'Data Collection',
-  assignments: 'Assignments',
-  submissions: 'Submissions',
-  enumerators: 'Enumerators',
-  reports: 'Reports',
-  generate: 'Generate',
-  templates: 'Templates',
-  admin: 'Administration',
-  users: 'Users',
-  invite: 'Invite',
-  roles: 'Roles & Permissions',
-  settings: 'Settings',
-  'activity-log': 'Activity Log',
-  organizations: 'Organizations',
-  workspaces: 'Workspaces',
-  profile: 'My Profile',
-  notifications: 'Notifications',
-  sync: 'Sync',
-  preview: 'Preview',
-  review: 'Review',
-  deploy: 'Deploy',
   edit: 'Edit',
-  teams: 'Teams',
+  admin: 'Settings',
+  users: 'Members',
+  roles: 'Roles',
+  ai: 'AI',
+  'activity-log': 'Activity',
+  settings: 'Settings',
+  participants: 'Participants',
 };
 
-function getBreadcrumbLabel(segment: string): string {
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(segment)) return 'Detail';
-  return BREADCRUMB_LABELS[segment] || segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
+function isId(segment: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(segment);
 }
 
+/**
+ * "Area › Detail". Deliberately shallow: the area comes from the primary
+ * navigation, and record ids read as "Detail" rather than raw UUIDs.
+ */
 export function Breadcrumbs() {
   const pathname = usePathname();
+  const area = findArea(pathname);
   const segments = pathname.split('/').filter(Boolean);
-
-  if (pathname === APP_HOME || pathname === '/') return null;
+  const areaDepth = area ? area.href.split('/').filter(Boolean).length : 0;
+  const rest = segments.slice(areaDepth);
+  const crumbs = rest
+    .map((segment, i) => ({
+      href: '/' + segments.slice(0, areaDepth + i + 1).join('/'),
+      label: isId(segment) ? 'Detail' : (SEGMENT_LABELS[segment] ?? segment.replace(/-/g, ' ')),
+    }))
+    .filter((c) => !(area?.href === '/admin/settings' && c.label === 'Settings'));
 
   return (
-    <nav aria-label="Breadcrumb" className="hidden md:flex items-center gap-1 text-sm">
-      <Link
-        href={APP_HOME}
-        className="flex items-center text-foreground-secondary hover:text-foreground transition-colors"
-      >
-        <Home className="h-4 w-4" />
-        <span className="sr-only">Home</span>
-      </Link>
-      {segments.map((segment, index) => {
-        const href = '/' + segments.slice(0, index + 1).join('/');
-        const isLast = index === segments.length - 1;
-        const label = getBreadcrumbLabel(segment);
-
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[14px]">
+      {area ? (
+        crumbs.length > 0 ? (
+          <Link href={area.href} className="truncate font-medium text-foreground-secondary transition-colors hover:text-foreground">
+            {area.label}
+          </Link>
+        ) : (
+          <span className="truncate font-semibold text-foreground" aria-current="page">
+            {area.label}
+          </span>
+        )
+      ) : null}
+      {crumbs.map((crumb, i) => {
+        const last = i === crumbs.length - 1;
         return (
-          <div key={segment} className="flex items-center gap-1">
-            <ChevronRight className="h-4 w-4 text-foreground-tertiary" />
-            {isLast ? (
-              <span className="text-foreground font-medium truncate max-w-[200px]">{label}</span>
+          <span key={crumb.href} className="flex min-w-0 items-center gap-1.5">
+            {(area || i > 0) && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" aria-hidden />}
+            {last ? (
+              <span className="truncate font-semibold capitalize text-foreground" aria-current="page">
+                {crumb.label}
+              </span>
             ) : (
-              <Link
-                href={href}
-                className={cn(
-                  'text-foreground-secondary hover:text-foreground transition-colors truncate max-w-[150px]'
-                )}
-              >
-                {label}
+              <Link href={crumb.href} className="truncate capitalize text-foreground-secondary hover:text-foreground">
+                {crumb.label}
               </Link>
             )}
-          </div>
+          </span>
         );
       })}
     </nav>

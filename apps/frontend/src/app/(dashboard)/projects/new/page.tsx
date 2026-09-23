@@ -1,40 +1,31 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ProjectForm } from '@/components/projects/project-form';
-import { useCreateProject } from '@/hooks/use-projects';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { ProjectFormData } from '@/lib/validations';
-import { toast } from 'sonner';
+import { PageHeader } from '@/components/layout/page-header';
+import { ResearchProjectForm } from '@/components/projects/research-project-form';
+import { useCreateResearchProject } from '@/hooks/use-research-projects';
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const createProject = useCreateProject();
-
-  const handleSubmit = async (data: ProjectFormData) => {
-    try {
-      const result = await createProject.mutateAsync(data);
-      toast.success('Project created successfully');
-      router.push(`/projects/${result.data.data.id}`);
-    } catch {
-      // handled by hook
-    }
-  };
+  const create = useCreateResearchProject();
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">New Project</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">Create a new evaluation or research project</p>
+    <div className="mx-auto max-w-2xl">
+      <PageHeader
+        title="New project"
+        description="Name the study and choose its interview method. Participants, assignments and findings are added from the project once it exists."
+      />
+      <div className="rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft sm:p-7">
+        <ResearchProjectForm
+          submitLabel="Create project"
+          isSubmitting={create.isPending}
+          onCancel={() => router.push('/projects')}
+          onSubmit={async (data) => {
+            const project = await create.mutateAsync(data).catch(() => null);
+            if (project) router.push(`/projects/${project.id}`);
+          }}
+        />
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ProjectForm onSubmit={handleSubmit} isSubmitting={createProject.isPending} />
-        </CardContent>
-      </Card>
     </div>
   );
 }

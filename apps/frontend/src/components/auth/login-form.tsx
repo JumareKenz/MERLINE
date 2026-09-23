@@ -1,14 +1,17 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import Link from 'next/link';
+import { AlertCircle } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '@/lib/validations';
+import { describeError } from '@/lib/errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
+import { Field, describedBy } from '@/components/ui/field';
 import { useAuth } from '@/providers/auth-provider';
-import { useState } from 'react';
 
 export function LoginForm() {
   const { login } = useAuth();
@@ -21,96 +24,81 @@ export function LoginForm() {
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '', remember: false },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data: LoginFormData) => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      setError(null);
-      await login(data.email, data.password, data.remember);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Invalid email or password';
-      setError(errorMessage);
-    } finally {
+      await login(data.email, data.password);
+    } catch (err) {
+      setError(describeError(err, 'That email and password don’t match an account.'));
       setIsLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="mb-7">
-        <h1 className="text-[20px] font-semibold tracking-tight text-foreground">Sign in</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-1">
-          Enter your credentials to access your workspace
-        </p>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+      <div className="mb-8">
+        <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-foreground">Sign in to Merline</h1>
+        <p className="mt-2 text-[15px] text-foreground-secondary">Research workspace for your organization.</p>
       </div>
 
       {error && (
-        <div className="rounded-md bg-error-bg border border-error/20 px-3 py-2.5 text-[13px] text-error">
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-error/25 bg-error-bg px-3.5 py-3 text-[14px] text-foreground">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-error" aria-hidden />
           {error}
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+      <Field id="email" label="Email" error={errors.email?.message}>
         <Input
           id="email"
           type="email"
+          inputMode="email"
           placeholder="you@organization.org"
-          {...register('email')}
+          autoComplete="username"
+          autoFocus
           error={!!errors.email}
-          autoComplete="email"
+          aria-describedby={describedBy('email', { error: errors.email })}
+          {...register('email')}
         />
-        {errors.email && (
-          <p className="text-xs text-error">{errors.email.message}</p>
-        )}
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">Password</Label>
-          <Link
-            href="/forgot-password"
-            className="text-xs text-foreground-link hover:underline"
-          >
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label htmlFor="password" className="text-[14px] font-medium text-foreground">
+            Password
+          </label>
+          <Link href="/forgot-password" className="text-[13px] font-medium text-foreground-link hover:underline">
             Forgot password?
           </Link>
         </div>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
-          placeholder="••••••••"
-          {...register('password')}
-          error={!!errors.password}
+          placeholder="Your password"
           autoComplete="current-password"
+          error={!!errors.password}
+          aria-describedby={errors.password ? 'password-error' : undefined}
+          {...register('password')}
         />
         {errors.password && (
-          <p className="text-xs text-error">{errors.password.message}</p>
+          <p id="password-error" className="mt-1.5 text-[13px] text-foreground-error">
+            {errors.password.message}
+          </p>
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="remember"
-          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-          {...register('remember')}
-        />
-        <Label htmlFor="remember" className="text-sm font-normal">
-          Remember me
-        </Label>
-      </div>
-
-      <Button type="submit" className="w-full" loading={isLoading}>
+      <Button type="submit" size="lg" className="w-full" loading={isLoading}>
         {isLoading ? 'Signing in…' : 'Sign in'}
       </Button>
 
-      <p className="text-center text-[13px] text-foreground-tertiary pt-1">
-        No account?{' '}
-        <Link href="/register" className="text-foreground-link hover:underline font-medium">
-          Create one
-        </Link>
+      <p className="pt-2 text-center text-[14px] text-foreground-secondary">
+        Doing fieldwork?{' '}
+        <a href="https://field.jrecc.org" className="font-medium text-foreground-link hover:underline">
+          Open the field app
+        </a>
       </p>
     </form>
   );

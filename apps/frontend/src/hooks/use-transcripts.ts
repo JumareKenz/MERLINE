@@ -50,3 +50,10 @@ export function useRetryTranscript() {
     },
   });
 }
+
+export function useAllTranscripts() {
+  return useQuery({
+    queryKey: ['transcripts', 'all'],
+    queryFn: async () => (await API.transcripts.listAll()).data.data,
+  });
+}

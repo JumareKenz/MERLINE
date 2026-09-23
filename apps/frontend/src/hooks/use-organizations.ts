@@ -3,13 +3,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API } from '@/lib/api-client';
 import { toast } from 'sonner';
-import type { UpdateOrganizationDto } from '@/types/organization';
+import type { Organization, UpdateOrganizationDto } from '@/types/organization';
 import type { CreateUserDto, UserFilterParams } from '@/types/user';
 
+/**
+ * The caller's own organization. GET /organizations returns an array (now
+ * only ever the caller's own organization); this unwraps it.
+ */
 export function useOrganization() {
   return useQuery({
     queryKey: ['organization'],
-    queryFn: () => API.organizations.get(),
+    queryFn: async () => {
+      const body = (await API.organizations.get()).data.data as unknown;
+      return (Array.isArray(body) ? body[0] : body) as Organization | undefined;
+    },
   });
 }
 

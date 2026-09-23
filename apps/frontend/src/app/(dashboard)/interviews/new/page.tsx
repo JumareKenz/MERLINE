@@ -45,15 +45,15 @@ export default function NewInterviewPage() {
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Start Interview</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">
+        <h1 className="type-title">Start Interview</h1>
+        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">
           Every interview is tied to one consent record on file for the participant.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Details</CardTitle>
+          <CardTitle className="type-section">Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-1.5">

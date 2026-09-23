@@ -1,10 +1,151 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { RoleList } from '@/components/roles/role-list';
+import { RoleForm } from '@/components/roles/role-form';
+import { PermissionGrid } from '@/components/roles/permission-grid';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, usePermissions } from '@/hooks/use-roles';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import type { Role } from '@/types/role';
+import type { RoleFormData } from '@/lib/validations';
+import { toast } from 'sonner';
 
-export default function AdminRolesRedirect() {
-  const router = useRouter();
-  useEffect(() => { router.replace('/roles'); }, [router]);
-  return null;
+export default function RolesPage() {
+  const [showCreate, setShowCreate] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
+
+  const { data: rolesData, isLoading, isError, error, refetch } = useRoles();
+  const { data: permissionsData } = usePermissions();
+  const createRole = useCreateRole();
+  const updateRole = useUpdateRole();
+  const deleteRole = useDeleteRole();
+
+  const roles = rolesData?.data?.data || [];
+  const permissionGroups = permissionsData?.data?.data || [];
+
+  const handleCreate = async (data: RoleFormData) => {
+    await createRole.mutateAsync({
+      name: data.name,
+      description: data.description,
+      permission_ids: selectedPermissionIds,
+    });
+    setShowCreate(false);
+    setSelectedPermissionIds([]);
+  };
+
+  const handleEditRole = (role: Role) => {
+    setSelectedRole(role);
+    setSelectedPermissionIds(role.permissions.map((p) => p.id));
+    setShowCreate(true);
+  };
+
+  const handleUpdate = async (data: RoleFormData) => {
+    if (!selectedRole) return;
+    await updateRole.mutateAsync({
+      id: selectedRole.id,
+      data: {
+        name: data.name,
+        description: data.description,
+        permission_ids: selectedPermissionIds,
+      },
+    });
+    setShowCreate(false);
+    setSelectedRole(null);
+    setSelectedPermissionIds([]);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedRole) return;
+    try {
+      await deleteRole.mutateAsync(selectedRole.id);
+      toast.success('Role deleted successfully');
+    } catch {
+      toast.error('Failed to delete role');
+    }
+    setShowDelete(false);
+    setSelectedRole(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="type-section">Roles & Permissions</h2>
+          <p className="mt-1 text-[14px] text-foreground-secondary">Manage roles and their permissions</p>
+        </div>
+        <Button size="sm" className="h-8 px-3 text-[13px]" onClick={() => { setSelectedRole(null); setShowCreate(true); setSelectedPermissionIds([]); }}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> Create Role
+        </Button>
+      </div>
+
+      <Tabs defaultValue="roles">
+        <TabsList>
+          <TabsTrigger value="roles">Roles</TabsTrigger>
+          <TabsTrigger value="permissions">Permissions</TabsTrigger>
+        </TabsList>
+        <TabsContent value="roles" className="pt-4">
+          <RoleList
+            data={roles}
+            isLoading={isLoading}
+            isError={isError}
+            error={error}
+            onRetry={() => refetch()}
+            onEdit={handleEditRole}
+            onDelete={(role) => {
+              setSelectedRole(role);
+              setShowDelete(true);
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="permissions" className="pt-4">
+          <PermissionGrid
+            groups={permissionGroups}
+            selectedIds={selectedPermissionIds}
+            onChange={setSelectedPermissionIds}
+          />
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={showCreate} onOpenChange={(open) => { setShowCreate(open); if (!open) { setSelectedRole(null); setSelectedPermissionIds([]); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedRole ? 'Edit Role' : 'Create Role'}</DialogTitle>
+            <DialogDescription>Configure role details and permissions</DialogDescription>
+          </DialogHeader>
+          <RoleForm
+            initialData={selectedRole ? { name: selectedRole.name, description: selectedRole.description } : undefined}
+            onSubmit={selectedRole ? handleUpdate : handleCreate}
+            isLoading={createRole.isPending || updateRole.isPending}
+          />
+          <Separator className="my-2" />
+          <div>
+            <h4 className="text-sm font-medium mb-3">Permissions</h4>
+            <PermissionGrid
+              groups={permissionGroups}
+              selectedIds={selectedPermissionIds}
+              onChange={setSelectedPermissionIds}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        title="Delete Role"
+        description={`Are you sure you want to delete "${selectedRole?.name}"? This action cannot be undone.`}
+        variant="danger"
+        confirmLabel="Delete"
+        loading={deleteRole.isPending}
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
 }

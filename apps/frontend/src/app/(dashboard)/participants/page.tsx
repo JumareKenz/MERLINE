@@ -14,20 +14,20 @@ export default function ParticipantsPage() {
   const participants = data?.data?.data || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Participants</h1>
-          <p className="text-[13px] text-foreground-tertiary mt-0.5">
+          <h1 className="type-title">Participants</h1>
+          <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">
             People consented to be interviewed. Consent and interviews are recorded per participant.
           </p>
         </div>
         {can('create.participants') && (
-          <Link href="/participants/new">
-            <Button size="sm" className="h-8 px-3 text-[13px]">
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Participant
-            </Button>
-          </Link>
+          <Button asChild>
+            <Link href="/participants/new">
+              <Plus className="h-4 w-4" aria-hidden /> Add participant
+            </Link>
+          </Button>
         )}
       </div>
 

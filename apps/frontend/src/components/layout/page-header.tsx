@@ -3,31 +3,28 @@ import { cn } from '@/lib/utils';
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  description?: ReactNode;
+  /** Primary action(s), right-aligned on wide screens, below on phones. */
   actions?: ReactNode;
+  /** Status badges or context next to the title. */
   meta?: ReactNode;
+  eyebrow?: string;
   className?: string;
 }
 
-export function PageHeader({ title, description, actions, meta, className }: PageHeaderProps) {
+/** Every admin screen starts here: where am I, what is this for, what can I do. */
+export function PageHeader({ title, description, actions, meta, eyebrow, className }: PageHeaderProps) {
   return (
-    <div className={cn('flex items-start justify-between gap-4 mb-6', className)}>
+    <div className={cn('mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}>
       <div className="min-w-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-[17px] font-semibold tracking-tight text-foreground truncate">
-            {title}
-          </h1>
+        {eyebrow && <p className="type-eyebrow mb-2">{eyebrow}</p>}
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="type-title truncate">{title}</h1>
           {meta}
         </div>
-        {description && (
-          <p className="text-[13px] text-foreground-tertiary mt-0.5 leading-relaxed">
-            {description}
-          </p>
-        )}
+        {description && <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">{description}</p>}
       </div>
-      {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
-      )}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

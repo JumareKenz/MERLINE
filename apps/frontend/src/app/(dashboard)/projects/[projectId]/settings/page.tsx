@@ -1,96 +1,72 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useProject, useUpdateProject, useArchiveProject } from '@/hooks/use-projects';
-import { ProjectForm } from '@/components/projects/project-form';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Archive } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
+import { ResearchProjectForm } from '@/components/projects/research-project-form';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { ErrorState } from '@/components/shared/error-state';
-import { Separator } from '@/components/ui/separator';
-import type { ProjectFormData } from '@/lib/validations';
-import { toast } from 'sonner';
+import { LoadingState } from '@/components/shared/loading-state';
+import { useArchiveResearchProject, useResearchProject, useUpdateResearchProject } from '@/hooks/use-research-projects';
+import { useSession } from '@/hooks/use-session';
 
 export default function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const router = useRouter();
-  const { data, isLoading, isError, error, refetch } = useProject(projectId);
-  const updateProject = useUpdateProject();
-  const archiveProject = useArchiveProject();
+  const session = useSession();
+  const { data: project, isLoading, isError, error, refetch } = useResearchProject(projectId);
+  const update = useUpdateResearchProject(projectId);
+  const archive = useArchiveResearchProject();
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-96" />
-      </div>
-    );
+  if (isLoading) return <LoadingState message="Loading project" />;
+  if (isError || !project) {
+    const e = error as { message?: string; status?: number } | null;
+    return <ErrorState message={e?.message ?? 'This project could not be found.'} status={e?.status ?? 404} onRetry={() => refetch()} />;
   }
-
-  if (isError) {
-    return <ErrorState message={error?.message} onRetry={() => refetch()} />;
-  }
-
-  const project = data?.data?.data;
-  if (!project) return <ErrorState message="Project not found" />;
-
-  const handleUpdate = async (formData: ProjectFormData) => {
-    try {
-      await updateProject.mutateAsync({ id: projectId, data: formData });
-      toast.success('Project updated successfully');
-    } catch {
-      // handled by hook
-    }
-  };
-
-  const handleArchive = async () => {
-    try {
-      await archiveProject.mutateAsync(projectId);
-      toast.success('Project archived');
-      router.push('/projects');
-    } catch {
-      // handled by hook
-    }
-  };
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Project Settings</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage project configuration for &ldquo;{project.name}&rdquo;</p>
+    <div className="mx-auto max-w-2xl">
+      <PageHeader title="Project settings" description={project.name} />
+      <div className="rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft sm:p-7">
+        <ResearchProjectForm
+          initial={project}
+          submitLabel="Save changes"
+          isSubmitting={update.isPending}
+          onCancel={() => router.push(`/projects/${projectId}`)}
+          onSubmit={async (data) => {
+            await update.mutateAsync(data).catch(() => undefined);
+          }}
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>General Settings</CardTitle>
-          <CardDescription>Update project details and metadata</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProjectForm
-            project={project}
-            onSubmit={handleUpdate}
-            isSubmitting={updateProject.isPending}
-          />
-        </CardContent>
-      </Card>
+      {project.status !== 'archived' && (!session.isResolved || session.can('edit.projects')) && (
+        <section className="mt-8 rounded-xl border border-border-subtle p-5 sm:p-6">
+          <h2 className="type-section">Archive project</h2>
+          <p className="mt-1 text-[14px] text-foreground-secondary">
+            Archiving hides the project from the active list. Interviews, transcripts and findings are kept and it can be restored.
+          </p>
+          <Button variant="secondary" className="mt-4" onClick={() => setConfirmArchive(true)}>
+            <Archive className="h-4 w-4" aria-hidden /> Archive project
+          </Button>
+        </section>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-          <CardDescription>Irreversible actions for this project</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-sm">Archive Project</p>
-              <p className="text-xs text-foreground-secondary">Archive this project and all associated studies</p>
-            </div>
-            <Button variant="secondary" size="sm" onClick={handleArchive} loading={archiveProject.isPending}>
-              Archive
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <ConfirmDialog
+        open={confirmArchive}
+        onOpenChange={setConfirmArchive}
+        title={`Archive “${project.name}”?`}
+        description="It will move to the Archived list. Nothing is deleted."
+        confirmLabel="Archive"
+        loading={archive.isPending}
+        onConfirm={async () => {
+          await archive.mutateAsync(projectId).catch(() => undefined);
+          setConfirmArchive(false);
+          router.push('/projects');
+        }}
+      />
     </div>
   );
 }

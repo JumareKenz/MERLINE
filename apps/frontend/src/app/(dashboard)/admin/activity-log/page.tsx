@@ -45,8 +45,8 @@ export default function ActivityLogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Activity Log</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">Audit trail of all actions in your organization</p>
+        <h2 className="type-section">Activity</h2>
+        <p className="mt-1 text-[14px] text-foreground-secondary">Audit trail of all actions in your organization</p>
       </div>
 
       <div className="flex items-center gap-3">

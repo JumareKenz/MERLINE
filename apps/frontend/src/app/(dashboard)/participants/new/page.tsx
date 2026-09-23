@@ -18,15 +18,15 @@ export default function NewParticipantPage() {
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">Add Participant</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">
+        <h1 className="type-title">Add Participant</h1>
+        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">
           Record the participant before consent — consent is captured as a separate step once they&apos;ve been added.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Participant Details</CardTitle>
+          <CardTitle className="type-section">Participant Details</CardTitle>
         </CardHeader>
         <CardContent>
           <ParticipantForm

@@ -1,102 +1,59 @@
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/brand/logo';
 
-const TRUST_SIGNALS = [
-  'Consent recorded before a single byte of audio is captured',
-  'Every finding traces back to a real, verbatim transcript segment',
-  'Tenant-isolated, permission-scoped, audited at every step',
+/** The traceability chain the product guarantees, drawn as structure — not copy. */
+const CHAIN = [
+  { label: 'Consent', detail: 'Scope recorded before any audio' },
+  { label: 'Recording', detail: 'Checksum-verified, private storage' },
+  { label: 'Transcript segment', detail: 'Timestamped, speaker-labelled' },
+  { label: 'Quotation', detail: 'Verbatim, linked to its segment' },
+  { label: 'Finding', detail: 'Approved only with evidence' },
 ];
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Brand panel — desktop only */}
-      <div
-        className="hidden lg:flex lg:w-[420px] xl:w-[460px] relative flex-col shrink-0 overflow-hidden"
-        style={{ backgroundColor: 'hsl(var(--brand-navy))' }}
-      >
-        {/* Dot-grid texture */}
-        <div
-          className="absolute inset-0 opacity-[0.045]"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-        {/* Bottom fade */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(to bottom, hsl(var(--brand-navy)) 0%, transparent 30%, transparent 70%, hsl(var(--brand-navy)) 100%)',
-          }}
-        />
-        {/* Accent glow — lemon, restrained: a wash, not a fill */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-64 opacity-[0.12]"
-          style={{
-            background:
-              'radial-gradient(ellipse at 50% 100%, hsl(var(--brand-lemon)) 0%, transparent 70%)',
-          }}
-        />
+      <aside className="relative hidden w-[460px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[520px]">
+        <Logo variant="full" theme="dark" height={28} />
 
-        {/* Logo */}
-        <div className="relative z-10 p-9 pb-0">
-          <Logo variant="full" theme="dark" height={24} />
-        </div>
-
-        {/* Value proposition */}
-        <div className="relative z-10 flex-1 flex flex-col justify-end p-9 pb-11">
-          <p className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-5"
-            style={{ color: 'rgba(255,255,255,0.3)' }}>
-            Research Intelligence
-          </p>
-          <h2
-            className="text-[22px] font-semibold leading-[1.45] tracking-tight mb-9"
-            style={{ color: 'rgba(255,255,255,0.92)' }}
-          >
-            Evidence you can trace,<br />
-            findings you can trust,<br />
-            fieldwork you can verify.
+        <div>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-lemon">Research intelligence</p>
+          <h2 className="mt-4 text-[28px] font-semibold leading-[1.25] tracking-[-0.02em]">
+            Every finding traces back to what a participant actually said.
           </h2>
 
-          <div className="space-y-4">
-            {TRUST_SIGNALS.map((signal) => (
-              <div key={signal} className="flex items-start gap-3">
-                <div
-                  className="mt-[5px] h-1 w-4 rounded-full shrink-0"
-                  style={{ backgroundColor: 'hsl(var(--brand-lemon))' }}
-                />
-                <p
-                  className="text-[12.5px] leading-[1.55]"
-                  style={{ color: 'rgba(255,255,255,0.45)' }}
+          <ol className="mt-10 space-y-0" aria-label="The evidence chain">
+            {CHAIN.map((step, i) => (
+              <li key={step.label} className="relative flex gap-4 pb-5 last:pb-0">
+                {i < CHAIN.length - 1 && <span aria-hidden className="absolute left-[11px] top-7 h-[calc(100%-20px)] w-px bg-white/20" />}
+                <span
+                  aria-hidden
+                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold ${
+                    i === CHAIN.length - 1 ? 'border-lemon bg-lemon text-lemon-foreground' : 'border-white/30 text-white/85'
+                  }`}
                 >
-                  {signal}
-                </p>
-              </div>
+                  {i + 1}
+                </span>
+                <span>
+                  <span className="block text-[15px] font-medium text-white">{step.label}</span>
+                  <span className="block text-[13px] text-white/75">{step.detail}</span>
+                </span>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
 
-        {/* Copyright */}
-        <div className="relative z-10 px-9 pb-7">
-          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.18)' }}>
-            © 2026 Merline. All rights reserved.
-          </p>
-        </div>
-      </div>
+        <p className="text-[12px] text-white/65">© 2026 Merline</p>
+      </aside>
 
-      {/* Form panel */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-background px-6 py-12 lg:py-8">
-        <div className="w-full max-w-[360px]">
-          {/* Mobile logo */}
-          <div className="lg:hidden mb-10 flex justify-center">
-            <Logo variant="full" theme="auto" height={26} />
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[380px]">
+          <div className="mb-10 lg:hidden">
+            <Logo variant="full" theme="auto" height={28} />
           </div>
           {children}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

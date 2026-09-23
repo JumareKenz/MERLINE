@@ -1,93 +1,56 @@
 'use client';
 
-import { Bell, HelpCircle, Menu, Moon, Sun, LogOut, User } from 'lucide-react';
-import { useTheme } from 'next-themes';
-import { useAuthStore } from '@/stores/auth-store';
-import { useUIStore } from '@/stores/ui-store';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Menu, X } from 'lucide-react';
+import { Logo } from '@/components/brand/logo';
+import { SidebarContent } from './sidebar';
 import { Breadcrumbs } from './breadcrumbs';
-import { getInitials } from '@/lib/utils';
-import Link from 'next/link';
 
+/**
+ * Top context bar: where you are, and on phones/tablets the way into the
+ * same navigation the desktop rail shows (a drawer, not a second menu).
+ * Translucent only where supported; see `.glass`.
+ */
 export function Header() {
-  const { theme, setTheme } = useTheme();
-  const { user, logout } = useAuthStore();
-  const { toggleSidebar } = useUIStore();
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => setOpen(false), [pathname]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border-subtle bg-background-elevated/90 backdrop-blur-sm px-4 lg:px-5">
-      <Button variant="ghost" size="icon" onClick={toggleSidebar} className="lg:hidden h-8 w-8">
-        <Menu className="h-4 w-4" />
-      </Button>
+    <header className="glass sticky top-0 z-sticky flex h-14 items-center gap-3 border-b px-4 sm:px-6 lg:h-16 lg:px-8">
+      <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+        <DialogPrimitive.Trigger
+          className="-ml-1.5 flex h-10 w-10 items-center justify-center rounded-md text-foreground-secondary hover:bg-background-hover lg:hidden"
+          aria-label="Open navigation"
+        >
+          <Menu className="h-5 w-5" aria-hidden />
+        </DialogPrimitive.Trigger>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-overlay bg-navy-deep/30 backdrop-blur-[2px] data-[state=open]:animate-fade-in lg:hidden" />
+          <DialogPrimitive.Content
+            className="fixed inset-y-0 left-0 z-modal w-[288px] max-w-[85vw] border-r border-border-subtle bg-background-surface shadow-float focus:outline-none data-[state=open]:animate-drawer-in lg:hidden"
+            aria-describedby={undefined}
+          >
+            <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
+            <DialogPrimitive.Close
+              className="absolute right-3 top-3.5 flex h-9 w-9 items-center justify-center rounded-md text-foreground-tertiary hover:bg-background-hover"
+              aria-label="Close navigation"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </DialogPrimitive.Close>
+            <SidebarContent onNavigate={() => setOpen(false)} />
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+
+      <span className="lg:hidden">
+        <Logo variant="mark" height={24} />
+      </span>
 
       <Breadcrumbs />
-
-      <div className="flex-1" />
-
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="h-8 w-8 text-foreground-tertiary hover:text-foreground"
-        >
-          {theme === 'dark' ? <Sun className="h-[15px] w-[15px]" /> : <Moon className="h-[15px] w-[15px]" />}
-        </Button>
-
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 text-foreground-tertiary hover:text-foreground">
-          <Bell className="h-[15px] w-[15px]" />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-error" />
-        </Button>
-
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground-tertiary hover:text-foreground">
-          <HelpCircle className="h-[15px] w-[15px]" />
-        </Button>
-
-        <div className="mx-1 h-5 w-px bg-border" />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-7 w-7 rounded-full p-0">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="text-[11px] font-medium bg-primary-100 text-primary-700">
-                  {user ? getInitials(user.firstName, user.lastName) : 'U'}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-52" align="end" forceMount>
-            <DropdownMenuLabel className="font-normal py-2">
-              <div className="flex flex-col gap-0.5">
-                <p className="text-[13px] font-medium leading-none">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-[11px] leading-none text-foreground-tertiary">{user?.email}</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/profile" className="text-[13px]">
-                <User className="mr-2 h-3.5 w-3.5" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-error text-[13px]">
-              <LogOut className="mr-2 h-3.5 w-3.5" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
     </header>
   );
 }

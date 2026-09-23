@@ -58,7 +58,7 @@ export function QuoteSegmentDialog({ segment, open, onOpenChange }: QuoteSegment
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Quote This Segment</DialogTitle>
+          <DialogTitle>Quote this segment</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -70,15 +70,15 @@ export function QuoteSegmentDialog({ segment, open, onOpenChange }: QuoteSegment
               rows={3}
               className="text-[13px] resize-none"
             />
-            <p className="text-[11px] text-foreground-tertiary">
+            <p className="text-[13px] text-foreground-tertiary">
               Must be an exact excerpt from the transcript — trim it, but don&apos;t rewrite it.
             </p>
           </div>
 
           <Tabs defaultValue="new">
             <TabsList>
-              <TabsTrigger value="new">New Finding</TabsTrigger>
-              <TabsTrigger value="existing">Existing Finding</TabsTrigger>
+              <TabsTrigger value="new">New finding</TabsTrigger>
+              <TabsTrigger value="existing">Existing finding</TabsTrigger>
             </TabsList>
 
             <TabsContent value="new" className="pt-3 space-y-3">
@@ -111,7 +111,7 @@ export function QuoteSegmentDialog({ segment, open, onOpenChange }: QuoteSegment
 
             <TabsContent value="existing" className="pt-3 space-y-3">
               {findings.length === 0 ? (
-                <p className="text-[12px] text-foreground-tertiary py-4 text-center">
+                <p className="text-[13px] text-foreground-secondary py-4 text-center">
                   No draft or in-review findings to add to. Create a new one instead.
                 </p>
               ) : (

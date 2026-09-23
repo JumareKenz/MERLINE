@@ -50,8 +50,8 @@ export default function ProfilePage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-foreground">My Profile</h1>
-        <p className="text-[13px] text-foreground-tertiary mt-0.5">Manage your account information</p>
+        <h1 className="type-title">My Profile</h1>
+        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">Manage your account information</p>
       </div>
 
       <Card>
@@ -73,7 +73,7 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium">Personal Information</CardTitle>
+            <CardTitle className="type-section">Personal Information</CardTitle>
             {!editing && (
               <Button size="sm" variant="ghost" className="h-7 px-2 text-[12px]" onClick={() => setEditing(true)}>
                 Edit
@@ -124,7 +124,7 @@ export default function ProfilePage() {
                 <div key={label} className="flex items-center gap-3 py-3">
                   <span className="text-foreground-tertiary shrink-0">{icon}</span>
                   <div className="flex-1">
-                    <p className="text-[12px] text-foreground-tertiary">{label}</p>
+                    <p className="text-[13px] text-foreground-tertiary">{label}</p>
                     <p className="text-[13px] font-medium mt-0.5">{value}</p>
                   </div>
                 </div>
@@ -136,16 +136,16 @@ export default function ProfilePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Account</CardTitle>
+          <CardTitle className="type-section">Account</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="divide-y divide-border">
             <div className="py-3">
-              <p className="text-[12px] text-foreground-tertiary">Account Status</p>
+              <p className="text-[13px] text-foreground-tertiary">Account Status</p>
               <p className="text-[13px] font-medium mt-0.5 text-success">Active</p>
             </div>
             <div className="py-3">
-              <p className="text-[12px] text-foreground-tertiary">Email Verified</p>
+              <p className="text-[13px] text-foreground-tertiary">Email Verified</p>
               <p className="text-[13px] font-medium mt-0.5">
                 {(user as any).email_verified_at
                   ? `Verified ${formatDate((user as any).email_verified_at)}`
@@ -153,7 +153,7 @@ export default function ProfilePage() {
               </p>
             </div>
             <div className="py-3">
-              <p className="text-[12px] text-foreground-tertiary">Last Login</p>
+              <p className="text-[13px] text-foreground-tertiary">Last Login</p>
               <p className="text-[13px] font-medium mt-0.5">
                 {(user as any).last_login_at ? formatDate((user as any).last_login_at) : '—'}
               </p>
