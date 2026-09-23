@@ -60,7 +60,7 @@ export default function NewAssignmentPage() {
     const next: Record<string, string> = {};
     if (!participantId) next.participant = 'Choose who will be interviewed.';
     if (participantId && !consentId) next.consent = 'Choose the consent record this interview relies on.';
-    if (!interviewerId) next.interviewer = 'Choose the field interviewer.';
+    if (!interviewerId) next.interviewer = 'Choose who will conduct it.';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -87,8 +87,8 @@ export default function NewAssignmentPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title="New assignment"
-        description="Put an interview on a field interviewer's device. They'll see it the next time their app connects."
+        title="Book an interview"
+        description="Optional. For an interview arranged in advance with someone already registered and consented. Most interviews are started on site by the field worker, who records consent there."
       />
 
       <form onSubmit={submit} noValidate className="space-y-6 rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft sm:p-7">
@@ -222,7 +222,7 @@ export default function NewAssignmentPage() {
             Cancel
           </Button>
           <Button type="submit" loading={create.isPending}>
-            Assign interview
+            Book interview
           </Button>
         </div>
       </form>

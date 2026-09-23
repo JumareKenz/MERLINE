@@ -42,7 +42,7 @@ export function FieldShell({ children }: { children: ReactNode }) {
       .then((reg) =>
         reg.active?.postMessage({
           type: 'warm',
-          urls: ['/field', '/field/interview', '/field/uploads', '/field/participants', '/field/participants/new', '/offline.html'],
+          urls: ['/field', '/field/new', '/field/interview', '/field/uploads', '/field/participants', '/field/participants/new', '/offline.html'],
         }),
       )
       .catch(() => undefined);

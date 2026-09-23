@@ -8,6 +8,8 @@ interface Fixture {
   adminEmail: string;
   fieldUserId: string;
   code: string;
+  projectId: string;
+  projectName: string;
   participantId: string;
   interviewId: string;
   otherInterviewId: string;
@@ -134,11 +136,33 @@ test.describe('admin workspace', () => {
     expect(await axe(page), 'projects a11y').toEqual([]);
     await page.screenshot({ path: `${SHOTS}/admin-projects-desktop.png`, fullPage: true });
 
+    // Profile and Settings are visible, not hidden in a menu.
+    const account = page.getByRole('navigation', { name: 'Account' });
+    await expect(account.getByRole('link', { name: 'Profile' })).toBeVisible();
+    await expect(account.getByRole('link', { name: 'Settings' })).toBeVisible();
+
     await page.goto('/assignments');
     await expect(page.getByRole('heading', { name: 'Assignments', level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: /^P-/ }).first()).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Field team', selected: true })).toBeVisible();
+    await expect(page.getByText('Amina Okafor').first()).toBeVisible();
     expect(await axe(page), 'assignments a11y').toEqual([]);
     await page.screenshot({ path: `${SHOTS}/admin-assignments-desktop.png`, fullPage: true });
+
+    // Add a field worker: projects + one-time code, no participants or consent.
+    await page.getByRole('button', { name: 'Add field worker' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('First name').fill('Tunde');
+    await dialog.getByLabel('Last name').fill('Bello');
+    await dialog.getByRole('button', { name: 'Select all projects' }).click();
+    await dialog.getByRole('button', { name: 'Add and issue code' }).click();
+    await expect(page.getByRole('dialog', { name: /Access code for Tunde Bello/ })).toBeVisible();
+    await expect(page.getByRole('dialog').locator('code')).toHaveText(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/);
+    await page.screenshot({ path: `${SHOTS}/admin-field-code-desktop.png` });
+    await page.getByRole('button', { name: 'Done' }).click();
+
+    await page.goto('/profile');
+    await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Password' })).toBeVisible();
 
     await page.goto(`/interviews/${fx().interviewId}`);
     await expect(page.getByRole('heading', { name: 'Consent' })).toBeVisible();
@@ -187,7 +211,7 @@ test.describe('field app', () => {
     await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link')).toHaveText(['Today', 'People', 'Uploads']);
     await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /Projects|Assignments|Transcripts|AI Dialogue|Settings/ })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Prepare interview' })).toHaveAttribute('href', `/field/interview?id=${interviewId}`);
+    await expect(page.getByRole('link', { name: /Prepare interview|Continue interview/ })).toHaveAttribute('href', `/field/interview?id=${interviewId}`);
     await expect(page.getByText('Not for the field worker')).toHaveCount(0);
     expect(await axe(page), 'field today a11y').toEqual([]);
     await page.screenshot({ path: `${SHOTS}/field-today-phone.png`, fullPage: true });
@@ -210,6 +234,47 @@ test.describe('field app', () => {
 
     // Same prefetch-abort exclusion as the admin test (see there).
     expect(errors.filter((e) => !/Failed to load resource.*40[134]|Failed to fetch RSC payload/.test(e))).toEqual([]);
+  });
+
+  test('starts an interview on site with no connection: participant, consent, record, then syncs', async ({ page, context }) => {
+    const { projectId, projectName } = fx();
+    await context.grantPermissions(['microphone']);
+    await fieldLogin(page);
+    await expect(page.getByRole('link', { name: new RegExp(projectName) })).toBeVisible();
+    // Make sure the screens are cached before losing the connection.
+    await expect
+      .poll(() => page.evaluate(() => caches.match('/field/new').then((r) => !!r)), { timeout: 30_000 })
+      .toBe(true);
+
+    await context.setOffline(true);
+    await page.goto(`/field/new?project=${projectId}`);
+    const name = `P-SITE-${Date.now().toString(36).toUpperCase()}`;
+    await page.getByLabel('Participant name or code').fill(name);
+    await page.getByRole('button', { name: 'Continue to consent' }).click();
+    for (const scope of ['Recording', 'Transcription', 'AI analysis', 'Quotation', 'Publication']) {
+      await page.getByRole('radiogroup', { name: scope }).getByRole('radio', { name: scope === 'Recording' || scope === 'Transcription' ? 'Yes' : 'No' }).click();
+    }
+    await page.screenshot({ path: `${SHOTS}/field-consent-phone.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Save consent' }).click();
+
+    await page.waitForURL(/\/field\/interview\?id=/);
+    const interviewId = new URL(page.url()).searchParams.get('id')!;
+    await expect(page.getByText('Recording is consented')).toBeVisible();
+    await page.getByRole('button', { name: 'Start recording' }).click();
+    await page.waitForTimeout(4_000);
+    await page.getByRole('button', { name: 'Stop and save recording' }).click();
+    await expect(page.getByText('Saved on this phone')).toBeVisible();
+
+    await context.setOffline(false);
+    await expect(page.getByRole('link', { name: /Sync status: All recordings uploaded/ })).toBeVisible({ timeout: 45_000 });
+
+    const admin = await apiLogin({ email: fx().adminEmail, password: process.env.E2E_ADMIN_PASSWORD });
+    const res = await apiCall(admin, 'GET', `/interviews/${interviewId}`);
+    const interview = ((await res.json()) as { data: { participant: { displayName: string }; consent: { allowRecording: boolean; allowAiAnalysis: boolean }; projectId: string; _count: { recordings: number } } }).data;
+    expect(interview.participant.displayName).toBe(name);
+    expect(interview.consent).toMatchObject({ allowRecording: true, allowAiAnalysis: false });
+    expect(interview.projectId).toBe(projectId);
+    expect(interview._count.recordings).toBe(1);
   });
 
   test('the API, not the UI, confines a field interviewer', async () => {

@@ -16,6 +16,7 @@ and uploads it cheaply once a connection returns.
 | Idempotency | The upload id is the device's recording UUID. A re-sent part overwrites itself, and a re-sent completion returns the Media row already created. |
 | Freeing the phone | Audio is deleted from IndexedDB only after the server has confirmed the checksum-verified recording. |
 | Opening the app offline | The service worker precaches the field screens **and the JS/CSS chunks they reference**, re-warmed after sign-in. The interview screen is one static route (`/field/interview?id=…`) matched ignoring the query, so any assigned interview opens offline. |
+| Starting an interview offline | Field → Start an interview → participant → consent (explicit Yes/No per scope, nothing pre-selected) → record. Participant, consent and interview are saved on the phone with device-generated ids and created on the server in one idempotent call (`POST /field/interviews`) **before** any of their audio uploads, so consent is always on record first. |
 | Knowing today's work offline | Each successful load of the worker's interviews is saved to IndexedDB (participant name, time, place, consent scope flags) and always shown labelled as cached, with its timestamp. |
 | Truthful status | The sync pill only says "All recordings uploaded" when every recording on the device is server-confirmed. Offline, it says "Offline · N saved on this device". |
 
@@ -58,10 +59,11 @@ user can never write into another's upload.
 - **Uploads run while the app is open** (foreground, on focus, on reconnect,
   and every 30 s). Background Sync isn't dependable on iOS, so it isn't relied
   on. The Uploads screen says so.
-- **Creating participants, consent and new interviews needs a connection**,
-  so the server checks consent before any recording exists. Offline, the
-  worker records interviews that were **assigned and synced** beforehand. The
-  UI states this where it applies.
+- Starting an interview offline needs the worker's assigned projects to have
+  been downloaded once (any connected session after being assigned).
+- The server accepts the device's consent time within bounds (not more than
+  5 minutes in the future, not older than 90 days) and stores the time it
+  received it alongside.
 - Signing out keeps unsent audio on the phone, bound to its owner; it uploads
   only when the same user signs in again. The account sheet warns before
   signing out with unsent recordings.

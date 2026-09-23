@@ -69,10 +69,53 @@ export interface CachedInterview {
   recordingCount?: number;
 }
 
+export interface CachedProject {
+  id: string;
+  name: string;
+  method?: string | null;
+}
+
 export interface InterviewSnapshot {
   userId: string;
   savedAt: string;
   items: CachedInterview[];
+  /** Projects the worker may start interviews in (for offline starts). */
+  projects?: CachedProject[];
+}
+
+/**
+ * An interview started on site — participant, consent and interview —
+ * held on the device until the server has created them. Recordings for it
+ * wait in the outbox until then; consent was captured before recording.
+ */
+export interface PendingInterview {
+  /** Also the server-side interview id (generated on the device). */
+  id: string;
+  participantId: string;
+  consentId: string;
+  userId: string;
+  projectId: string;
+  projectName?: string;
+  participant: { displayName: string; externalRef?: string };
+  consent: {
+    version: string;
+    method: 'VERBAL' | 'WRITTEN' | 'DIGITAL';
+    allowRecording: boolean;
+    allowTranscription: boolean;
+    allowAiAnalysis: boolean;
+    allowQuotation: boolean;
+    allowPublication: boolean;
+    capturedAt: string;
+  };
+  location?: string;
+  createdAt: string;
+  status: 'pending' | 'synced' | 'blocked';
+  lastError?: string;
+  attempts: number;
+}
+
+export interface PendingInterviewTransport {
+  create(p: PendingInterview): Promise<void>;
 }
 
 /** Storage the outbox depends on. IndexedDB in the app, in-memory in tests. */

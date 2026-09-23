@@ -1,10 +1,11 @@
 'use client';
 
 import { create } from 'zustand';
-import { idbRecordingRepo, isIndexedDbAvailable } from '@/lib/field/idb';
+import { idbPendingRepo, idbRecordingRepo, isIndexedDbAvailable } from '@/lib/field/idb';
 import { recoverInterrupted, runOutbox, type OutboxRunResult } from '@/lib/field/outbox';
-import { apiUploadTransport } from '@/lib/field/transport';
-import type { LocalRecording } from '@/lib/field/types';
+import { prunePending, syncPendingInterviews } from '@/lib/field/pending';
+import { apiPendingTransport, apiUploadTransport } from '@/lib/field/transport';
+import type { LocalRecording, PendingInterview } from '@/lib/field/types';
 
 /**
  * Drives the field app's upload outbox and mirrors device recordings into
@@ -17,6 +18,8 @@ interface OutboxState {
   available: boolean;
   userId: string | null;
   recordings: LocalRecording[];
+  /** Interviews started on site that the server has not created yet (or just has). */
+  pending: PendingInterview[];
   running: boolean;
   lastResult: OutboxRunResult | null;
   lastRunAt: string | null;
@@ -31,6 +34,8 @@ interface OutboxState {
   remove: (id: string) => Promise<void>;
   /** Called by the recorder so the list updates while it writes. */
   upsertLocal: (recording: LocalRecording) => void;
+  /** Save an interview started on site (works offline). */
+  addPending: (p: PendingInterview) => Promise<void>;
 }
 
 const POLL_MS = 30_000;
@@ -58,6 +63,7 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
   available: false,
   userId: null,
   recordings: [],
+  pending: [],
   running: false,
   lastResult: null,
   lastRunAt: null,
@@ -105,17 +111,19 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
 
   stop: () => {
     teardown?.();
-    set({ userId: null, recordings: [] });
+    set({ userId: null, recordings: [], pending: [] });
   },
 
   refresh: async () => {
     const { userId } = get();
     if (!userId || !get().available) return;
     const all = await idbRecordingRepo.list().catch(() => [] as LocalRecording[]);
+    const pending = await idbPendingRepo.list().catch(() => [] as PendingInterview[]);
     set({
       recordings: all
         .filter((r) => r.userId === userId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      pending: pending.filter((p) => p.userId === userId),
       storage: await readStorage(),
     });
   },
@@ -129,12 +137,26 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
     }
     set({ running: true });
     try {
-      const result = await runOutbox({
-        repo: idbRecordingRepo,
-        transport: apiUploadTransport,
-        userId,
-        onChange: (recording) => get().upsertLocal(recording),
-      });
+      // Interviews started on site must exist on the server before their
+      // audio can upload (consent is checked there on every part).
+      const pendingResult = await syncPendingInterviews(idbPendingRepo, apiPendingTransport, userId);
+      const notYetCreated = new Set(
+        (await idbPendingRepo.list()).filter((p) => p.status !== 'synced').map((p) => p.id),
+      );
+      const result =
+        pendingResult === 'idle'
+          ? await runOutbox({
+              repo: idbRecordingRepo,
+              transport: apiUploadTransport,
+              userId,
+              onChange: (recording) => get().upsertLocal(recording),
+              isWaiting: (r) => notYetCreated.has(r.interviewId),
+            })
+          : pendingResult;
+      const stillNeeded = new Set(
+        (await idbRecordingRepo.list()).filter((r) => r.status !== 'uploaded').map((r) => r.interviewId),
+      );
+      await prunePending(idbPendingRepo, stillNeeded).catch(() => undefined);
       set({ lastResult: result, lastRunAt: new Date().toISOString() });
     } finally {
       set({ running: false });
@@ -159,6 +181,12 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
   remove: async (id) => {
     await idbRecordingRepo.delete(id);
     await get().refresh();
+  },
+
+  addPending: async (p) => {
+    await idbPendingRepo.put(p);
+    await get().refresh();
+    void get().kick();
   },
 
   upsertLocal: (recording) => {

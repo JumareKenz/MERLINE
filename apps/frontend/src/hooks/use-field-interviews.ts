@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API } from '@/lib/api-client';
 import { isIndexedDbAvailable, loadSnapshot, saveSnapshot } from '@/lib/field/idb';
-import type { CachedInterview } from '@/lib/field/types';
+import type { CachedInterview, CachedProject } from '@/lib/field/types';
 import type { Interview } from '@/types/interview';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -48,7 +48,7 @@ export function consentPermitsRecording(consent: CachedInterview['consent']): bo
  */
 export function useFieldInterviews() {
   const userId = useAuthStore((s) => s.user?.id);
-  const [cached, setCached] = useState<{ items: CachedInterview[]; savedAt: string } | null>(null);
+  const [cached, setCached] = useState<{ items: CachedInterview[]; projects: CachedProject[]; savedAt: string } | null>(null);
 
   const query = useQuery({
     queryKey: ['field', 'interviews', userId],
@@ -57,25 +57,40 @@ export function useFieldInterviews() {
     retry: 1,
     staleTime: 30_000,
   });
+  const projectsQuery = useQuery({
+    queryKey: ['field', 'projects', userId],
+    queryFn: async () => (await API.field.projects()).data.data,
+    enabled: !!userId,
+    retry: 1,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     if (!userId || !isIndexedDbAvailable()) return;
     loadSnapshot(userId)
-      .then((s) => s && setCached({ items: s.items, savedAt: s.savedAt }))
+      .then((s) => s && setCached({ items: s.items, projects: s.projects ?? [], savedAt: s.savedAt }))
       .catch(() => undefined);
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !query.data || !isIndexedDbAvailable()) return;
-    const snapshot = { userId, savedAt: new Date().toISOString(), items: query.data.map(toCached) };
+    if (!userId || !query.data || !projectsQuery.data || !isIndexedDbAvailable()) return;
+    const snapshot = {
+      userId,
+      savedAt: new Date().toISOString(),
+      items: query.data.map(toCached),
+      projects: projectsQuery.data.map((p) => ({ id: p.id, name: p.name, method: p.method })),
+    };
     saveSnapshot(snapshot)
-      .then(() => setCached({ items: snapshot.items, savedAt: snapshot.savedAt }))
+      .then(() => setCached({ items: snapshot.items, projects: snapshot.projects, savedAt: snapshot.savedAt }))
       .catch(() => undefined);
-  }, [query.data, userId]);
+  }, [query.data, projectsQuery.data, userId]);
 
   const live = query.data ? query.data.map(toCached) : null;
+  const liveProjects = projectsQuery.data?.map((p) => ({ id: p.id, name: p.name, method: p.method })) ?? null;
 
   return {
+    projects: liveProjects ?? cached?.projects ?? [],
+    projectsLoading: projectsQuery.isLoading && !cached,
     interviews: live ?? cached?.items ?? [],
     source: live ? ('live' as const) : cached ? ('cached' as const) : ('none' as const),
     savedAt: cached?.savedAt ?? null,

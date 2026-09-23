@@ -1,6 +1,6 @@
 import { API } from '@/lib/api-client';
 import type { ApiError } from '@/types/api';
-import { UploadError, type UploadTransport } from './types';
+import { UploadError, type PendingInterviewTransport, type UploadTransport } from './types';
 
 function toUploadError(err: unknown): UploadError {
   const apiError = err as Partial<ApiError> | undefined;
@@ -31,6 +31,25 @@ export const apiUploadTransport: UploadTransport = {
     try {
       const res = await API.interviews.completeRecordingUpload(interviewId, uploadId, body);
       return { id: res.data.data.id };
+    } catch (err) {
+      throw toUploadError(err);
+    }
+  },
+};
+
+/** Creates an on-site interview (participant + consent + interview) on the server. */
+export const apiPendingTransport: PendingInterviewTransport = {
+  async create(p) {
+    try {
+      await API.field.createInterview({
+        interviewId: p.id,
+        participantId: p.participantId,
+        consentId: p.consentId,
+        projectId: p.projectId,
+        participant: p.participant,
+        consent: p.consent,
+        location: p.location,
+      });
     } catch (err) {
       throw toUploadError(err);
     }

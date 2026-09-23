@@ -63,17 +63,36 @@ function InterviewWorkflow() {
   const online = useFieldOutbox((s) => s.online);
   const updateStatus = useUpdateInterviewStatus();
 
+  const pendingAll = useFieldOutbox((s) => s.pending);
   const fromList = interviews.find((i) => i.id === id);
+  // Started on this phone; may not exist on the server yet.
+  const pending = pendingAll.find((p) => p.id === id);
+  const notOnServerYet = !!pending && pending.status !== 'synced';
   // Just created and not yet in the list: ask the API directly (online only).
   const direct = useQuery({
     queryKey: ['field', 'interview', id],
     queryFn: async () => (await API.interviews.get(id)).data.data,
-    enabled: !!id && !fromList && !listLoading,
+    enabled: !!id && !fromList && !pending && !listLoading,
     retry: 0,
   });
 
   const interview: CachedInterview | undefined = useMemo(() => {
     if (fromList) return fromList;
+    if (pending) {
+      return {
+        id: pending.id,
+        status: 'IN_PROGRESS',
+        location: pending.location,
+        participantId: pending.participantId,
+        participantName: pending.participant.displayName,
+        projectId: pending.projectId,
+        consent: {
+          id: pending.consentId,
+          method: pending.consent.method,
+          allowRecording: pending.consent.allowRecording,
+        },
+      };
+    }
     const d = direct.data;
     if (!d) return undefined;
     return {
@@ -87,22 +106,22 @@ function InterviewWorkflow() {
       consent: d.consent ?? null,
       recordingCount: d._count?.recordings,
     };
-  }, [fromList, direct.data]);
+  }, [fromList, pending, direct.data]);
 
   const onDevice = recordings.filter((r) => r.interviewId === id);
   const pendingHere = onDevice.filter((r) => r.status !== 'uploaded').length;
 
   const markStarted = useCallback(() => {
-    if (interview?.status === 'SCHEDULED' && navigator.onLine) {
+    if (interview?.status === 'SCHEDULED' && !pending && navigator.onLine) {
       updateStatus.mutate({ id, status: 'IN_PROGRESS' });
     }
-  }, [id, interview?.status, updateStatus]);
+  }, [id, interview?.status, pending, updateStatus]);
 
   if (!id) {
     return <p className="text-[16px] text-foreground-secondary">No interview selected.</p>;
   }
 
-  if (listLoading || (!interview && direct.isLoading)) {
+  if ((listLoading && !pending) || (!interview && direct.isLoading)) {
     return (
       <div className="space-y-4" aria-label="Loading interview">
         <Skeleton className="h-10 w-2/3" />
@@ -167,6 +186,12 @@ function InterviewWorkflow() {
 
       <StepRail steps={steps} />
 
+      {pending?.status === 'blocked' && (
+        <p className="rounded-2xl bg-error-bg px-4 py-3.5 text-[15px] text-foreground" role="alert">
+          The server did not accept this interview: {pending.lastError}. Recordings stay on this phone. Tell your research lead.
+        </p>
+      )}
+
       {source === 'cached' && (
         <p className="flex items-start gap-2.5 rounded-2xl bg-field-card px-4 py-3 text-[15px] text-foreground ring-1 ring-field-line" role="status">
           <CloudOff className="mt-0.5 h-5 w-5 shrink-0 text-foreground-tertiary" aria-hidden />
@@ -224,7 +249,7 @@ function InterviewWorkflow() {
           <Button
             size="xl"
             className="w-full"
-            disabled={!online || interview.status !== 'IN_PROGRESS'}
+            disabled={!online || notOnServerYet || interview.status !== 'IN_PROGRESS'}
             loading={updateStatus.isPending}
             onClick={() => updateStatus.mutate({ id, status: 'COMPLETED' })}
           >
@@ -233,6 +258,8 @@ function InterviewWorkflow() {
           <p className="mt-2 text-center text-[14px] text-foreground-secondary">
             {!online
               ? 'Connect to mark the interview finished. Your recordings are safe on this phone.'
+              : notOnServerYet
+                ? 'Sending this interview to the server first…'
               : interview.status !== 'IN_PROGRESS'
                 ? 'Available once the interview has started.'
                 : 'Recordings still on this phone keep uploading after you finish.'}

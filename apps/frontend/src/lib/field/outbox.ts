@@ -37,6 +37,12 @@ export interface OutboxDeps {
   now?: () => number;
   /** Reports each change so the UI can show live progress. */
   onChange?: (recording: LocalRecording) => void;
+  /**
+   * Recordings for which this returns true wait (they stay queued, not
+   * failed) — e.g. audio of an interview started on site whose interview
+   * does not exist on the server yet.
+   */
+  isWaiting?: (recording: LocalRecording) => boolean;
 }
 
 /** A recording is due when it is waiting and any backoff has elapsed. */
@@ -79,7 +85,7 @@ export async function recoverInterrupted(repo: RecordingRepo, activeId?: string)
 export async function runOutbox(deps: OutboxDeps): Promise<OutboxRunResult> {
   const now = deps.now ?? Date.now;
   const due = (await deps.repo.list())
-    .filter((r) => r.userId === deps.userId && isDue(r, now()))
+    .filter((r) => r.userId === deps.userId && isDue(r, now()) && !deps.isWaiting?.(r))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   for (const recording of due) {

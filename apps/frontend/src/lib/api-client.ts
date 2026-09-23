@@ -14,6 +14,7 @@ import type * as AssignmentTypes from '@/types/assignment';
 import type * as AuthTypes from '@/types/auth';
 import type * as ConsentTypes from '@/types/consent';
 import type * as DashboardTypes from '@/types/dashboard';
+import type * as FieldTypes from '@/types/field';
 import type * as FindingTypes from '@/types/finding';
 import type * as IndicatorTypes from '@/types/indicator';
 import type * as InterviewTypes from '@/types/interview';
@@ -186,6 +187,8 @@ export const API = {
     logout: () => apiClient.post('/auth/logout'),
     refresh: () => apiClient.post<{ data: { token: string } }>('/auth/refresh'),
     me: () => apiClient.get<{ data: AuthTypes.SessionProfile }>('/auth/me'),
+    changePassword: (data: { currentPassword: string; newPassword: string; newPasswordConfirmation: string }) =>
+      apiClient.put<ApiTypes.Envelope<{ message: string }>>('/auth/change-password', data),
     updateProfile: (data: AuthTypes.UpdateProfileDto) =>
       apiClient.put<{ data: AuthTypes.AuthUser }>('/auth/me', data),
     forgotPassword: (data: { email: string }) =>
@@ -243,6 +246,20 @@ export const API = {
    * either endpoint — the backend feature existed with no way to reach it
    * from the product.
    */
+  /** The field worker's own API: assigned projects, on-site interviews. */
+  field: {
+    projects: () => apiClient.get<ApiTypes.Envelope<FieldTypes.FieldProject[]>>('/field/projects'),
+    createInterview: (data: FieldTypes.CreateFieldInterviewInput) =>
+      apiClient.post<ApiTypes.Envelope<InterviewTypes.Interview>>('/field/interviews', data, { timeout: 60_000 }),
+  },
+  /** Admin: field workers, their projects and access. */
+  fieldTeam: {
+    list: () => apiClient.get<ApiTypes.Envelope<FieldTypes.FieldWorker[]>>('/field-team'),
+    create: (data: FieldTypes.CreateFieldWorkerInput) =>
+      apiClient.post<ApiTypes.Envelope<{ id: string; firstName: string; lastName: string; code: string }>>('/field-team', data),
+    setProjects: (userId: string, projectIds: string[]) =>
+      apiClient.put<ApiTypes.Envelope<FieldTypes.FieldWorker>>(`/field-team/${userId}/projects`, { projectIds }),
+  },
   users: {
     generateFieldAccessCode: (id: string) =>
       apiClient.post<ApiTypes.Envelope<{ code: string; issuedAt: string }>>(

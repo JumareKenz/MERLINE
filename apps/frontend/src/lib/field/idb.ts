@@ -1,4 +1,4 @@
-import type { InterviewSnapshot, LocalRecording, RecordingRepo } from './types';
+import type { InterviewSnapshot, LocalRecording, PendingInterview, RecordingRepo } from './types';
 
 /**
  * IndexedDB storage for the field app. Deliberately dependency-free: this
@@ -8,13 +8,14 @@ import type { InterviewSnapshot, LocalRecording, RecordingRepo } from './types';
  *   recordings  LocalRecording rows (metadata and upload state)
  *   slices      audio, as the recorder produced it: [recordingId, seq] -> Blob
  *   snapshots   the signed-in user's assigned interviews, for offline use
+ *   pending     interviews started on site, not yet created on the server
  *
  * All of it is origin-private device storage. `clearFieldData` removes the
  * interview snapshot on sign-out; unsent audio is kept (it is irreplaceable)
  * but is bound to its userId and only ever uploaded by that user's session.
  */
 const DB_NAME = 'merline-field';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -36,6 +37,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('snapshots')) {
         db.createObjectStore('snapshots', { keyPath: 'userId' });
+      }
+      if (!db.objectStoreNames.contains('pending')) {
+        db.createObjectStore('pending', { keyPath: 'id' });
       }
     };
     request.onsuccess = () => {
@@ -166,3 +170,33 @@ export async function clearFieldData(): Promise<void> {
   tx.objectStore('snapshots').clear();
   await committed(tx);
 }
+
+export interface PendingInterviewRepo {
+  list(): Promise<PendingInterview[]>;
+  get(id: string): Promise<PendingInterview | undefined>;
+  put(p: PendingInterview): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+export const idbPendingRepo: PendingInterviewRepo = {
+  async list() {
+    const db = await openDb();
+    return done(db.transaction('pending').objectStore('pending').getAll()) as Promise<PendingInterview[]>;
+  },
+  async get(id) {
+    const db = await openDb();
+    return done(db.transaction('pending').objectStore('pending').get(id)) as Promise<PendingInterview | undefined>;
+  },
+  async put(p) {
+    const db = await openDb();
+    const tx = db.transaction('pending', 'readwrite');
+    tx.objectStore('pending').put(p);
+    await committed(tx);
+  },
+  async delete(id) {
+    const db = await openDb();
+    const tx = db.transaction('pending', 'readwrite');
+    tx.objectStore('pending').delete(id);
+    await committed(tx);
+  },
+};

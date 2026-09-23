@@ -25,19 +25,21 @@ export default async function globalSetup() {
   const me = await call<{ id: string; organization: { id: string } }>('GET', '/auth/me', admin);
   const orgId = me.organization.id;
 
-  const roles = await call<{ id: string; slug: string }[]>('GET', `/organizations/${orgId}/roles`, admin);
-  const fieldRole = roles.find((r) => r.slug === 'field-interviewer');
-  if (!fieldRole) throw new Error('field-interviewer role missing — run the seed');
+  // The project the field worker is assigned to (seeded demo project).
+  const projects = await call<{ items: { id: string; name: string }[] }>('GET', '/projects?limit=100', admin);
+  const project = projects.items[0];
+  if (!project) throw new Error('No project to assign — run the seed');
 
   const stamp = Date.now().toString(36);
-  const created = await call<{ user: { id: string } }>('POST', `/organizations/${orgId}/members`, admin, {
-    email: `field-${stamp}@e2e.test`,
+  // How an admin adds a field worker now: one step, projects + code.
+  const worker = await call<{ id: string; code: string }>('POST', '/field-team', admin, {
     firstName: 'Amina',
     lastName: 'Okafor',
-    roleId: fieldRole.id,
+    phone: '+234 800 000 0000',
+    projectIds: [project.id],
   });
-  const fieldUserId = created.user.id;
-  const { code } = await call<{ code: string }>('POST', `/users/${fieldUserId}/field-access-code`, admin);
+  const fieldUserId = worker.id;
+  const code = worker.code;
 
   const participant = await call<{ id: string }>('POST', '/participants', admin, { displayName: `P-${stamp.toUpperCase()}` });
   const consent = await call<{ id: string }>('POST', '/consents', admin, {
@@ -69,6 +71,10 @@ export default async function globalSetup() {
 
   writeFileSync(
     FIXTURE_PATH,
-    JSON.stringify({ orgId, adminEmail: email, fieldUserId, code, participantId: participant.id, interviewId: assigned.id, otherInterviewId: other.id }, null, 2),
+    JSON.stringify(
+      { orgId, adminEmail: email, fieldUserId, code, projectId: project.id, projectName: project.name, participantId: participant.id, interviewId: assigned.id, otherInterviewId: other.id },
+      null,
+      2,
+    ),
   );
 }

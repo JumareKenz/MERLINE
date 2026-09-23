@@ -120,6 +120,18 @@ function AccountMenu({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+/** Profile and Settings, always visible above the account menu. */
+function AccountLinks({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { account } = useVisibleNav();
+  return (
+    <nav aria-label="Account" className="space-y-1">
+      {account.map((item) => (
+        <NavLink key={item.href} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+      ))}
+    </nav>
+  );
+}
+
 export function SidebarContent({
   collapsed = false,
   onNavigate,
@@ -166,7 +178,10 @@ export function SidebarContent({
             <PanelLeftOpen className="h-4 w-4" aria-hidden />
           </button>
         )}
-        <AccountMenu collapsed={collapsed} />
+        <AccountLinks collapsed={collapsed} onNavigate={onNavigate} />
+        <div className="pt-1">
+          <AccountMenu collapsed={collapsed} />
+        </div>
       </div>
     </div>
   );

@@ -22,13 +22,13 @@ export default function FieldPeoplePage() {
       <header className="flex items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground">People</h1>
-          <p className="mt-1 text-[16px] text-foreground-secondary">Participants you registered or are interviewing.</p>
+          <p className="mt-1 text-[16px] text-foreground-secondary">People you have interviewed or registered.</p>
         </div>
       </header>
 
       <Button size="xl" className="w-full" asChild>
-        <Link href="/field/participants/new">
-          <Plus className="h-5 w-5" aria-hidden /> Register a participant
+        <Link href="/field/new">
+          <Plus className="h-5 w-5" aria-hidden /> Start an interview
         </Link>
       </Button>
 

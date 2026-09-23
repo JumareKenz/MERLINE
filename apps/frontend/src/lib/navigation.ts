@@ -47,7 +47,7 @@ export const PRIMARY_NAV: NavItem[] = [
     label: 'Assignments',
     href: '/assignments',
     icon: ClipboardList,
-    description: 'Interviews allocated to field interviewers',
+    description: 'Field team and the projects they collect interviews for',
     anyOf: ['create.interviews'],
   },
   {

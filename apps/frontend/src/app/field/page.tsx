@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, CalendarClock, CloudOff, MapPin, Plus, ShieldCheck, ShieldOff, UploadCloud } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowRight, CalendarClock, CloudOff, MapPin, Mic, ShieldCheck, ShieldOff, UploadCloud } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/shared/error-state';
 import { useSyncState } from '@/components/field/sync-status';
 import { consentPermitsRecording, useFieldInterviews } from '@/hooks/use-field-interviews';
 import { useAuthStore } from '@/stores/auth-store';
+import { useFieldOutbox } from '@/stores/field-outbox-store';
 import type { CachedInterview } from '@/lib/field/types';
 import { cn, formatDateTime } from '@/lib/utils';
 
@@ -42,8 +42,23 @@ function ConsentChip({ consent }: { consent: CachedInterview['consent'] }) {
  */
 export default function FieldTodayPage() {
   const user = useAuthStore((s) => s.user);
-  const { interviews, source, savedAt, isLoading, isError, error, refetch } = useFieldInterviews();
+  const { interviews: serverInterviews, projects, source, savedAt, isLoading, isError, error, refetch } = useFieldInterviews();
   const sync = useSyncState();
+  const pending = useFieldOutbox((s) => s.pending);
+
+  // Interviews started on this phone that the server doesn't list yet.
+  const local: CachedInterview[] = pending
+    .filter((p) => !serverInterviews.some((i) => i.id === p.id))
+    .map((p) => ({
+      id: p.id,
+      status: 'IN_PROGRESS',
+      participantId: p.participantId,
+      participantName: p.participant.displayName,
+      projectId: p.projectId,
+      location: p.location,
+      consent: { id: p.consentId, method: p.consent.method, allowRecording: p.consent.allowRecording },
+    }));
+  const interviews = [...local, ...serverInterviews];
 
   const open = interviews
     .filter((i) => i.status === 'SCHEDULED' || i.status === 'IN_PROGRESS')
@@ -91,6 +106,32 @@ export default function FieldTodayPage() {
         </Link>
       )}
 
+      {projects.length > 0 && (
+        <section aria-labelledby="start-heading">
+          <h2 id="start-heading" className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-foreground-tertiary">
+            Start an interview
+          </h2>
+          <div className="space-y-2">
+            {projects.map((p) => (
+              <Link
+                key={p.id}
+                href={`/field/new?project=${p.id}`}
+                className="flex min-h-control-field items-center gap-3 rounded-2xl bg-lemon px-4 py-3 text-lemon-foreground shadow-soft transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-navy/30"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lemon-foreground/10">
+                  <Mic className="h-5 w-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[17px] font-semibold">{p.name}</span>
+                  <span className="block text-[14px] opacity-80">Meet a participant, record consent, record</span>
+                </span>
+                <ArrowRight className="h-5 w-5 shrink-0" aria-hidden />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {isLoading ? (
         <div className="space-y-3" aria-label="Loading interviews">
           <Skeleton className="h-48 rounded-2xl" />
@@ -103,22 +144,20 @@ export default function FieldTodayPage() {
           onRetry={() => refetch()}
         />
       ) : !next ? (
-        <section className="rounded-2xl border border-dashed border-field-line bg-field-card px-5 py-10 text-center">
-          <h2 className="text-[19px] font-semibold text-foreground">No interviews waiting</h2>
+        <section className="rounded-2xl border border-dashed border-field-line bg-field-card px-5 py-8 text-center">
+          <h2 className="text-[18px] font-semibold text-foreground">No interviews in progress</h2>
           <p className="mx-auto mt-2 max-w-xs text-[15px] leading-relaxed text-foreground-secondary">
-            {done > 0 ? `You've completed ${done}. ` : ''}New assignments from your research lead appear here when your phone is online.
+            {done > 0 ? `You've completed ${done}. ` : ''}
+            {projects.length > 0
+              ? 'Start one above when you meet a participant. Interviews booked for you by your research lead also appear here.'
+              : 'You are not on a project yet. Ask your research lead to add you — it appears here as soon as they do.'}
           </p>
-          <Button variant="secondary" size="lg" className="mt-6" asChild>
-            <Link href="/field/participants/new">
-              <Plus className="h-5 w-5" aria-hidden /> Register a participant
-            </Link>
-          </Button>
         </section>
       ) : (
         <>
           <section aria-labelledby="next-heading">
             <h2 id="next-heading" className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-foreground-tertiary">
-              {next.status === 'IN_PROGRESS' ? 'Continue' : 'Up next'}
+              {next.status === 'IN_PROGRESS' ? 'Continue' : 'Booked for you'}
             </h2>
             <div className="overflow-hidden rounded-2xl bg-field-card shadow-float ring-1 ring-field-line">
               <div className="space-y-3 p-5">

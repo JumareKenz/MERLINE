@@ -1,166 +1,181 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useAuthStore } from '@/stores/auth-store';
+import { PasswordInput } from '@/components/ui/password-input';
+import { Field, describedBy } from '@/components/ui/field';
+import { PageHeader } from '@/components/layout/page-header';
+import { ErrorState } from '@/components/shared/error-state';
+import { LoadingState } from '@/components/shared/loading-state';
 import { useUpdateProfile } from '@/hooks/use-auth';
-import { formatDate } from '@/lib/utils';
-import { Loader2, Mail, Calendar, User, Shield } from 'lucide-react';
+import { useSession } from '@/hooks/use-session';
+import { API } from '@/lib/api-client';
+import { describeError } from '@/lib/errors';
+import { formatDate, formatDateTime } from '@/lib/utils';
 
-export default function ProfilePage() {
-  const user = useAuthStore((state) => state.user);
-  const updateProfile = useUpdateProfile();
+function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft sm:p-6">
+      <h2 className="type-section">{title}</h2>
+      {description && <p className="mt-1 text-[14px] text-foreground-secondary">{description}</p>}
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [editing, setEditing] = useState(false);
+function PasswordSection() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName ?? '');
-      setLastName(user.lastName ?? '');
-      setPhone((user as any).phone ?? '');
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!current) errs.current = 'Enter your current password.';
+    if (next.length < 8) errs.next = 'Use at least 8 characters.';
+    if (next !== confirm) errs.confirm = 'The two new passwords don’t match.';
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    setSaving(true);
+    try {
+      await API.auth.changePassword({ currentPassword: current, newPassword: next, newPasswordConfirmation: confirm });
+      toast.success('Password changed');
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+    } catch (err) {
+      setErrors({ current: describeError(err, 'Your current password is not correct.') });
+    } finally {
+      setSaving(false);
     }
-  }, [user?.id]);
-
-  if (!user) {
-    return <div className="text-center py-16 text-foreground-secondary text-sm">Loading profile…</div>;
-  }
-
-  const initials = `${(user.firstName ?? '').charAt(0)}${(user.lastName ?? '').charAt(0)}`.toUpperCase();
-
-  const handleSave = () => {
-    updateProfile.mutate(
-      { firstName, lastName, phone } as any,
-      { onSuccess: () => setEditing(false) },
-    );
-  };
-
-  const handleCancel = () => {
-    setFirstName(user.firstName ?? '');
-    setLastName(user.lastName ?? '');
-    setPhone((user as any).phone ?? '');
-    setEditing(false);
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="type-title">My Profile</h1>
-        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">Manage your account information</p>
+    <form onSubmit={submit} noValidate className="space-y-4">
+      <Field id="pw-current" label="Current password" error={errors.current}>
+        <PasswordInput id="pw-current" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" error={!!errors.current} aria-describedby={describedBy('pw-current', { error: errors.current })} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field id="pw-new" label="New password" error={errors.next} hint="At least 8 characters.">
+          <PasswordInput id="pw-new" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" error={!!errors.next} aria-describedby={describedBy('pw-new', { error: errors.next, hint: true })} />
+        </Field>
+        <Field id="pw-confirm" label="Confirm new password" error={errors.confirm}>
+          <PasswordInput id="pw-confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" error={!!errors.confirm} aria-describedby={describedBy('pw-confirm', { error: errors.confirm })} />
+        </Field>
       </div>
+      <Button type="submit" variant="secondary" loading={saving}>
+        Change password
+      </Button>
+    </form>
+  );
+}
 
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-[22px] font-semibold shrink-0 select-none">
-              {initials || <User className="h-7 w-7" />}
+export default function ProfilePage() {
+  const { profile, isLoading, isError } = useSession();
+  const update = useUpdateProfile();
+  const queryClient = useQueryClient();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (profile) {
+      setFirstName(profile.firstName ?? '');
+      setLastName(profile.lastName ?? '');
+      setPhone(profile.phone ?? '');
+    }
+  }, [profile]);
+
+  if (isLoading) return <LoadingState message="Loading profile" rows={3} />;
+  if (isError || !profile) return <ErrorState message="Your profile could not be loaded." />;
+
+  const dirty = firstName !== (profile.firstName ?? '') || lastName !== (profile.lastName ?? '') || phone !== (profile.phone ?? '');
+
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!firstName.trim()) errs.first = 'Enter your first name.';
+    if (!lastName.trim()) errs.last = 'Enter your last name.';
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    update.mutate(
+      { firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() },
+      {
+        onSuccess: () => {
+          toast.success('Profile saved');
+          queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+        },
+        onError: (err) => toast.error(describeError(err, 'Your profile could not be saved')),
+      },
+    );
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <PageHeader
+        title="Profile"
+        description={`${profile.email} · ${profile.roles.map((r) => r.name).join(', ') || 'No role'}${profile.organization ? ` · ${profile.organization.name}` : ''}`}
+        actions={
+          <Button variant="ghost" asChild>
+            <Link href="/admin/settings">
+              <Settings className="h-4 w-4" aria-hidden /> Settings
+            </Link>
+          </Button>
+        }
+      />
+
+      <div className="space-y-6">
+        <Section title="Your details">
+          <form onSubmit={save} noValidate className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="p-first" label="First name" error={errors.first}>
+                <Input id="p-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={!!errors.first} aria-describedby={describedBy('p-first', { error: errors.first })} />
+              </Field>
+              <Field id="p-last" label="Last name" error={errors.last}>
+                <Input id="p-last" value={lastName} onChange={(e) => setLastName(e.target.value)} error={!!errors.last} aria-describedby={describedBy('p-last', { error: errors.last })} />
+              </Field>
+            </div>
+            <Field id="p-phone" label="Phone" optional>
+              <Input id="p-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+            <Field id="p-email" label="Email" hint="Your sign-in email can’t be changed here.">
+              <Input id="p-email" value={profile.email} readOnly disabled aria-describedby="p-email-hint" />
+            </Field>
+            <Button type="submit" loading={update.isPending} disabled={!dirty}>
+              Save changes
+            </Button>
+          </form>
+        </Section>
+
+        <Section title="Password" description="Change the password you use to sign in to the research workspace.">
+          <PasswordSection />
+        </Section>
+
+        <Section title="Account">
+          <dl className="grid gap-4 text-[14px] sm:grid-cols-3">
+            <div>
+              <dt className="text-foreground-tertiary">Member since</dt>
+              <dd className="mt-0.5 font-medium text-foreground">{profile.createdAt ? formatDate(profile.createdAt) : '—'}</dd>
             </div>
             <div>
-              <p className="text-[15px] font-semibold">
-                {user.firstName} {user.lastName}
-              </p>
-              <p className="text-[13px] text-foreground-tertiary">{user.email}</p>
+              <dt className="text-foreground-tertiary">Last sign-in</dt>
+              <dd className="mt-0.5 font-medium text-foreground">{profile.lastLoginAt ? formatDateTime(profile.lastLoginAt) : '—'}</dd>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="type-section">Personal Information</CardTitle>
-            {!editing && (
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-[12px]" onClick={() => setEditing(true)}>
-                Edit
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {editing ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="firstName" className="text-[13px]">First Name</Label>
-                  <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="h-8 text-[13px]" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="lastName" className="text-[13px]">Last Name</Label>
-                  <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} className="h-8 text-[13px]" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[13px]">Email</Label>
-                <Input value={user.email} disabled className="h-8 text-[13px] bg-muted" />
-                <p className="text-[11px] text-foreground-tertiary">Contact your administrator to change your email.</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-[13px]">Phone</Label>
-                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 000 0000" className="h-8 text-[13px]" />
-              </div>
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <Button size="sm" className="h-8 text-[13px]" disabled={updateProfile.isPending} onClick={handleSave}>
-                  {updateProfile.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-                  Save Changes
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={handleCancel}>
-                  Cancel
-                </Button>
-              </div>
-            </>
-          ) : (
-            <div className="divide-y divide-border">
-              {[
-                { icon: <User className="h-4 w-4" />, label: 'Full Name', value: `${user.firstName} ${user.lastName}` },
-                { icon: <Mail className="h-4 w-4" />, label: 'Email', value: user.email },
-                { icon: <Shield className="h-4 w-4" />, label: 'Phone', value: (user as any).phone || '—' },
-                { icon: <Calendar className="h-4 w-4" />, label: 'Member Since', value: formatDate((user as any).created_at ?? '') },
-              ].map(({ icon, label, value }) => (
-                <div key={label} className="flex items-center gap-3 py-3">
-                  <span className="text-foreground-tertiary shrink-0">{icon}</span>
-                  <div className="flex-1">
-                    <p className="text-[13px] text-foreground-tertiary">{label}</p>
-                    <p className="text-[13px] font-medium mt-0.5">{value}</p>
-                  </div>
-                </div>
-              ))}
+            <div>
+              <dt className="text-foreground-tertiary">Email</dt>
+              <dd className="mt-0.5 font-medium text-foreground">{profile.emailVerifiedAt ? 'Verified' : 'Not verified'}</dd>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="type-section">Account</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="divide-y divide-border">
-            <div className="py-3">
-              <p className="text-[13px] text-foreground-tertiary">Account Status</p>
-              <p className="text-[13px] font-medium mt-0.5 text-success">Active</p>
-            </div>
-            <div className="py-3">
-              <p className="text-[13px] text-foreground-tertiary">Email Verified</p>
-              <p className="text-[13px] font-medium mt-0.5">
-                {(user as any).email_verified_at
-                  ? `Verified ${formatDate((user as any).email_verified_at)}`
-                  : 'Not verified'}
-              </p>
-            </div>
-            <div className="py-3">
-              <p className="text-[13px] text-foreground-tertiary">Last Login</p>
-              <p className="text-[13px] font-medium mt-0.5">
-                {(user as any).last_login_at ? formatDate((user as any).last_login_at) : '—'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </dl>
+        </Section>
+      </div>
     </div>
   );
 }

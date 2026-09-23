@@ -3,75 +3,90 @@
 import { Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ClipboardList, Plus } from 'lucide-react';
+import { CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
-import { FilterChips } from '@/components/shared/filter-chips';
 import { InterviewTable } from '@/components/interviews/interview-table';
+import { FieldTeamPanel } from '@/components/field-team/field-team-panel';
 import { useInterviews } from '@/hooks/use-interviews';
+import { cn } from '@/lib/utils';
 
-type View = 'open' | 'done' | 'all';
+type Tab = 'team' | 'booked';
 
 /**
- * An assignment is an interview scheduled for a named field interviewer.
- * It appears on their field app (and only theirs — the API scopes it) the
- * next time the app has a connection.
+ * Assignments are people-to-projects. A field worker assigned to a project
+ * meets participants on site and records their consent and interview in
+ * the field app; nobody needs to set participants up here first.
+ * Booking a specific interview in advance (for a participant who is
+ * already registered) remains available as a secondary option.
  */
 function AssignmentsView() {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useSearchParams();
-  const view = (params.get('view') as View) || 'open';
-
+  const tab = (useSearchParams().get('tab') as Tab) || 'team';
   const { data, isLoading, isError, error, refetch } = useInterviews();
-  const all = useMemo(() => data?.data?.data ?? [], [data]);
-  const open = all.filter((i) => i.status === 'SCHEDULED' || i.status === 'IN_PROGRESS');
-  const done = all.filter((i) => i.status === 'COMPLETED' || i.status === 'CANCELLED');
-  const rows = view === 'open' ? open : view === 'done' ? done : all;
-
-  const newButton = (
-    <Button asChild>
-      <Link href="/assignments/new">
-        <Plus className="h-4 w-4" aria-hidden /> New assignment
-      </Link>
-    </Button>
+  const booked = useMemo(
+    () => (data?.data?.data ?? []).filter((i) => i.status === 'SCHEDULED'),
+    [data],
   );
 
   return (
     <div>
       <PageHeader
         title="Assignments"
-        description="Interviews allocated to field interviewers. Each one appears in that interviewer's field app, ready to record — even offline once synced."
-        actions={newButton}
+        description="Who collects interviews, and for which projects. Field workers sign in to the field app with their access code, meet participants on site, record consent and interview them — offline if they need to."
       />
-      <InterviewTable
-        data={rows}
-        isLoading={isLoading}
-        isError={isError}
-        error={error as { message?: string; status?: number } | null}
-        onRetry={() => refetch()}
-        emptyTitle={view === 'open' ? 'No open assignments' : 'No assignments here'}
-        emptyDescription="Assign a consented participant to a field interviewer to put an interview on their device."
-        emptyAction={view === 'open' ? newButton : undefined}
-        toolbar={
-          all.length > 0 && (
-            <FilterChips<View>
-              label="Assignment state"
-              value={view}
-              onChange={(v) => router.replace(v === 'open' ? pathname : `${pathname}?view=${v}`)}
-              options={[
-                { value: 'open', label: 'Open', count: open.length },
-                { value: 'done', label: 'Done', count: done.length },
-                { value: 'all', label: 'All', count: all.length },
-              ]}
+
+      <div role="tablist" aria-label="Assignments" className="mb-6 flex gap-6 border-b border-border-subtle">
+        {(
+          [
+            ['team', 'Field team'],
+            ['booked', `Booked interviews${booked.length ? ` · ${booked.length}` : ''}`],
+          ] as [Tab, string][]
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => router.replace(key === 'team' ? pathname : `${pathname}?tab=${key}`)}
+            className={cn(
+              '-mb-px h-11 border-b-2 text-[14px] font-medium transition-colors',
+              tab === key ? 'border-primary text-foreground' : 'border-transparent text-foreground-secondary hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel">
+        {tab === 'team' ? (
+          <FieldTeamPanel />
+        ) : (
+          <>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="max-w-2xl text-[14px] text-foreground-secondary">
+                Optional: book an interview in advance for someone already registered and consented. It appears on that field worker&apos;s Today
+                screen. Most interviews are started on site instead.
+              </p>
+              <Button variant="secondary" asChild>
+                <Link href="/assignments/new">
+                  <CalendarPlus className="h-4 w-4" aria-hidden /> Book an interview
+                </Link>
+              </Button>
+            </div>
+            <InterviewTable
+              data={booked}
+              isLoading={isLoading}
+              isError={isError}
+              error={error as { message?: string; status?: number } | null}
+              onRetry={() => refetch()}
+              emptyTitle="No booked interviews"
+              emptyDescription="That's normal: field workers start most interviews on site. Book one here only when a time and participant are arranged in advance."
             />
-          )
-        }
-      />
-      <p className="mt-6 flex items-center gap-2 text-[13px] text-foreground-tertiary">
-        <ClipboardList className="h-4 w-4" aria-hidden />
-        Field interviewers sign in at field.jrecc.org with an access code from Settings → Members.
-      </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

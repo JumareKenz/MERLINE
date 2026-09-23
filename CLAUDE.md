@@ -96,14 +96,22 @@ Guarded by `src/lib/api-client.test.ts`.
 enforces routes with `@Permissions(...)`, and `TenantGuard` only checks
 `:orgId`/`:organizationId` params (not `:id`). Every new route needs an
 explicit permission and tenant scoping in the service.
-`organizations/authorization-coverage.spec.ts` enforces this for the org
-administration controllers; extend it when you add controllers.
+`organizations/authorization-coverage.spec.ts` walks every controller in
+`AppModule` and fails on any route without `@Permissions` that is not in its
+explicit open-by-design list.
 
-**11. Field-interviewer scoping is server-side.** A user whose only role is
-`field-interviewer` sees only interviews assigned to them and participants
-they registered or are interviewing (`common/scoping/field-scope.ts`).
-Service methods take an optional trailing `viewerId`; controllers must pass
-`user.id`.
+**11. Field work model.** Admins assign field workers to *projects*
+(ProjectTeam, role "field") from Assignments → Field team; one access code
+per person, any number of projects. Field workers meet participants on site
+and create participant + consent + interview in one idempotent call
+(`POST /field/interviews`, device-generated ids) — offline-capable. Scoping
+is server-side: a user whose only role is `field-interviewer` sees only their
+assigned projects, their own interviews, and participants they registered or
+are interviewing (`common/scoping/field-scope.ts`). Service methods take an
+optional trailing `viewerId`; controllers must pass `user.id`.
+**New organizations** get their permission catalogue and roles from
+`provisionOrganizationRoles()`; repair older ones with
+`npx ts-node prisma/provision-organizations.ts [slug]`.
 
 **12. Field offline recording** is documented in `docs/FIELD-OFFLINE.md`
 (IndexedDB slices, resumable 512 KiB parts, consent re-checked per part).
@@ -161,7 +169,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **191 passing, 16 suites** (as of 2026-09-23). Anything less means
+Expect **285 passing, 18 suites** (as of 2026-09-23). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.
 
@@ -216,7 +224,8 @@ gitignored and does not travel with the repo — recreate it from
 - **Legacy routes** (`/studies`, `/questionnaires`, `/reports`, …) are still
   addressable by URL and will error. Unlinked from navigation, not deleted.
 - **Field uploads run in the foreground only** (no Background Sync on iOS).
-- **Creating participants/consent/interviews needs a connection**; offline
-  recording is for interviews assigned and synced beforehand.
+- **Interviews started offline** sync when the app next has a connection and
+  is open; a device clock more than 5 minutes ahead (or consent older than
+  90 days) is refused so consent times stay trustworthy.
 - **Pre-existing API drift** pinned in `api-contract.spec.ts` (`KNOWN_MISSING`):
   `/auth/sessions`, `/teams/*`, `/ai/assist/*`. Shrink that list; never grow it.

@@ -12,13 +12,15 @@ import { ErrorState } from '@/components/shared/error-state';
 import { LoadingState } from '@/components/shared/loading-state';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { InterviewTable } from '@/components/interviews/interview-table';
+import { FieldTeamPanel } from '@/components/field-team/field-team-panel';
+import { useFieldTeam } from '@/hooks/use-field-team';
 import { useResearchProject } from '@/hooks/use-research-projects';
 import { useSession } from '@/hooks/use-session';
 import { API } from '@/lib/api-client';
 import { cn, formatDate } from '@/lib/utils';
 import { methodLabel } from '@/types/research-project';
 
-type Tab = 'interviews' | 'participants' | 'findings';
+type Tab = 'interviews' | 'team' | 'participants' | 'findings';
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -42,6 +44,9 @@ export default function ProjectOverviewPage() {
     enabled: !!projectId && session.can('view.findings'),
   });
 
+  const team = useFieldTeam();
+  const teamOnProject = (team.data ?? []).filter((w) => w.projects.some((p) => p.id === projectId));
+
   if (project.isLoading) return <LoadingState message="Loading project" />;
   if (project.isError || !project.data) {
     const e = project.error as { message?: string; status?: number } | null;
@@ -57,9 +62,9 @@ export default function ProjectOverviewPage() {
   // Setup: each step is derived from real data, and links to where it's done.
   const steps = [
     { label: 'Interview method chosen', done: !!p.settings?.method, href: `/projects/${projectId}/settings` },
-    { label: 'Participants registered', done: participantList.length > 0, href: '/participants/new' },
-    { label: 'Interviews assigned', done: interviewList.length > 0, href: '/assignments/new' },
-    { label: 'Audio collected', done: recorded > 0, href: '/interviews' },
+    { label: 'Field team assigned', done: teamOnProject.length > 0, href: '/assignments' },
+    { label: 'Interviews collected', done: interviewList.length > 0, href: '/interviews' },
+    { label: 'Audio uploaded', done: recorded > 0, href: '/interviews' },
     { label: 'Findings drafted', done: findingList.length > 0, href: '/transcripts' },
   ];
   const nextStep = steps.find((s) => !s.done);
@@ -82,8 +87,8 @@ export default function ProjectOverviewPage() {
             )}
             {session.can('create.interviews') && (
               <Button asChild>
-                <Link href="/assignments/new">
-                  <ClipboardList className="h-4 w-4" aria-hidden /> Assign interview
+                <Link href="/assignments">
+                  <ClipboardList className="h-4 w-4" aria-hidden /> Field team
                 </Link>
               </Button>
             )}
@@ -132,6 +137,7 @@ export default function ProjectOverviewPage() {
         {(
           [
             ['interviews', `Interviews · ${interviewList.length}`],
+            ['team', `Field team · ${teamOnProject.length}`],
             ['participants', `Participants · ${participantList.length}`],
             ...(session.can('view.findings') ? [['findings', `Findings · ${findingList.length}`]] : []),
           ] as [Tab, string][]
@@ -159,9 +165,11 @@ export default function ProjectOverviewPage() {
             isError={interviews.isError}
             error={interviews.error as { message?: string } | null}
             onRetry={() => interviews.refetch()}
-            emptyDescription="Assign a consented participant to a field interviewer to begin collecting interviews for this project."
+            emptyDescription="Interviews appear here as your field team collects them. Add people to this project's field team to begin."
           />
         )}
+
+        {tab === 'team' && <FieldTeamPanel projectId={projectId} />}
 
         {tab === 'participants' &&
           (participants.isLoading ? (
@@ -171,12 +179,7 @@ export default function ProjectOverviewPage() {
               size="inline"
               icon={<UserRound />}
               title="No participants in this project"
-              description="Register participants here or from the field app; consent is recorded per participant."
-              action={
-                <Button variant="secondary" asChild>
-                  <Link href="/participants/new">Register participant</Link>
-                </Button>
-              }
+              description="Field workers register participants and record their consent on site when they interview them."
             />
           ) : (
             <ul className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-background-elevated shadow-soft">

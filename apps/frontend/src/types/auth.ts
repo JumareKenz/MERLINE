@@ -24,6 +24,8 @@ export interface SessionProfile extends Omit<AuthUser, 'roles'> {
   avatarUrl?: string | null;
   locale?: string;
   lastLoginAt?: string | null;
+  emailVerifiedAt?: string | null;
+  createdAt?: string;
   roles: { id: string; name: string; slug: string }[];
   permissions: string[];
 }
@@ -64,11 +66,12 @@ export interface ResetPasswordDto {
   password_confirmation: string;
 }
 
+/** PUT /auth/me — exactly what the API accepts (unknown fields are a 400). */
 export interface UpdateProfileDto {
   firstName?: string;
   lastName?: string;
-  email?: string;
-  avatar_url?: string;
+  phone?: string;
+  locale?: string;
 }
 
 export interface AuthSession {

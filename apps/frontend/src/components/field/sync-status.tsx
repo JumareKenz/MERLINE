@@ -11,8 +11,19 @@ import { cn } from '@/lib/utils';
  * server; offline, it says so and how much is waiting.
  */
 export function useSyncState() {
-  const { recordings, online, running, available } = useFieldOutbox();
-  const s = summarizeOutbox(recordings);
+  const { recordings, pending: pendingInterviews, online, running, available } = useFieldOutbox();
+  const base = summarizeOutbox(recordings);
+  // Interviews started on site but not yet created on the server are also
+  // unsynced work, even before any audio exists.
+  const unsyncedInterviews = pendingInterviews.filter(
+    (p) => p.status !== 'synced' && !recordings.some((r) => r.interviewId === p.id && r.status !== 'uploaded'),
+  );
+  const blockedInterviews = pendingInterviews.filter((p) => p.status === 'blocked').length;
+  const s = {
+    ...base,
+    pending: base.pending + unsyncedInterviews.length,
+    blocked: base.blocked + blockedInterviews,
+  };
   if (!available) return { tone: 'neutral' as const, label: 'Device storage unavailable', short: 'No storage', icon: AlertTriangle, ...s };
   if (!online)
     return {
