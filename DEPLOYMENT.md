@@ -70,6 +70,16 @@ Names only. Set these in the Vercel dashboard or with `vercel env add`.
 | `SIGNED_URL_TTL_SECONDS` | Default 900. |
 | `OPENAI_API_KEY` | Without at least one AI key, `/ai/chat` returns 503 by design — it no longer fabricates a reply. |
 | `OPENROUTER_API_KEY` | Alternative to the above. |
+| `GROQ_API_KEY` | Transcription (Whisper) and transcript translation. Without it, transcription jobs fail visibly with "GROQ_API_KEY is not set" and can be retried once it is set. Server-side only. |
+| `GROQ_STT_MODEL` | Default `whisper-large-v3`. `whisper-large-v3-turbo` is faster but measured markedly worse on Hausa. |
+| `GROQ_TRANSLATION_MODEL` | Default `openai/gpt-oss-120b` (falls back to `GROQ_MODEL`). |
+| `JOBS_WORKER` | `on` (default) or `off`. The job worker runs inside the API process; turn it off on extra instances that should only serve requests. |
+| `JOBS_POLL_MS`, `JOBS_CONCURRENCY` | Defaults 3000 and 2. |
+| `TRANSCRIPTION_CHUNK_SECONDS`, `TRANSCRIPTION_MAX_DIRECT_BYTES` | Defaults 600 and 20 MB: larger recordings are split at pauses with ffmpeg. |
+
+**System package:** `ffmpeg` (with `ffprobe`) on the API host. Needed to
+split recordings over 20 MB and to detect silent recordings; smaller files
+still transcribe without it.
 
 `ANTHROPIC_API_KEY` and `GOOGLE_AI_API_KEY` are **no longer read**. Those
 providers were removed in Phase 1: both were wired to an OpenAI-shaped

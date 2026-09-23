@@ -1,11 +1,13 @@
 import {
   IsDateString,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
 
 export class CreateInterviewDto {
   @IsUUID()
@@ -43,4 +45,9 @@ export class CreateInterviewDto {
   @IsOptional()
   @MaxLength(4000)
   notes?: string;
+
+  /** Language spoken, if known: used as the transcription hint. */
+  @IsOptional()
+  @IsIn(TRANSCRIPTION_LANGUAGE_CODES)
+  language?: string;
 }

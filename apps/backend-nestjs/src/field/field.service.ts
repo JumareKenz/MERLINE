@@ -228,6 +228,7 @@ export class FieldService extends BaseService {
           status: 'IN_PROGRESS',
           startedAt: grantedAt,
           location: dto.location?.trim() || undefined,
+          language: dto.language,
           organizationId,
         },
         include: INTERVIEW_INCLUDE,

@@ -11,6 +11,7 @@ import { ConsentsService } from '../consents/consents.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CreateFindingDto } from './dto/create-finding.dto';
 import { AddQuotationDto } from './dto/add-quotation.dto';
+import { segmentText } from '../transcripts/segment-text';
 
 /** Bump when the grounding instructions change, so a stored finding records which version produced it. */
 const AI_DRAFT_PROMPT_VERSION = 'finding-draft-v1';
@@ -126,7 +127,7 @@ export class FindingsService extends BaseService {
       }
 
       const excerpt = dto.excerpt.trim();
-      if (!segment.text.includes(excerpt)) {
+      if (!segmentText(segment).includes(excerpt)) {
         throw new BadRequestException(
           'Excerpt does not appear verbatim in the transcript segment text',
         );
@@ -288,7 +289,7 @@ export class FindingsService extends BaseService {
       transcript.segments.map((s) => [s.index, s]),
     );
     const transcriptText = transcript.segments
-      .map((s) => `[${s.index}] ${s.text}`)
+      .map((s) => `[${s.index}] ${segmentText(s)}`)
       .join('\n');
 
     const response = await this.aiGateway.sendMessage({
@@ -315,7 +316,7 @@ export class FindingsService extends BaseService {
         );
       }
       const excerpt = (q.excerpt ?? '').trim();
-      if (!excerpt || !segment.text.includes(excerpt)) {
+      if (!excerpt || !segmentText(segment).includes(excerpt)) {
         throw new ServiceUnavailableException(
           `AI analysis produced a quotation that does not appear verbatim in segment ${q.segmentIndex}`,
         );

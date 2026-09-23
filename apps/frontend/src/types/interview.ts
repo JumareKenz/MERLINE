@@ -8,6 +8,8 @@ export interface Interview {
   endedAt?: string | null;
   location?: string | null;
   notes?: string | null;
+  /** Language spoken, if known: the transcription hint. */
+  language?: string | null;
   organizationId: string;
   projectId?: string | null;
   participantId: string;
@@ -56,6 +58,7 @@ export interface CreateInterviewDto {
   scheduledAt?: string;
   location?: string;
   notes?: string;
+  language?: string;
 }
 
 export type InterviewList = Interview[];

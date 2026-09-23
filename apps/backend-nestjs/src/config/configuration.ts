@@ -47,6 +47,34 @@ export default () => {
       groqKey: process.env.GROQ_API_KEY ?? '',
       groqModel: process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b',
     },
+    // Speech-to-text and translation. Model names live here only, so they
+    // can be swapped without touching code.
+    transcription: {
+      groqBaseUrl:
+        process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
+      sttModel: process.env.GROQ_STT_MODEL ?? 'whisper-large-v3',
+      translationModel:
+        process.env.GROQ_TRANSLATION_MODEL ??
+        process.env.GROQ_MODEL ??
+        'openai/gpt-oss-120b',
+      // Recordings longer or larger than this are split with ffmpeg.
+      chunkSeconds: parseInt(
+        process.env.TRANSCRIPTION_CHUNK_SECONDS ?? '600',
+        10,
+      ),
+      maxDirectBytes: parseInt(
+        process.env.TRANSCRIPTION_MAX_DIRECT_BYTES ?? String(20 * 1024 * 1024),
+        10,
+      ),
+      ffmpegPath: process.env.FFMPEG_PATH ?? 'ffmpeg',
+      ffprobePath: process.env.FFPROBE_PATH ?? 'ffprobe',
+    },
+    jobs: {
+      // Set JOBS_WORKER=off to run an API instance that only enqueues.
+      workerEnabled: (process.env.JOBS_WORKER ?? 'on') !== 'off',
+      pollMs: parseInt(process.env.JOBS_POLL_MS ?? '3000', 10),
+      concurrency: parseInt(process.env.JOBS_CONCURRENCY ?? '2', 10),
+    },
     app: {
       url: process.env.APP_URL ?? 'http://localhost:4000',
       env,

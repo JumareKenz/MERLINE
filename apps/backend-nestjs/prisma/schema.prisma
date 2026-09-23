@@ -114,6 +114,7 @@ model Organization {
   interviews          Interview[]
   transcripts         Transcript[]
   transcriptSegments  TranscriptSegment[]
+  jobs                Job[]
   findings            Finding[]
   quotations          Quotation[]
 
@@ -168,6 +169,7 @@ model User {
   consentsWithdrawn    Consent[]     @relation("ConsentWithdrawnBy")
   interviewsConducted  Interview[]   @relation("InterviewInterviewer")
   transcriptsRequested Transcript[]  @relation("TranscriptRequester")
+  transcriptSegmentsEdited TranscriptSegment[] @relation("TranscriptSegmentEditor")
   findingsCreated      Finding[]     @relation("FindingCreator")
   findingsReviewed     Finding[]     @relation("FindingReviewer")
   quotationsCreated    Quotation[]   @relation("QuotationCreator")
@@ -1052,6 +1054,9 @@ model Interview {
   endedAt        DateTime?       @map("ended_at")
   location       String?
   notes          String?
+  /// Language spoken, if known (e.g. "en", "ha"). Passed to transcription
+  /// as a hint: Whisper does not reliably detect Hausa on its own.
+  language       String?
   organizationId String          @map("organization_id")
   projectId      String?         @map("project_id")
   participantId  String          @map("participant_id")
@@ -1087,19 +1092,36 @@ enum TranscriptStatus {
 }
 
 model Transcript {
-  id             String           @id @default(uuid())
-  status         TranscriptStatus @default(PENDING)
-  provider       String?
-  language       String?
-  errorMessage   String?          @map("error_message")
-  requestedAt    DateTime         @default(now()) @map("requested_at")
-  completedAt    DateTime?        @map("completed_at")
-  organizationId String           @map("organization_id")
-  interviewId    String           @map("interview_id")
-  mediaId        String           @map("media_id")
-  requestedById  String           @map("requested_by_id")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id                  String            @id @default(uuid())
+  status              TranscriptStatus  @default(PENDING)
+  provider            String?
+  language            String?
+  errorMessage        String?           @map("error_message")
+  requestedAt         DateTime          @default(now()) @map("requested_at")
+  completedAt         DateTime?         @map("completed_at")
+  // Groq transcription pipeline. `language` is what the recording was
+  // transcribed as; `requestedLanguage` is the hint given (if any), kept
+  // separately because with a hint the provider just echoes it back.
+  requestedLanguage   String?           @map("requested_language")
+  model               String?
+  /// Full machine transcript, as returned (segments hold the timing).
+  text                String?
+  durationMs          Int?              @map("duration_ms")
+  processingMs        Int?              @map("processing_ms")
+  attempts            Int               @default(0)
+  nextAttemptAt       DateTime?         @map("next_attempt_at")
+  // Optional machine translation, stored per segment alongside the original.
+  translationLanguage String?           @map("translation_language")
+  translationStatus   TranscriptStatus? @map("translation_status")
+  translationModel    String?           @map("translation_model")
+  translationError    String?           @map("translation_error")
+  translatedAt        DateTime?         @map("translated_at")
+  organizationId      String            @map("organization_id")
+  interviewId         String            @map("interview_id")
+  mediaId             String            @map("media_id")
+  requestedById       String            @map("requested_by_id")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
   organization Organization        @relation(fields: [organizationId], references: [id])
   interview    Interview           @relation(fields: [interviewId], references: [id])
@@ -1113,18 +1135,27 @@ model Transcript {
 }
 
 model TranscriptSegment {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   index          Int
-  startMs        Int      @map("start_ms")
-  endMs          Int      @map("end_ms")
-  speakerLabel   String?  @map("speaker_label")
+  startMs        Int       @map("start_ms")
+  endMs          Int       @map("end_ms")
+  speakerLabel   String?   @map("speaker_label")
+  /// The machine transcript. Never overwritten: corrections go to editedText.
   text           String
-  organizationId String   @map("organization_id")
-  transcriptId   String   @map("transcript_id")
-  createdAt      DateTime @default(now()) @map("created_at")
+  /// 0–1, from the model's average log-probability. Low values mark
+  /// segments worth checking by ear.
+  confidence     Float?
+  editedText     String?   @map("edited_text")
+  editedById     String?   @map("edited_by_id")
+  editedAt       DateTime? @map("edited_at")
+  translatedText String?   @map("translated_text")
+  organizationId String    @map("organization_id")
+  transcriptId   String    @map("transcript_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id])
   transcript   Transcript   @relation(fields: [transcriptId], references: [id])
+  editedBy     User?        @relation("TranscriptSegmentEditor", fields: [editedById], references: [id])
   quotations   Quotation[]
 
   @@unique([transcriptId, index])
@@ -1198,4 +1229,39 @@ model Quotation {
   @@index([organizationId])
   @@index([findingId])
   @@map("quotations")
+}
+
+// PHASE 2 — background jobs. A database-backed queue processed inside the
+// API (see src/jobs). Failed jobs stay in the table, visible and retryable.
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model Job {
+  id             String    @id @default(uuid())
+  type           String
+  status         JobStatus @default(QUEUED)
+  payload        Json      @default("{}")
+  /// At most one QUEUED/RUNNING job per key (e.g. "transcribe:<id>").
+  dedupeKey      String?   @map("dedupe_key")
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(6) @map("max_attempts")
+  runAt          DateTime  @default(now()) @map("run_at")
+  lockedAt       DateTime? @map("locked_at")
+  lockedBy       String?   @map("locked_by")
+  lastError      String?   @map("last_error")
+  completedAt    DateTime? @map("completed_at")
+  organizationId String    @map("organization_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([status, runAt])
+  @@index([organizationId])
+  @@index([dedupeKey])
+  @@map("jobs")
 }

@@ -23,6 +23,9 @@ import { ConsentsService } from '../../consents/consents.service';
 import { InterviewsService } from '../../interviews/interviews.service';
 import { TranscriptsService } from '../../transcripts/transcripts.service';
 import { TranscriptionProviderService } from '../../transcripts/transcription-provider.service';
+import { TranscriptionPipelineService } from '../../transcripts/transcription-pipeline.service';
+import { TranscriptionJobs } from '../../transcripts/transcription-jobs';
+import { JobsService } from '../../jobs/jobs.service';
 import { MediaService } from '../../media/media.service';
 import { StorageService } from '../../storage/storage.service';
 
@@ -46,6 +49,7 @@ describeDb('consent enforcement (database)', () => {
   let consents: ConsentsService;
   let interviews: InterviewsService;
   let transcripts: TranscriptsService;
+  let jobs: JobsService;
 
   function audioFile(name: string, bytes = 1024): Express.Multer.File {
     return {
@@ -105,19 +109,25 @@ describeDb('consent enforcement (database)', () => {
     const mediaService = new MediaService(prisma as any, storageService);
     interviews = new InterviewsService(prisma as any, consents, mediaService);
 
-    // No OPENAI_API_KEY on purpose: proves the consent gate refuses the
-    // request before the transcription provider is ever called.
-    const aiConfig = new ConfigService({ ai: { openaiKey: '' } });
-    const transcriptionProvider = new TranscriptionProviderService(aiConfig);
-    transcripts = new TranscriptsService(
+    transcripts = new TranscriptsService(prisma as any, consents);
+
+    // No GROQ_API_KEY on purpose: proves the job fails visibly, and that
+    // the consent gate refuses before the provider could ever be called.
+    const aiConfig = new ConfigService({ ai: { groqKey: '' } });
+    jobs = new JobsService(prisma as any);
+    const pipeline = new TranscriptionPipelineService(
       prisma as any,
-      consents,
       storageService,
-      transcriptionProvider,
+      new TranscriptionProviderService(aiConfig),
+      aiConfig,
     );
+    new TranscriptionJobs(jobs, pipeline).onModuleInit();
   }, 60_000);
 
   afterAll(async () => {
+    await prisma.job.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
     await prisma.transcript.deleteMany({
       where: { organizationId: { in: [orgAId, orgBId] } },
     });
@@ -377,7 +387,7 @@ describeDb('consent enforcement (database)', () => {
       expect(rows).toHaveLength(0);
     });
 
-    it('creates a PENDING transcript then fails clearly when no provider is configured, never fabricating text', async () => {
+    it('queues transcription on upload, then fails visibly when no provider is configured, never fabricating text', async () => {
       const participant = await participants.create(
         { displayName: `TxYes ${run}` },
         userAId,
@@ -399,7 +409,7 @@ describeDb('consent enforcement (database)', () => {
         userAId,
         orgAId,
       );
-      const media = await interviews.uploadRecording(
+      await interviews.uploadRecording(
         interview.id,
         audioFile('unconfigured-provider.webm'),
         undefined,
@@ -407,18 +417,22 @@ describeDb('consent enforcement (database)', () => {
         orgAId,
       );
 
-      await expect(
-        transcripts.requestTranscript(interview.id, media.id, userAId, orgAId),
-      ).rejects.toThrow();
-
-      const stored = await prisma.transcript.findFirst({
+      // Queued automatically by the upload, not run in the request.
+      const queued = await prisma.transcript.findFirst({
         where: { interviewId: interview.id },
       });
-      expect(stored?.status).toBe('FAILED');
-      expect(stored?.errorMessage).toMatch(/no transcription provider/i);
+      expect(queued?.status).toBe('PENDING');
+
+      await jobs.drain({ organizationId: orgAId });
+
+      const stored = await prisma.transcript.findUniqueOrThrow({
+        where: { id: queued!.id },
+      });
+      expect(stored.status).toBe('FAILED');
+      expect(stored.errorMessage).toMatch(/GROQ_API_KEY is not set/);
 
       const segments = await prisma.transcriptSegment.findMany({
-        where: { transcriptId: stored!.id },
+        where: { transcriptId: stored.id },
       });
       expect(segments).toHaveLength(0);
     });

@@ -57,6 +57,8 @@ export function useUploadRecording() {
       API.interviews.uploadRecording(interviewId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['interviews', 'recordings', variables.interviewId] });
+      // Transcription is queued automatically when consent allows it.
+      queryClient.invalidateQueries({ queryKey: ['transcripts', 'interview', variables.interviewId] });
       toast.success('Recording uploaded');
     },
     onError: (error: Error) => {

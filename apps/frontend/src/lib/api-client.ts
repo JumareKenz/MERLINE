@@ -691,10 +691,14 @@ export const API = {
       }),
     get: (id: string) =>
       apiClient.get<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}`),
-    request: (data: { interviewId: string; mediaId: string }) =>
+    request: (data: { interviewId: string; mediaId: string; language?: string }) =>
       apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>('/transcripts', data),
-    retry: (id: string) =>
-      apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}/retry`),
+    retry: (id: string, language?: string) =>
+      apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}/retry`, language ? { language } : {}),
+    editSegment: (id: string, segmentId: string, text: string | null) =>
+      apiClient.patch<ApiTypes.Envelope<TranscriptTypes.TranscriptSegment>>(`/transcripts/${id}/segments/${segmentId}`, { text }),
+    translate: (id: string, language = 'en') =>
+      apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}/translate`, { language }),
   },
   findings: {
     list: (projectId?: string) =>

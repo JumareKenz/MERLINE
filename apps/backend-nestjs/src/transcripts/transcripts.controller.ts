@@ -2,8 +2,10 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -13,8 +15,19 @@ import type { AuthenticatedUser } from '../common/interfaces';
 import { TranscriptsService } from './transcripts.service';
 import { CreateTranscriptDto } from './dto/create-transcript.dto';
 import { AskTranscriptDto } from './dto/ask-transcript.dto';
+import {
+  EditSegmentDto,
+  RetryTranscriptDto,
+  TranslateTranscriptDto,
+} from './dto/transcript-actions.dto';
 import { TranscriptDialogueService } from './transcript-dialogue.service';
 
+/**
+ * Transcripts are administrator-only: no other system role holds
+ * `view.transcripts`, `create.transcripts` or `edit.transcripts`.
+ * Transcription itself runs in the job worker; create and retry return a
+ * PENDING transcript immediately (202).
+ */
 @Controller('transcripts')
 export class TranscriptsController {
   constructor(
@@ -44,6 +57,7 @@ export class TranscriptsController {
   }
 
   @Post()
+  @HttpCode(202)
   @Permissions('create.transcripts')
   async create(
     @Body() dto: CreateTranscriptDto,
@@ -54,6 +68,7 @@ export class TranscriptsController {
       dto.mediaId,
       user.id,
       user.organizationId,
+      dto.language,
     );
   }
 
@@ -67,12 +82,48 @@ export class TranscriptsController {
   }
 
   @Post(':id/retry')
+  @HttpCode(202)
   @Permissions('create.transcripts')
   async retry(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RetryTranscriptDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.transcriptsService.retry(id, user.organizationId);
+    return this.transcriptsService.retry(id, user.organizationId, dto.language);
+  }
+
+  /** Correct one segment; the machine text is kept alongside. */
+  @Patch(':id/segments/:segmentId')
+  @Permissions('edit.transcripts')
+  async editSegment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('segmentId', ParseUUIDPipe) segmentId: string,
+    @Body() dto: EditSegmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.transcriptsService.editSegment(
+      id,
+      segmentId,
+      dto.text,
+      user.id,
+      user.organizationId,
+    );
+  }
+
+  /** Queue a machine translation (needs consent to AI analysis). */
+  @Post(':id/translate')
+  @HttpCode(202)
+  @Permissions('edit.transcripts', 'use.ai')
+  async translate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: TranslateTranscriptDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.transcriptsService.translate(
+      id,
+      user.organizationId,
+      dto.language,
+    );
   }
 
   /** AI Dialogue: a grounded, cited answer from one transcript. Nothing is stored. */

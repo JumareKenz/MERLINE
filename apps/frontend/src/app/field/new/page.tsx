@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check, CloudOff } from 'lucide-react';
@@ -10,7 +10,18 @@ import { FieldConsentForm } from '@/components/field/field-consent-form';
 import { useFieldInterviews } from '@/hooks/use-field-interviews';
 import { useAuthStore } from '@/stores/auth-store';
 import { useFieldOutbox } from '@/stores/field-outbox-store';
+import { INTERVIEW_LANGUAGES } from '@/lib/languages';
 import { cn } from '@/lib/utils';
+
+const LAST_LANGUAGE_KEY = 'merline.field.lastLanguage';
+
+function lastLanguage(): string {
+  try {
+    return localStorage.getItem(LAST_LANGUAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
 
 type Step = 'who' | 'consent';
 
@@ -33,6 +44,10 @@ function StartInterview() {
   const [name, setName] = useState('');
   const [ref, setRef] = useState('');
   const [location, setLocation] = useState('');
+  // '' = not sure; the server then lets the transcription model detect it.
+  const [language, setLanguage] = useState('');
+  // After mount: the page is prerendered, so storage is read on the client.
+  useEffect(() => setLanguage(lastLanguage()), []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -169,6 +184,33 @@ function StartInterview() {
             )}
           </div>
 
+          <fieldset>
+            <legend className="mb-2 text-[16px] font-semibold text-foreground">Language of the interview</legend>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-describedby="lang-hint">
+              {[...INTERVIEW_LANGUAGES, { code: '', label: 'Not sure' }].map((l) => {
+                const selected = language === l.code;
+                return (
+                  <button
+                    key={l.code || 'unsure'}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setLanguage(l.code)}
+                    className={cn(
+                      'min-h-control-field rounded-xl px-3 text-[16px] font-semibold ring-1 transition-colors',
+                      selected ? 'bg-navy text-white ring-navy' : 'bg-field-card text-foreground ring-field-line',
+                    )}
+                  >
+                    {l.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p id="lang-hint" className="mt-1.5 text-[14px] text-foreground-secondary">
+              Choosing the language makes the transcript much more accurate, especially for Hausa.
+            </p>
+          </fieldset>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="p-ref" className="mb-1.5 block text-[16px] font-semibold text-foreground">
@@ -195,6 +237,11 @@ function StartInterview() {
           onSubmit={async (consent) => {
             if (!chosenProject) return;
             setSaving(true);
+            try {
+              localStorage.setItem(LAST_LANGUAGE_KEY, language);
+            } catch {
+              // Private mode or storage blocked: only the default is lost.
+            }
             const id = crypto.randomUUID();
             await addPending({
               id,
@@ -215,6 +262,7 @@ function StartInterview() {
                 capturedAt: new Date().toISOString(),
               },
               location: location.trim() || undefined,
+              language: language || undefined,
               createdAt: new Date().toISOString(),
               status: 'pending',
               attempts: 0,

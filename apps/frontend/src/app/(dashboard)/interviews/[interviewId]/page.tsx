@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AudioLines, CalendarClock, MapPin, UserRound } from 'lucide-react';
+import { AudioLines, CalendarClock, MapPin, UserRound, Languages } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -19,6 +19,7 @@ import { useInterview, useRecordings, useUpdateInterviewStatus } from '@/hooks/u
 import { useConsent } from '@/hooks/use-consents';
 import { useTranscriptsForInterview } from '@/hooks/use-transcripts';
 import { useSession } from '@/hooks/use-session';
+import { languageLabel } from '@/lib/languages';
 import { formatDateTime } from '@/lib/utils';
 import type { InterviewStatus } from '@/types/interview';
 
@@ -44,7 +45,9 @@ export default function InterviewDetailPage() {
   const { data, isLoading, isError, error, refetch } = useInterview(interviewId);
   const interview = data?.data?.data;
   const { data: consentData } = useConsent(interview?.consentId || '');
-  const { data: recordingsData, isLoading: recordingsLoading } = useRecordings(interviewId);
+  // Playback and transcripts are administrator-only; don't ask for what the API will refuse.
+  const canPlay = session.can('view.recordings');
+  const { data: recordingsData, isLoading: recordingsLoading } = useRecordings(canPlay ? interviewId : '');
   const { data: transcriptsData } = useTranscriptsForInterview(session.can('view.transcripts') ? interviewId : '');
   const updateStatus = useUpdateInterviewStatus();
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -89,7 +92,18 @@ export default function InterviewDetailPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <Panel title="Recordings">
-            {recordingsLoading ? (
+            {!canPlay ? (
+              <EmptyState
+                size="inline"
+                icon={<AudioLines />}
+                title={
+                  interview._count?.recordings
+                    ? `${interview._count.recordings} recording${interview._count.recordings === 1 ? '' : 's'} on file`
+                    : 'No audio yet'
+                }
+                description="Listening to recordings and reading transcripts is limited to administrators."
+              />
+            ) : recordingsLoading ? (
               <LoadingState rows={2} />
             ) : recordings.length === 0 ? (
               <EmptyState
@@ -111,7 +125,9 @@ export default function InterviewDetailPage() {
                       <TranscriptStatus
                         interviewId={interviewId}
                         recording={recording}
+                        // Newest first: the latest attempt for this recording.
                         transcript={transcripts.find((t) => t.mediaId === recording.id)}
+                        interviewLanguage={interview.language}
                         allowTranscription={!!consent?.allowTranscription && !consent?.withdrawnAt}
                         allowAiAnalysis={!!consent?.allowAiAnalysis && !consent?.withdrawnAt}
                       />
@@ -175,6 +191,13 @@ export default function InterviewDetailPage() {
                   <dd className="text-foreground-secondary">{interview.location}</dd>
                 </div>
               )}
+              <div className="flex gap-3">
+                <dt className="sr-only">Language</dt>
+                <Languages className="mt-0.5 h-4 w-4 shrink-0 text-foreground-tertiary" aria-hidden />
+                <dd className="text-foreground-secondary">
+                  {languageLabel(interview.language) ?? 'Language not recorded (detected automatically)'}
+                </dd>
+              </div>
             </dl>
           </Panel>
 

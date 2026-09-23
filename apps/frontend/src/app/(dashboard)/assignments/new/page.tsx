@@ -15,6 +15,7 @@ import { useCreateInterview } from '@/hooks/use-interviews';
 import { useParticipants } from '@/hooks/use-participants';
 import { useResearchProjects } from '@/hooks/use-research-projects';
 import { API } from '@/lib/api-client';
+import { INTERVIEW_LANGUAGES } from '@/lib/languages';
 
 /**
  * Allocates an interview to a field interviewer. The API requires a consent
@@ -38,6 +39,7 @@ export default function NewAssignmentPage() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [language, setLanguage] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const participants = useParticipants(projectId || undefined);
@@ -77,6 +79,7 @@ export default function NewAssignmentPage() {
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
         location: location.trim() || undefined,
         notes: notes.trim() || undefined,
+        language: language || undefined,
       })
       .catch(() => null);
     if (result) router.push('/assignments');
@@ -212,6 +215,17 @@ export default function NewAssignmentPage() {
             <Input id="where" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={200} placeholder="e.g. Ward 4 health post" />
           </Field>
         </div>
+
+        <Field id="language" label="Language of the interview" optional hint="Used to transcribe the recording. Always set it for Hausa: it is not detected reliably.">
+          <NativeSelect id="language" value={language} onChange={(e) => setLanguage(e.target.value)} aria-describedby="language-hint">
+            <option value="">Not sure (detect automatically)</option>
+            {INTERVIEW_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
 
         <Field id="notes" label="Briefing notes" optional hint="Shown to the interviewer on the preparation screen.">
           <Textarea id="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-describedby="notes-hint" />

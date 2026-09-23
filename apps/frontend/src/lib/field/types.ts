@@ -111,6 +111,8 @@ export interface PendingInterview {
     capturedAt: string;
   };
   location?: string;
+  /** Language spoken (e.g. "ha"): the transcription hint. */
+  language?: string;
   createdAt: string;
   status: 'pending' | 'synced' | 'blocked';
   lastError?: string;

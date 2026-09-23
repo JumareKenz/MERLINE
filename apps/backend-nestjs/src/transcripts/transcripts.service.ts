@@ -1,26 +1,21 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Transcript } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
 import { ConsentsService } from '../consents/consents.service';
-import { StorageService } from '../storage/storage.service';
-import { TranscriptionProviderService } from './transcription-provider.service';
+import { queueTranscription, queueTranslation } from './transcription-queue';
+import { segmentText } from './segment-text';
 
 @Injectable()
 export class TranscriptsService extends BaseService {
-  private readonly logger = new Logger(TranscriptsService.name);
-
   constructor(
     prisma: PrismaService,
     private readonly consentsService: ConsentsService,
-    private readonly storageService: StorageService,
-    private readonly transcriptionProvider: TranscriptionProviderService,
   ) {
     super(prisma);
   }
@@ -28,7 +23,38 @@ export class TranscriptsService extends BaseService {
   async findById(id: string, organizationId: string) {
     const transcript = await this.prisma.transcript.findFirst({
       where: { id, organizationId },
-      include: { segments: { orderBy: { index: 'asc' } } },
+      include: {
+        segments: {
+          orderBy: { index: 'asc' },
+          include: {
+            editedBy: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
+        media: {
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            size: true,
+            metadata: true,
+          },
+        },
+        interview: {
+          select: {
+            id: true,
+            projectId: true,
+            language: true,
+            participant: { select: { id: true, displayName: true } },
+            consent: {
+              select: {
+                allowAiAnalysis: true,
+                allowQuotation: true,
+                withdrawnAt: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!transcript) {
@@ -41,6 +67,7 @@ export class TranscriptsService extends BaseService {
   async findAllForOrganization(organizationId: string) {
     return this.prisma.transcript.findMany({
       where: { organizationId, interview: { deletedAt: null } },
+      omit: { text: true },
       include: {
         interview: {
           select: {
@@ -59,22 +86,23 @@ export class TranscriptsService extends BaseService {
   async findForInterview(interviewId: string, organizationId: string) {
     return this.prisma.transcript.findMany({
       where: { interviewId, organizationId },
+      omit: { text: true },
+      include: { _count: { select: { segments: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   /**
-   * Creates the Transcript row and immediately attempts processing. There is
-   * no background queue yet (known gap — Redis is provisioned, unused), so
-   * this call is synchronous: it blocks for the duration of the transcription
-   * call and returns either a COMPLETED transcript with real segments, or
-   * throws after leaving a durable FAILED row behind for `retry` to pick up.
+   * Queues a transcript for a recording (for example one uploaded before
+   * automatic transcription, or again with a different language hint).
+   * Returns at once with a PENDING transcript; the job worker does the work.
    */
   async requestTranscript(
     interviewId: string,
     mediaId: string,
     userId: string,
     organizationId: string,
+    language?: string,
   ): Promise<Transcript> {
     const interview = await this.prisma.interview.findFirst({
       where: { id: interviewId, organizationId, deletedAt: null },
@@ -96,29 +124,43 @@ export class TranscriptsService extends BaseService {
     );
     this.consentsService.assertScope(consent, 'allowTranscription');
 
-    const transcript = await this.prisma.transcript.create({
-      data: {
-        status: 'PENDING',
-        organizationId,
-        interviewId,
-        mediaId,
-        requestedById: userId,
-      },
-    });
+    return this.executeTransaction(async (tx) => {
+      const active = await tx.transcript.findFirst({
+        where: { mediaId, status: { in: ['PENDING', 'PROCESSING'] } },
+      });
+      if (active) {
+        throw new ConflictException(
+          'This recording is already being transcribed',
+        );
+      }
 
-    return this.process(
-      transcript,
-      media.path,
-      media.mimeType,
-      media.filename,
-      organizationId,
-    );
+      const transcript = await tx.transcript.create({
+        data: {
+          status: 'PENDING',
+          organizationId,
+          interviewId,
+          mediaId,
+          requestedById: userId,
+          requestedLanguage: language ?? interview.language,
+        },
+      });
+      await queueTranscription(tx, transcript);
+      return transcript;
+    });
   }
 
-  /** Re-attempts processing for a transcript left in FAILED. Re-checks consent. */
-  async retry(id: string, organizationId: string): Promise<Transcript> {
+  /**
+   * Queues a FAILED transcript again, optionally with a different language
+   * hint. Consent is re-checked here and again when the job runs.
+   */
+  async retry(
+    id: string,
+    organizationId: string,
+    language?: string,
+  ): Promise<Transcript> {
     const transcript = await this.prisma.transcript.findFirst({
       where: { id, organizationId },
+      include: { interview: true },
     });
     if (!transcript) {
       throw new NotFoundException('Transcript not found');
@@ -129,100 +171,131 @@ export class TranscriptsService extends BaseService {
       );
     }
 
-    const interview = await this.prisma.interview.findFirstOrThrow({
-      where: { id: transcript.interviewId },
-    });
     const consent = await this.consentsService.findById(
-      interview.consentId,
+      transcript.interview.consentId,
       organizationId,
     );
     this.consentsService.assertScope(consent, 'allowTranscription');
 
-    const media = await this.prisma.media.findFirstOrThrow({
-      where: { id: transcript.mediaId },
+    return this.executeTransaction(async (tx) => {
+      const updated = await tx.transcript.update({
+        where: { id: transcript.id },
+        data: {
+          status: 'PENDING',
+          errorMessage: null,
+          nextAttemptAt: null,
+          attempts: 0,
+          ...(language && { requestedLanguage: language }),
+        },
+      });
+      await queueTranscription(tx, updated);
+      return updated;
     });
+  }
 
-    return this.process(
-      transcript,
-      media.path,
-      media.mimeType,
-      media.filename,
+  /**
+   * Stores a human correction next to the machine text (which is never
+   * changed). `null`, blank, or text identical to the machine version
+   * clears the correction. A correction may not remove words that a
+   * finding quotes from this segment: the evidence must stay verbatim.
+   */
+  async editSegment(
+    transcriptId: string,
+    segmentId: string,
+    text: string | null,
+    userId: string,
+    organizationId: string,
+  ) {
+    const segment = await this.prisma.transcriptSegment.findFirst({
+      where: { id: segmentId, transcriptId, organizationId },
+      include: {
+        transcript: { select: { status: true } },
+        quotations: { select: { excerpt: true } },
+      },
+    });
+    if (!segment) {
+      throw new NotFoundException('Transcript segment not found');
+    }
+    if (segment.transcript.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        'Only a completed transcript can be edited',
+      );
+    }
+
+    const corrected = text?.trim() || null;
+    const editedText = corrected === segment.text ? null : corrected;
+    const effective = editedText ?? segment.text;
+
+    const broken = segment.quotations.find(
+      (q) => !effective.includes(q.excerpt),
+    );
+    if (broken) {
+      throw new BadRequestException(
+        `A finding quotes "${broken.excerpt.slice(0, 80)}" from this segment; keep those words unchanged`,
+      );
+    }
+
+    return this.prisma.transcriptSegment.update({
+      where: { id: segment.id },
+      data: {
+        ...(editedText
+          ? { editedText, editedById: userId, editedAt: new Date() }
+          : { editedText: null, editedById: null, editedAt: null }),
+        // A translation of the old wording would now be misleading.
+        ...(effective !== segmentText(segment) && { translatedText: null }),
+      },
+      include: {
+        editedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  /**
+   * Queues a machine translation of the transcript (stored per segment,
+   * alongside the original). Translation is AI processing of the
+   * participant's words, so it needs consent to AI analysis.
+   */
+  async translate(id: string, organizationId: string, language = 'en') {
+    const transcript = await this.prisma.transcript.findFirst({
+      where: { id, organizationId },
+      include: {
+        interview: true,
+        _count: { select: { segments: true } },
+      },
+    });
+    if (!transcript) {
+      throw new NotFoundException('Transcript not found');
+    }
+    if (transcript.status !== 'COMPLETED' || transcript._count.segments === 0) {
+      throw new BadRequestException(
+        'Only a completed transcript with speech can be translated',
+      );
+    }
+
+    const consent = await this.consentsService.findById(
+      transcript.interview.consentId,
       organizationId,
     );
-  }
+    this.consentsService.assertScope(consent, 'allowAiAnalysis');
 
-  private async process(
-    transcript: Transcript,
-    objectKey: string,
-    mimeType: string,
-    filename: string,
-    organizationId: string,
-  ): Promise<Transcript> {
-    await this.prisma.transcript.update({
-      where: { id: transcript.id },
-      data: { status: 'PROCESSING', errorMessage: null },
-    });
+    if (
+      transcript.translationStatus === 'PENDING' ||
+      transcript.translationStatus === 'PROCESSING'
+    ) {
+      throw new ConflictException('A translation is already in progress');
+    }
 
-    try {
-      const audio = await this.readObject(objectKey);
-      const result = await this.transcriptionProvider.transcribe(
-        audio,
-        mimeType,
-        filename,
-      );
-
-      return await this.executeTransaction(async (tx) => {
-        // Re-running (retry) must not duplicate segments from a prior attempt.
-        await tx.transcriptSegment.deleteMany({
-          where: { transcriptId: transcript.id },
-        });
-
-        await tx.transcriptSegment.createMany({
-          data: result.segments.map((segment) => ({
-            transcriptId: transcript.id,
-            organizationId,
-            index: segment.index,
-            startMs: segment.startMs,
-            endMs: segment.endMs,
-            text: segment.text,
-          })),
-        });
-
-        return tx.transcript.update({
-          where: { id: transcript.id },
-          data: {
-            status: 'COMPLETED',
-            provider: result.provider,
-            language: result.language,
-            completedAt: new Date(),
-            errorMessage: null,
-          },
-        });
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Transcript ${transcript.id} failed: ${message}`);
-
-      await this.prisma.transcript.update({
+    return this.executeTransaction(async (tx) => {
+      await queueTranslation(tx, transcript, language);
+      return tx.transcript.update({
         where: { id: transcript.id },
-        data: { status: 'FAILED', errorMessage: message },
+        data: {
+          translationStatus: 'PENDING',
+          translationLanguage: language,
+          translationError: null,
+        },
+        omit: { text: true },
       });
-
-      // Same contract as AiGatewayService: fail loudly, never fabricate.
-      throw new ServiceUnavailableException({
-        message,
-        transcriptId: transcript.id,
-        status: 'FAILED',
-      });
-    }
-  }
-
-  private async readObject(key: string): Promise<Buffer> {
-    const stream = await this.storageService.getObjectStream(key);
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks);
+    });
   }
 }

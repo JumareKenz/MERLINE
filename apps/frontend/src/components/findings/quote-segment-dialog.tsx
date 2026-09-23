@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFindings, useCreateFinding, useAddQuotation } from '@/hooks/use-findings';
-import type { TranscriptSegment } from '@/types/transcript';
+import { segmentText, type TranscriptSegment } from '@/types/transcript';
 
 interface QuoteSegmentDialogProps {
   segment: TranscriptSegment;
@@ -20,7 +20,8 @@ interface QuoteSegmentDialogProps {
 
 export function QuoteSegmentDialog({ segment, open, onOpenChange }: QuoteSegmentDialogProps) {
   const router = useRouter();
-  const [excerpt, setExcerpt] = useState(segment.text);
+  // The corrected text when there is one: that is what the API checks the excerpt against.
+  const [excerpt, setExcerpt] = useState(segmentText(segment));
   const [title, setTitle] = useState('');
   const [interpretation, setInterpretation] = useState('');
   const [existingFindingId, setExistingFindingId] = useState('');

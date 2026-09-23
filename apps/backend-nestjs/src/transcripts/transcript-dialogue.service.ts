@@ -9,6 +9,7 @@ import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
 import { ConsentsService } from '../consents/consents.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
+import { segmentText } from './segment-text';
 
 /** Bump when the grounding instructions change. Returned with every answer. */
 export const DIALOGUE_PROMPT_VERSION = 'transcript-dialogue-v1';
@@ -87,7 +88,7 @@ export class TranscriptDialogueService extends BaseService {
     const transcriptText = transcript.segments
       .map(
         (s) =>
-          `[${s.index}]${s.speakerLabel ? ` (${s.speakerLabel})` : ''} ${s.text}`,
+          `[${s.index}]${s.speakerLabel ? ` (${s.speakerLabel})` : ''} ${segmentText(s)}`,
       )
       .join('\n');
     if (transcriptText.length > MAX_TRANSCRIPT_CHARS) {
@@ -116,7 +117,7 @@ export class TranscriptDialogueService extends BaseService {
         );
       }
       const excerpt = (c.excerpt ?? '').trim();
-      if (!excerpt || !segment.text.includes(excerpt)) {
+      if (!excerpt || !segmentText(segment).includes(excerpt)) {
         throw new ServiceUnavailableException(
           `The answer quoted text that does not appear in segment ${c.segmentIndex}; it was discarded`,
         );

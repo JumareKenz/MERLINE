@@ -548,10 +548,26 @@ export class MediaService extends BaseService {
     return `org/${organizationId}/recording-parts/${userId}/${uploadId}/${String(index).padStart(6, '0')}`;
   }
 
-  /** Tenant-scoped. All reads go through here. */
-  async findById(id: string, organizationId: string) {
+  /**
+   * Tenant-scoped. All reads go through here.
+   *
+   * Interview recordings are excluded unless `includeRecordings` is set:
+   * the generic /media routes are gated by `view.media`, which non-admin
+   * roles hold, while recordings are administrator-only and are reached
+   * through the interview routes (`view.recordings`).
+   */
+  async findById(
+    id: string,
+    organizationId: string,
+    options: { includeRecordings?: boolean } = {},
+  ) {
     const media = await this.prisma.media.findFirst({
-      where: { id, organizationId, deletedAt: null },
+      where: {
+        id,
+        organizationId,
+        deletedAt: null,
+        ...(!options.includeRecordings && { interviewId: null }),
+      },
     });
 
     if (!media) {
@@ -567,8 +583,12 @@ export class MediaService extends BaseService {
    * in `findById`; the URL itself carries no identity, so it must never be
    * minted before that check.
    */
-  async getDownloadUrl(id: string, organizationId: string) {
-    const media = await this.findById(id, organizationId);
+  async getDownloadUrl(
+    id: string,
+    organizationId: string,
+    options: { includeRecordings?: boolean } = {},
+  ) {
+    const media = await this.findById(id, organizationId, options);
 
     if (!(await this.storage.objectExists(media.path))) {
       throw new NotFoundException(
@@ -613,7 +633,12 @@ export class MediaService extends BaseService {
 
   async listForOrganization(organizationId: string, type?: MediaType) {
     return this.prisma.media.findMany({
-      where: { organizationId, deletedAt: null, ...(type ? { type } : {}) },
+      where: {
+        organizationId,
+        deletedAt: null,
+        interviewId: null,
+        ...(type ? { type } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });

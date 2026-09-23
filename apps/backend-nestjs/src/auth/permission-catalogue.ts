@@ -77,6 +77,13 @@ export const PERMISSION_SLUGS = PERMISSION_CATALOGUE.map((p) => p.slug);
  * `field-interviewer` is intentionally narrow. A field device is the most
  * likely thing to be lost or shared, so it gets the least authority — notably
  * no access to transcripts when those arrive.
+ *
+ * Recordings and transcripts are administrator-only (decision 2026-09-23):
+ * `view.recordings` and the `*.transcripts` permissions belong to no other
+ * system role. Uploading a recording (`upload.recordings`) is separate and
+ * stays with the roles that conduct interviews. Grants removed here are
+ * removed from existing organizations by a data migration, since
+ * provisioning only ever adds.
  */
 export interface RoleDefinition {
   slug: string;
@@ -119,11 +126,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.interviews',
       'create.interviews',
       'edit.interviews',
-      'view.recordings',
       'upload.recordings',
-      'view.transcripts',
-      'create.transcripts',
-      'edit.transcripts',
       'view.findings',
       'create.findings',
       'edit.findings',
@@ -153,11 +156,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.interviews',
       'create.interviews',
       'edit.interviews',
-      'view.recordings',
       'upload.recordings',
-      'view.transcripts',
-      'create.transcripts',
-      'edit.transcripts',
       'view.findings',
       'create.findings',
       'edit.findings',
@@ -177,11 +176,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.interviews',
       'create.interviews',
       'edit.interviews',
-      'view.recordings',
       'upload.recordings',
-      // Deliberately no transcript or finding access — a field device is the
-      // most likely thing to be lost or shared, so it carries the least
-      // authority once the interview leaves the field.
+      // Upload only: no playback, transcript or finding access — a field
+      // device is the most likely thing to be lost or shared, so it carries
+      // the least authority once the interview leaves the field.
     ],
   },
   {
@@ -195,8 +193,6 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.participants',
       'view.consents',
       'view.interviews',
-      'view.transcripts',
-      'edit.transcripts',
       'view.findings',
       'approve.findings',
     ],

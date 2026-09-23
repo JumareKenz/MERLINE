@@ -4,12 +4,14 @@ import {
   IsDateString,
   IsEnum,
   IsNotEmpty,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
 import { ConsentMethod } from '@prisma/client';
 
 export class FieldParticipantDto {
@@ -68,4 +70,9 @@ export class CreateFieldInterviewDto {
   @IsString()
   @MaxLength(200)
   location?: string;
+
+  /** Language spoken, if known: used as the transcription hint. */
+  @IsOptional()
+  @IsIn(TRANSCRIPTION_LANGUAGE_CODES)
+  language?: string;
 }

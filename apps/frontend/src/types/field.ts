@@ -30,6 +30,7 @@ export interface CreateFieldInterviewInput {
   participant: { displayName: string; externalRef?: string };
   consent: FieldConsentInput;
   location?: string;
+  language?: string;
 }
 
 /** GET /field-team rows. */

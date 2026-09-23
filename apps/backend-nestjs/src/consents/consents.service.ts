@@ -9,7 +9,7 @@ import { BaseService } from '../common/base/base.service';
 import { resolveFieldScope } from '../common/scoping/field-scope';
 import { CreateConsentDto } from './dto/create-consent.dto';
 
-type ConsentScope =
+export type ConsentScope =
   | 'allowRecording'
   | 'allowTranscription'
   | 'allowAiAnalysis'
@@ -23,6 +23,27 @@ const SCOPE_LABEL: Record<ConsentScope, string> = {
   allowQuotation: 'quotation',
   allowPublication: 'publication',
 };
+
+/**
+ * Why `consent` does not permit `scope`, or null when it does. The single
+ * definition of the rule: `assertScope` throws with this reason, and
+ * background jobs (which have no request to throw into) record it.
+ */
+export function consentBlockReason(
+  consent: Pick<Consent, 'withdrawnAt' | 'expiresAt' | ConsentScope>,
+  scope: ConsentScope,
+): string | null {
+  if (consent.withdrawnAt) {
+    return `Consent was withdrawn on ${consent.withdrawnAt.toISOString()}; ${SCOPE_LABEL[scope]} is no longer permitted`;
+  }
+  if (consent.expiresAt && consent.expiresAt.getTime() < Date.now()) {
+    return `Consent expired on ${consent.expiresAt.toISOString()}; ${SCOPE_LABEL[scope]} is no longer permitted`;
+  }
+  if (!consent[scope]) {
+    return `Consent does not permit ${SCOPE_LABEL[scope]} for this participant`;
+  }
+  return null;
+}
 
 @Injectable()
 export class ConsentsService extends BaseService {
@@ -153,22 +174,7 @@ export class ConsentsService extends BaseService {
    * "consent denied" alone is not actionable for a caller.
    */
   assertScope(consent: Consent, scope: ConsentScope): void {
-    if (consent.withdrawnAt) {
-      throw new ForbiddenException(
-        `Consent was withdrawn on ${consent.withdrawnAt.toISOString()}; ${SCOPE_LABEL[scope]} is no longer permitted`,
-      );
-    }
-
-    if (consent.expiresAt && consent.expiresAt.getTime() < Date.now()) {
-      throw new ForbiddenException(
-        `Consent expired on ${consent.expiresAt.toISOString()}; ${SCOPE_LABEL[scope]} is no longer permitted`,
-      );
-    }
-
-    if (!consent[scope]) {
-      throw new ForbiddenException(
-        `Consent does not permit ${SCOPE_LABEL[scope]} for this participant`,
-      );
-    }
+    const reason = consentBlockReason(consent, scope);
+    if (reason) throw new ForbiddenException(reason);
   }
 }

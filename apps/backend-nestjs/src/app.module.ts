@@ -23,6 +23,7 @@ import { InterviewsModule } from './interviews/interviews.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { FindingsModule } from './findings/findings.module';
 import { FieldModule } from './field/field.module';
+import { JobsModule } from './jobs/jobs.module';
 
 /**
  * PHASE 0 — QUALITATIVE RESET
@@ -62,6 +63,7 @@ import { FieldModule } from './field/field.module';
     TranscriptsModule,
     FindingsModule,
     FieldModule,
+    JobsModule,
   ],
   providers: [
     // ─── PHASE 1: global guard chain ───

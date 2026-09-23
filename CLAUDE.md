@@ -117,6 +117,22 @@ optional trailing `viewerId`; controllers must pass `user.id`.
 (IndexedDB slices, resumable 512 KiB parts, consent re-checked per part).
 Brand tokens and the asset pipeline are in `docs/BRAND.md`.
 
+**13. Background jobs and transcription.** `src/jobs` is a database queue
+(`jobs` table) run by a worker inside the API (`JOBS_WORKER=off` disables
+it; never started under Jest — tests call `JobsService.drain()`). Handlers
+throw `RetryableJobError` (backoff, honours retry-after) or
+`PermanentJobError`; failures are mirrored onto the transcript and stay
+retryable. Uploads queue transcription automatically when consent allows
+(`transcripts/transcription-queue.ts`). **Timestamps:** Prisma stores UTC
+in `timestamp without time zone`; raw SQL must use
+`now() AT TIME ZONE 'UTC'`, never bare `now()` (the DB runs in
+Europe/Berlin — bare `now()` made rescheduled jobs run immediately).
+Recordings and transcripts are **administrator-only**; `/media` routes
+exclude interview recordings. Segment corrections go to `editedText` (the
+machine `text` is never changed); read via `segmentText()`. Whisper on
+Hausa is phonetic, not accurate (~89% WER measured on FLEURS) — always
+pass the language hint; auto-detect misidentifies Hausa.
+
 ---
 
 ## Invariants — do not weaken these
@@ -169,7 +185,8 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **285 passing, 18 suites** (as of 2026-09-23). Anything less means
+Expect **319 passing, 23 suites** (as of 2026-09-23; the transcription
+pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.
 
@@ -201,9 +218,9 @@ gitignored and does not travel with the repo — recreate it from
 
 ## Open decisions blocking progress
 
-1. **Which languages must be transcribed.** Gates the transcription provider and
-   may force a human-correction tier into the MVP. Blocks the Phase 2
-   transcription slice; nothing else.
+1. **Hausa transcription quality.** Decided languages: English and Hausa.
+   Groq Whisper is good on English and poor on Hausa, so Hausa transcripts
+   need human correction (built) or a Hausa-capable provider.
 2. **Legacy data-preservation owner and deadline** — still `TBD` in `LEGACY.md`.
    Quarantine without a deadline becomes permanent.
 3. **Data residency.** Interview audio is special-category data. If participants
@@ -217,8 +234,6 @@ gitignored and does not travel with the repo — recreate it from
 - **Audio upload cannot pass through a Vercel function** (4.5 MB body cap). A
   90-minute interview is 80–170 MB. Phase 2 uploads directly to object storage
   with a presigned URL — correct on any host, and why the API is moving to a VPS.
-- **No background jobs yet.** Redis is in `docker-compose.yml` and unused.
-  Transcription needs a queue and a worker.
 - **No mail transport**, so password reset and invitations cannot deliver.
 - **No observability** — no error tracking, metrics, or tracing.
 - **Legacy routes** (`/studies`, `/questionnaires`, `/reports`, …) are still

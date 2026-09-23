@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InterviewStatus } from '@prisma/client';
@@ -13,6 +14,7 @@ import {
 } from '../common/scoping/field-scope';
 import { ConsentsService } from '../consents/consents.service';
 import { MediaService } from '../media/media.service';
+import { queueTranscriptionForRecording } from '../transcripts/transcription-queue';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 
 /** Status transitions a caller may request explicitly via PATCH .../status. */
@@ -56,6 +58,8 @@ const INTERVIEW_SUMMARY_INCLUDE = {
  */
 @Injectable()
 export class InterviewsService extends BaseService {
+  private readonly logger = new Logger(InterviewsService.name);
+
   constructor(
     prisma: PrismaService,
     private readonly consentsService: ConsentsService,
@@ -198,6 +202,7 @@ export class InterviewsService extends BaseService {
           scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
           location: dto.location,
           notes: dto.notes,
+          language: dto.language,
           organizationId,
         },
       });
@@ -262,12 +267,14 @@ export class InterviewsService extends BaseService {
   ) {
     await this.assertRecordingPermitted(id, userId, organizationId);
 
-    return this.mediaService.upload(
+    const media = await this.mediaService.upload(
       file,
       { metadata, interviewId: id },
       userId,
       organizationId,
     );
+    await this.queueTranscription(media.id, id, userId, organizationId);
+    return media;
   }
 
   async listRecordings(id: string, organizationId: string, viewerId?: string) {
@@ -290,6 +297,7 @@ export class InterviewsService extends BaseService {
     const { url, expiresIn, media } = await this.mediaService.getDownloadUrl(
       mediaId,
       organizationId,
+      { includeRecordings: true },
     );
 
     if (media.interviewId !== id) {
@@ -380,7 +388,7 @@ export class InterviewsService extends BaseService {
     }
 
     await this.assertRecordingPermitted(id, userId, organizationId);
-    return this.mediaService.completeRecordingUpload(
+    const media = await this.mediaService.completeRecordingUpload(
       uploadId,
       userId,
       organizationId,
@@ -399,6 +407,34 @@ export class InterviewsService extends BaseService {
         },
       },
     );
+    await this.queueTranscription(media.id, id, userId, organizationId);
+    return media;
+  }
+
+  /**
+   * Starts automatic transcription for a newly stored recording when the
+   * participant's consent allows it. A failure here must not fail the
+   * upload — the audio is safely stored, and an administrator can start
+   * transcription from the interview page.
+   */
+  private async queueTranscription(
+    mediaId: string,
+    interviewId: string,
+    userId: string,
+    organizationId: string,
+  ) {
+    try {
+      await queueTranscriptionForRecording(this.prisma, {
+        mediaId,
+        interviewId,
+        organizationId,
+        requestedById: userId,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Could not queue transcription for recording ${mediaId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   /**
