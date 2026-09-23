@@ -91,6 +91,18 @@ const config: Config = {
           700: "hsl(var(--color-secondary-700))",
           DEFAULT: "hsl(var(--color-secondary-500))",
         },
+        recording: {
+          DEFAULT: "hsl(var(--color-recording))",
+        },
+        field: {
+          paper: "hsl(var(--field-paper))",
+          card: "hsl(var(--field-card))",
+          line: "hsl(var(--field-line))",
+        },
+        navy: {
+          DEFAULT: "hsl(var(--brand-navy))",
+          deep: "hsl(var(--brand-navy-deep))",
+        },
         success: {
           DEFAULT: "hsl(var(--color-success))",
           bg: "hsl(var(--color-success-bg))",
@@ -141,8 +153,10 @@ const config: Config = {
         full: "var(--radius-full)",
       },
       fontFamily: {
-        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "system-ui", "sans-serif"],
-        display: ["Sora", "Inter", "system-ui", "sans-serif"],
+        // next/font self-hosts these under hashed family names exposed as CSS
+        // variables; the literal names "Inter"/"Sora" never matched anything.
+        sans: ["var(--font-sans)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code", "monospace"],
         "sans-arabic": ["IBM Plex Sans Arabic", "Noto Naskh Arabic", "Inter", "sans-serif"],
         "sans-ethiopic": ["Noto Sans Ethiopic", "Inter", "sans-serif"],
@@ -184,6 +198,24 @@ const config: Config = {
         "3": "0 4px 8px hsl(var(--shadow-color) / 0.08), 0 4px 12px hsl(var(--shadow-color) / 0.06)",
         "4": "0 8px 16px hsl(var(--shadow-color) / 0.10), 0 6px 20px hsl(var(--shadow-color) / 0.06)",
         "5": "0 12px 24px hsl(var(--shadow-color) / 0.12), 0 8px 32px hsl(var(--shadow-color) / 0.08)",
+        // Quiet elevation for content panels: a hairline plus a soft falloff.
+        soft: "0 1px 2px hsl(var(--shadow-color) / 0.04), 0 4px 16px -4px hsl(var(--shadow-color) / 0.06)",
+        float: "0 2px 6px hsl(var(--shadow-color) / 0.06), 0 16px 40px -12px hsl(var(--shadow-color) / 0.18)",
+      },
+      height: {
+        "control-sm": "var(--control-sm)",
+        "control-md": "var(--control-md)",
+        "control-lg": "var(--control-lg)",
+        "control-field": "var(--control-field)",
+      },
+      minHeight: {
+        "control-lg": "var(--control-lg)",
+        "control-field": "var(--control-field)",
+      },
+      transitionDuration: {
+        fast: "var(--duration-fast)",
+        base: "var(--duration-base)",
+        slow: "var(--duration-slow)",
       },
       zIndex: {
         base: "0",
@@ -224,8 +256,20 @@ const config: Config = {
           to: { transform: "translateY(0)" },
         },
         "skeleton-pulse": {
-          "0%, 100%": { opacity: "0.1" },
-          "50%": { opacity: "0.15" },
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.55" },
+        },
+        "drawer-in": {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "recording-halo": {
+          "0%": { transform: "scale(1)", opacity: "0.45" },
+          "100%": { transform: "scale(1.55)", opacity: "0" },
         },
       },
       animation: {
@@ -236,9 +280,13 @@ const config: Config = {
         "slide-in-from-right": "slide-in-from-right 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         "slide-out-to-right": "slide-out-to-right 0.15s ease-in",
         "skeleton-pulse": "skeleton-pulse 1.8s ease-in-out infinite",
+        "rise-in": "rise-in 0.22s var(--ease-emphasized) both",
+        "drawer-in": "drawer-in 0.24s var(--ease-emphasized)",
+        "recording-halo": "recording-halo 1.8s ease-out infinite",
       },
       transitionTimingFunction: {
-        standard: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        standard: 'var(--ease-standard)',
+        emphasized: 'var(--ease-emphasized)',
       },
     },
   },

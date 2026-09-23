@@ -2,37 +2,43 @@
 
 import { useState, type ReactNode } from 'react';
 import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
   flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
   type ColumnDef,
   type SortingState,
-  type ColumnFiltersState,
 } from '@tanstack/react-table';
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SkeletonTable } from '@/components/ui/skeleton';
 import { EmptyState } from './empty-state';
 import { ErrorState } from './error-state';
+import { LoadingState } from './loading-state';
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData>[];
   data: TData[];
   isLoading?: boolean;
   isError?: boolean;
-  error?: Error | null;
+  error?: { message?: string; status?: number } | null;
   onRetry?: () => void;
   searchable?: boolean;
   searchPlaceholder?: string;
   onSearch?: (value: string) => void;
+  /** Filters or actions shown beside the search field. */
+  toolbar?: ReactNode;
   emptyTitle?: string;
   emptyDescription?: string;
   emptyAction?: ReactNode;
+  emptyIcon?: ReactNode;
   pageSize?: number;
+  /** Accessible name for the table. */
+  label?: string;
+  // Accepted for compatibility with older call sites; paging is client-side.
   total?: number;
   currentPage?: number;
   onPageChange?: (page: number) => void;
@@ -46,107 +52,120 @@ export function DataTable<TData>({
   error,
   onRetry,
   searchable,
-  searchPlaceholder = 'Search...',
+  searchPlaceholder = 'Search',
   onSearch,
-  emptyTitle = 'No data found',
+  toolbar,
+  emptyTitle = 'Nothing here yet',
   emptyDescription,
   emptyAction,
+  emptyIcon,
+  pageSize = 25,
+  label,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, globalFilter },
+    state: { sorting, globalFilter },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize } },
   });
 
-  if (isLoading) {
-    return <SkeletonTable rows={8} columns={columns.length} />;
-  }
-
-  if (isError) {
-    return <ErrorState message={error?.message || 'Failed to load data'} onRetry={onRetry} />;
-  }
-
+  if (isLoading) return <LoadingState rows={6} />;
+  if (isError) return <ErrorState message={error?.message} status={error?.status} onRetry={onRetry} />;
   if (!data.length) {
     return (
-      <EmptyState
-        title={emptyTitle}
-        description={emptyDescription}
-        action={emptyAction}
-      />
+      <div className="space-y-3">
+        {/* Keep filters reachable, or an over-narrow filter could never be undone. */}
+        {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
+        <div className="rounded-xl border border-dashed border-border bg-background-elevated/60">
+          <EmptyState icon={emptyIcon} title={emptyTitle} description={emptyDescription} action={emptyAction} />
+        </div>
+      </div>
     );
   }
 
+  const rows = table.getRowModel().rows;
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const { pageIndex } = table.getState().pagination;
+  const pageCount = table.getPageCount();
+
   return (
-    <div className="space-y-4">
-      {searchable && (
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder={searchPlaceholder}
-            value={globalFilter ?? ''}
-            onChange={(e) => {
-              setGlobalFilter(e.target.value);
-              onSearch?.(e.target.value);
-            }}
-            className="max-w-sm"
-          />
+    <div className="space-y-3">
+      {(searchable || toolbar) && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {searchable && (
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-tertiary" aria-hidden />
+              <Input
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                value={globalFilter}
+                onChange={(e) => {
+                  setGlobalFilter(e.target.value);
+                  table.setPageIndex(0);
+                  onSearch?.(e.target.value);
+                }}
+                className="pl-9"
+              />
+            </div>
+          )}
+          {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
         </div>
       )}
-      <div className="rounded-md border border-border overflow-hidden">
+
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-background-elevated shadow-soft">
         <div className="overflow-x-auto">
-          <table className="w-full caption-bottom text-sm">
+          <table className="w-full text-[14px]" aria-label={label}>
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="border-b border-border bg-background-surface">
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="h-12 px-4 text-left align-middle font-semibold text-foreground-secondary text-xs uppercase tracking-wider"
-                    >
-                      {header.isPlaceholder ? null : (
-                        <div
-                          className={cn(
-                            'flex items-center gap-1 select-none',
-                            header.column.getCanSort() && 'cursor-pointer hover:text-foreground'
-                          )}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {header.column.getCanSort() && (
-                            <span className="inline-flex ml-1">
-                              {header.column.getIsSorted() === 'asc' ? (
-                                <ChevronUp className="h-3 w-3" />
-                              ) : header.column.getIsSorted() === 'desc' ? (
-                                <ChevronDown className="h-3 w-3" />
-                              ) : (
-                                <ChevronsUpDown className="h-3 w-3 text-foreground-tertiary" />
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </th>
-                  ))}
+                <tr key={headerGroup.id} className="border-b border-border-subtle bg-background-surface/70">
+                  {headerGroup.headers.map((header) => {
+                    const sorted = header.column.getIsSorted();
+                    const canSort = header.column.getCanSort() && header.column.columnDef.header !== undefined;
+                    return (
+                      <th
+                        key={header.id}
+                        scope="col"
+                        aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
+                        className="h-11 whitespace-nowrap px-4 text-left align-middle text-[12px] font-semibold text-foreground-tertiary"
+                      >
+                        {header.isPlaceholder ? null : canSort ? (
+                          <button
+                            type="button"
+                            onClick={header.column.getToggleSortingHandler()}
+                            className="-mx-1 inline-flex items-center gap-1 rounded px-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {sorted === 'asc' ? (
+                              <ArrowUp className="h-3 w-3" aria-hidden />
+                            ) : sorted === 'desc' ? (
+                              <ArrowDown className="h-3 w-3" aria-hidden />
+                            ) : (
+                              <ChevronsUpDown className="h-3 w-3 opacity-60" aria-hidden />
+                            )}
+                          </button>
+                        ) : (
+                          flexRender(header.column.columnDef.header, header.getContext())
+                        )}
+                      </th>
+                    );
+                  })}
                 </tr>
               ))}
             </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-border transition-colors hover:bg-background-hover data-[state=selected]:bg-primary-50"
-                >
+            <tbody className="divide-y divide-border-subtle">
+              {rows.map((row) => (
+                <tr key={row.id} className="transition-colors duration-fast hover:bg-background-hover">
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="p-4 align-middle">
+                    <td key={cell.id} className="h-14 px-4 align-middle text-foreground">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -155,7 +174,31 @@ export function DataTable<TData>({
             </tbody>
           </table>
         </div>
+        {filteredCount === 0 && (
+          <EmptyState size="inline" title="No matches" description="Try a different search." />
+        )}
       </div>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between text-[13px] text-foreground-secondary">
+          <span>
+            {pageIndex * pageSize + 1}–{Math.min(filteredCount, (pageIndex + 1) * pageSize)} of {filteredCount}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} aria-label="Previous page">
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} aria-label="Next page">
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Small helper for secondary text inside cells. */
+export function CellMuted({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn('text-[13px] text-foreground-secondary', className)}>{children}</span>;
 }
