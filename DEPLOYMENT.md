@@ -53,7 +53,7 @@ Names only. Set these in the Vercel dashboard or with `vercel env add`.
 | Variable | Notes |
 |---|---|
 | `APP_URL` | Public API URL. Used as the CORS origin fallback. |
-| `CORS_ORIGINS` | Comma-separated. Must include the frontend's domain, or every browser call fails. |
+| `CORS_ORIGINS` | Comma-separated. Must include **both** frontend domains - `https://merline.jrecc.org,https://field.jrecc.org` - or every browser call from the missing one fails (the field app then reports it cannot connect). |
 | `JWT_EXPIRES_IN` | e.g. `7d`. Omitted is fine — defaults to `7d`. |
 | `AWS_REGION` | |
 | `AWS_ACCESS_KEY_ID` | |
