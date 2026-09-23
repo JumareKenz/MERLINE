@@ -19,6 +19,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { FieldLoginDto } from './dto/field-login.dto';
 import { expiresInSeconds, jwtSignOptions } from './jwt.constants';
+import { provisionOrganizationRoles } from './organization-provisioning';
 
 @Injectable()
 export class AuthService {
@@ -53,15 +54,12 @@ export class AuthService {
         },
       });
 
-      const role = await tx.role.create({
-        data: {
-          id: uuidv4(),
-          name: 'Administrator',
-          slug: 'administrator',
-          description: 'Full system access',
-          organizationId: organization.id,
-          isSystem: true,
-        },
+      // The organization's permission catalogue and standard roles, with
+      // their grants. Without this the new administrator role granted
+      // nothing and every permission-checked route answered 403.
+      const roleIds = await provisionOrganizationRoles(tx, organization.id);
+      const role = await tx.role.findUniqueOrThrow({
+        where: { id: roleIds.get('administrator') as string },
       });
 
       const passwordHash = await bcrypt.hash(dto.password, 12);
