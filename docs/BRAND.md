@@ -1,158 +1,117 @@
-# Merline brand — Phase 2 rebrand
+# Merline brand and design system
 
-Source of truth for the design tokens, asset pipeline, and rationale behind
-the navy/lemon identity introduced in Phase 2. If you need to regenerate an
-asset or add a new one, start here.
+Source of truth for the identity, the design tokens and the asset pipeline.
+If you regenerate an asset or add a token, start here.
 
 ## Source asset
 
-`apps/frontend/public/brand/master.png` — the original upload
-(`merline-logo-research-intelligence.png`), untouched, 1920×1920,
-`TrueColorAlpha` (real alpha channel, not a flattened black background —
-verify with `identify -verbose master.png | grep Alpha` if a future export
-tool strips it). Never edit this file; derive from it.
+`apps/frontend/public/brand/master.png` is the supplied
+`merline-logo-research-intelligence.png`, byte-identical (md5
+`00bbcf3fe33b55bfe29f91284d504565`), 1920×1920 with a real alpha channel.
+**Never edit it.** Every other brand file is derived from it by
+`apps/frontend/scripts/brand-assets.sh`.
 
-## Sampled brand colors
+The mark: an architectural M built from document-like planes, in navy, with
+one lemon-green "insight" panel.
 
-Pixel-sampled from the master, not approximated:
+## Brand colors (pixel-sampled from the master)
 
-| Token | Hex | HSL | Sample point |
-|---|---|---|---|
-| Navy | `#012C76` | `218 98% 23%` | Dominant fill color, ~1.14M px of the 1920² canvas |
-| Lemon | `#C9EC73` | `77 76% 69%` | Accent panel, ~84K px |
-
-Extracted via:
-```bash
-convert master.png -background white -flatten /tmp/on-white.png
-convert /tmp/on-white.png -colors 8 -depth 8 -format %c histogram:info:-
-```
-
-## Contrast decisions (WCAG 2.2, computed, not eyeballed)
-
-| Pairing | Ratio | Verdict |
+| Token | Hex | HSL |
 |---|---|---|
-| White text on navy | 12.94:1 | Pass (AAA) |
-| Navy-ink (`#0B1220`) text on lemon | 14.02:1 | Pass (AAA) |
-| **White text on lemon** | **1.34:1** | **Fail — never do this** |
-| Lemon text on navy | 9.69:1 | Pass (AAA) — safe for small text/status labels on a navy surface |
-| Lemon as a bare ring/border on a white page | 1.32:1 | Fail — lemon focus rings only work on dark surfaces |
+| Navy | `#012C76` | `218 98% 23%` |
+| Lemon | `#C9EC73` | `77 76% 69%` |
 
-Rule that follows from this table, enforced throughout: **a lemon fill
-always pairs with `--lemon-foreground` (dark navy-ink) text/icons, never
-white.** Lemon never carries body text or long copy on its own. Lemon as a
-bare outline (focus ring, border) is dark-mode only.
+## Contrast decisions (WCAG 2.2, computed)
 
-Recompute with `docs/scripts` is not checked in — the one-off script used:
-```python
-def luminance(rgb):
-    def ch(c):
-        c/=255; return c/12.92 if c<=0.03928 else ((c+0.055)/1.055)**2.4
-    r,g,b=rgb; return .2126*ch(r)+.7152*ch(g)+.0722*ch(b)
-def contrast(a,b):
-    la,lb = luminance(a)+.05, luminance(b)+.05
-    return max(la,lb)/min(la,lb)
-```
+| Pairing | Ratio | Use |
+|---|---|---|
+| White on navy | 12.9:1 | Primary buttons, field chrome |
+| Ink `222 47% 11%` on white | 17.9:1 | Body text |
+| `--text-secondary` `217 19% 30%` on white | 9.1:1 | Secondary text |
+| `--text-tertiary` `215 14% 43%` on white / field paper | 5.4:1 / 4.9:1 | Small meta text (was 3.1:1, failing) |
+| Dark-mode tertiary `215 12% 62%` on dark page | 6.7:1 | (was 2.75:1, failing) |
+| Lemon-foreground ink on lemon | 13.4:1 | Accent buttons, selected states |
+| Lemon on navy | 9.7:1 | Field status pill, field brand text |
+| `lemon-800` `80 60% 26%` on white | 6.1:1 | Lemon-family text on light surfaces |
+| **White on lemon** | **1.3:1** | **Never** |
+| **Lemon on white (as ring/border)** | **1.3:1** | **Never**; lemon rings only on dark surfaces |
 
-## Token architecture
+Rules that follow:
 
-`apps/frontend/src/app/globals.css` — `--color-primary-*` (50–900) is a
-brand-navy ramp anchored so `--color-primary-500` (the `DEFAULT` every
-`bg-primary`/`text-primary` class resolves to) equals the exact sampled navy.
-`--color-lemon-*` is a separate, parallel family — deliberately **not** wired
-into `primary`, so it never becomes the accidental default button color.
-Everything that should read as "the brand" (buttons, links, active nav,
-focus rings) goes through `primary`; everything that should read as "an
-evidence/readiness/active signal" reaches for `lemon` explicitly.
+- Lemon is an accent (readiness, active/selected, evidence, sync success, the
+  record button). A lemon fill always carries `--lemon-foreground`. Lemon never
+  carries body text or small text on a light surface.
+- Evidence and active-nav indicators use `lemon-600` as a 3px bar. The state is
+  also conveyed by weight, background or text, never by the bar alone.
+- Status never relies on color alone: every `StatusBadge` has an icon and a word.
+- The focus ring is navy on light surfaces and lemon on dark ones.
 
-Dark mode keeps navy as the hue family but lightens it (raw `L23%` navy is
-too close to the dark-mode page background, `L10%`, to register as an
-accent) — same pattern the file already used pre-rebrand (it used to swap to
-teal; now it stays navy, just lighter). `--primary-foreground` flips from
-white to dark ink in dark mode accordingly (white-on-the-lightened-blue is
-2.97:1, fails; navy-ink-on-it is 6.3:1).
+## Tokens
 
-`tailwind.config.ts` exposes both families (`primary.50…900`, `lemon.50…900`)
-plus `primary.foreground` / `lemon.foreground`. **Real bug fixed in passing:**
-`text-primary-foreground` was used throughout `button.tsx` etc. but the
-underlying `--primary-foreground` CSS variable never existed — a silently
-no-op Tailwind class, meaning default buttons were rendering with whatever
-color happened to inherit, not a deliberate one. Now defined in both themes.
+All in `apps/frontend/src/app/globals.css`, exposed through
+`tailwind.config.ts`. Don't hard-code hex values in components.
 
-`--brand-navy` / `--brand-lemon` are raw (non-ramped) tokens for one-off
-literal uses — hero panels, the field app's chrome — where a full 50–900
-scale isn't needed.
+| Group | Tokens |
+|---|---|
+| Brand | `--color-primary-50…900` (500 = navy), `--color-lemon-50…900` (500 = lemon), `--brand-navy`, `--brand-navy-deep`, `--brand-lemon` |
+| Surfaces | `--bg-page` (soft-tinted `#F7F9FC`), `--bg-surface`, `--bg-elevated` (white), `--bg-inset`, `--bg-hover/active` |
+| Field surfaces | `--field-paper` (warm neutral), `--field-card`, `--field-line` |
+| Text | `--text-primary/secondary/tertiary/link/…` (ratios above) |
+| Status | `--color-success/warning/error/info` (+ `-bg`), `--color-recording` (distinct from error, so "live" never reads as "broken") |
+| Glass | `--glass-bg`, `--glass-border`; the `.glass` class applies blur only under `@supports`, with a solid fallback |
+| Radius | `--radius-sm 6 / md 8 / lg 12 / xl 16 / 2xl 22` |
+| Controls | `--control-sm 32 / md 40 / lg 48 / field 56` px |
+| Motion | `--ease-standard`, `--ease-emphasized`, `--duration-fast 120 / base 180 / slow 280` ms; all motion is disabled under `prefers-reduced-motion` |
+| Elevation | `shadow-soft` (panels), `shadow-float` (floating layers) |
+| Type roles | `.type-title`, `.type-section`, `.type-eyebrow`, `.type-body` |
+
+Typography: **Inter** (`--font-sans`) for all UI text; **Sora**
+(`--font-display`) for the wordmark and the field app's large headings. Both
+come from `next/font` with `display: swap`, so there's no layout-shifting
+external font request.
+
+## Admin vs field: same family, different products
+
+| | Admin workspace | Field app |
+|---|---|---|
+| Surface | Cool tinted page, white panels | Warm paper, navy chrome |
+| Navigation | Left rail: 6 workflow areas + account menu; drawer on small screens | Navy top bar (sync pill, account) + 3-item bottom bar |
+| Type scale | 14–15px body, 22–26px titles | 15–17px body, 28px titles, 56px recording timer |
+| Controls | 32–40px | 48–56px, 96px record button |
+| Lemon use | Active-nav bar, evidence bars, highlights | Record button, selected answers, bottom-nav pill, status on navy |
+| Sign-in | Split screen, email + password, evidence-chain diagram | Full-height navy, 10-character access code |
 
 ## Asset derivatives
 
-All generated from `brand/master.png` via ImageMagick (`apt-get install
-imagemagick`). Commands, in order:
+Regenerate everything (it's deterministic, and outputs are byte-stable):
 
 ```bash
-# 1. Trim to content, re-pad to a square with safe margin
-convert master.png -trim +repage mark-trimmed.png
-convert mark-trimmed.png -gravity center -background none -extent 2090x2090 mark-light.png
-
-# 2. Dark-surface variant — the navy mark is nearly invisible on a navy
-#    background (verified by compositing before this fix existed), so this
-#    is a genuine recolor: navy fill -> white, lemon accent untouched.
-convert mark-light.png -fuzz 15% -fill "#FFFFFF" -opaque "#012C76" mark-dark.png
-
-# 3. Favicons (transparent, navy mark)
-for size in 16 32 48; do
-  convert mark-light.png -resize ${size}x${size} -background none -gravity center -extent ${size}x${size} icons/favicon-${size}.png
-done
-convert icons/favicon-16.png icons/favicon-32.png icons/favicon-48.png favicon.ico
-
-# 4. PWA "any" icons (transparent)
-convert mark-light.png -resize 192x192 -background none -gravity center -extent 192x192 icons/icon-192.png
-convert mark-light.png -filter Lanczos -resize 512x512 -background none -gravity center -extent 512x512 icons/icon-512.png
-
-# 5. Maskable icons — solid navy canvas, dark-surface mark at ~65% (inside
-#    the ~80% safe-zone circle platforms use for adaptive icon masking)
-convert -size 512x512 xc:"#012C76" icons/icon-maskable-512.png
-convert mark-dark.png -filter Lanczos -resize 333x333 /tmp/dm.png
-convert icons/icon-maskable-512.png /tmp/dm.png -gravity center -composite icons/icon-maskable-512.png
-# (same pattern at 192x192 with a 125px mark)
-
-# 6. Apple touch icon — solid navy, no transparency (iOS convention)
-convert -size 180x180 xc:"#012C76" icons/apple-touch-icon.png
-convert mark-dark.png -resize 148x148 /tmp/dm2.png
-convert icons/apple-touch-icon.png /tmp/dm2.png -gravity center -composite icons/apple-touch-icon.png
+cd apps/frontend && bash scripts/brand-assets.sh   # needs ImageMagick
 ```
 
-Final tree:
-```
-public/brand/master.png       — untouched original, preserve forever
-public/brand/mark-light.png   — navy on transparent, light surfaces
-public/brand/mark-dark.png    — white+lemon on transparent, dark/navy surfaces
-public/icons/favicon-{16,32,48}.png, favicon.ico
-public/icons/icon-{192,512}.png                  — PWA, purpose "any"
-public/icons/icon-maskable-{192,512}.png         — PWA, purpose "maskable"
-public/icons/apple-touch-icon.png                — 180×180, iOS
-```
+| File | What | Referenced by |
+|---|---|---|
+| `brand/mark-{32,64,128,256,512}.png` | Navy mark, transparent | `Logo` (picks the smallest size that's sharp at 2×) |
+| `brand/mark-dark-{…}.png` | White mark + lemon accent, for navy/dark surfaces | `Logo theme="dark"` |
+| `brand/mark-light.png`, `mark-dark.png` | 512px copies kept for old external links (were 2090px / 894 KB) | — |
+| `favicon.ico`, `icons/favicon-{16,32,48}.png` | Favicons | root metadata |
+| `icons/icon-{192,512}.png` | Admin PWA icons (transparent mark) | `manifest.json` |
+| `icons/field-icon-{192,512}.png` | Field PWA icons (navy rounded tile) | `field.webmanifest` |
+| `icons/icon-maskable-{192,512}.png` | Maskable: navy canvas, mark at 62% (inside the 80% safe circle) | both manifests |
+| `icons/apple-touch-icon.png` | 180×180, navy, no alpha | metadata |
+| `splash/launch-*.png` | 8 iOS launch screens (navy, centered mark) | `appleWebApp.startupImage` |
+| `brand/og-image.png` | 1200×630 share image | Open Graph / Twitter metadata |
 
-## Wordmark
+A header logo now costs about 5 KB instead of 894 KB. Android builds its
+splash screen from the manifest's `background_color` and icon.
 
-There is no flattened "Merline" wordmark image, deliberately. The old
-`logo-full-light.png` / `logo-full-dark.png` raster wordmarks are gone;
-`components/brand/logo.tsx`'s `variant="full"` now renders the mark image
-next to real text in the Sora display face (`font-display`), colored via the
-existing `text-foreground` token. Crisper at every size, needs no light/dark
-image pair of its own, and is actually readable by assistive tech instead of
-being an image of text.
+## Manifests
 
-## Typography
+- `public/manifest.json`: **Merline** (admin), start `/`, light background.
+- `public/field.webmanifest`: **Merline Field**, navy background and theme,
+  portrait. Linked from `app/field/layout.tsx` and `app/field-login/layout.tsx`,
+  so on field.jrecc.org it installs as a separate app with its own icon.
 
-Unchanged from pre-rebrand — already a solid system, not part of what was
-broken: Inter (`--font-sans`) for body/UI, Sora (`--font-display`) for the
-wordmark and display headings. No new fonts introduced.
-
-## What deliberately did not change
-
-Legacy MERL routes (studies, questionnaires, indicators, submissions,
-dashboards) inherit the new tokens automatically (no visual regression) but
-got no bespoke redesign attention — their backend modules are deregistered,
-unlinked from navigation, and carry no live data (see `LEGACY.md`). Design
-effort went to auth, the shared component library (which cascades
-everywhere), and the surfaces that are the actual product: participants,
-interviews, findings, and the field app.
+Both manifests, the service worker, icons, splash screens and
+`offline.html` are excluded from the auth middleware (`src/middleware.ts`
+matcher), so they are never redirected to `/login`.

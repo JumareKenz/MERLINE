@@ -1,63 +1,164 @@
 /**
- * PHASE 2 — app-shell caching only, NOT offline data.
+ * Merline service worker — app shell for offline field work.
  *
- * This makes the installed app resilient to a flaky connection (it opens
- * and navigates to previously-visited pages when offline) and nothing more.
- * It never caches or intercepts cross-origin requests (the API lives on
- * api.jrecc.org, a different origin), and it never caches anything under
- * this origin's own API-shaped paths either, so it cannot serve stale
- * participant/consent/interview data as if it were live.
+ * What it does:
+ *  - Precaches the field app's screens and brand assets so the installed
+ *    field app opens, and can record, with no connection. Recording itself
+ *    never needed the network: audio is written to IndexedDB by the page
+ *    (see src/lib/field/). This file only makes sure the page can load.
+ *  - Pages: network-first, falling back to the cached copy. The field
+ *    interview screen is one static route (/field/interview?id=…), matched
+ *    ignoring the query, so any assigned interview opens offline.
+ *  - /_next/static/*: cache-first. Those files are content-hashed and
+ *    immutable, so this is both correct and the fastest possible startup.
  *
- * True offline recording (queue a recording locally, sync when back online)
- * needs IndexedDB storage and a sync protocol — deliberately not attempted
- * here. Recording still requires connectivity to reach the API.
+ * What it never does:
+ *  - Touch cross-origin requests. The API lives on another origin; data and
+ *    uploads always go to the network, so nothing stale is shown as live.
+ *  - Touch non-GET requests or anything under /api.
+ *  - Cache redirects or error responses (a signed-out 307 to /login must
+ *    not be replayed later as the "page").
  */
-const CACHE_NAME = 'merline-shell-v1';
-const SHELL_ASSETS = ['/login', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const VERSION = 'v2';
+const SHELL_CACHE = `merline-shell-${VERSION}`;
+const STATIC_CACHE = `merline-static-${VERSION}`;
+
+const PRECACHE = [
+  '/offline.html',
+  '/field',
+  '/field/interview',
+  '/field/uploads',
+  '/field/participants',
+  '/field/participants/new',
+  '/field-login',
+  '/manifest.json',
+  '/field.webmanifest',
+  '/brand/mark-64.png',
+  '/brand/mark-128.png',
+  '/brand/mark-dark-128.png',
+  '/icons/icon-192.png',
+  '/icons/icon-maskable-192.png',
+];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .catch(() => {
-        // A single failed asset (e.g. offline during install) must not
-        // block activation.
-      }),
-  );
+  // Tolerate failures one by one: a single unavailable page (e.g. a
+  // signed-out redirect during install) must not block the rest. Pages the
+  // user is not yet signed in for are warmed again after sign-in.
+  event.waitUntil(warm(PRECACHE));
   self.skipWaiting();
 });
+
+/**
+ * Cache pages *and the script/style chunks they reference*. An offline page
+ * whose JavaScript was never downloaded would render as a blank shell, so
+ * warming parses each page's HTML for its /_next/static assets.
+ */
+async function warm(urls) {
+  const shell = await caches.open(SHELL_CACHE);
+  const statics = await caches.open(STATIC_CACHE);
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        const res = await fetch(url, { credentials: 'same-origin', cache: 'no-cache' });
+        if (!isCacheable(res)) return;
+        const type = res.headers.get('content-type') || '';
+        if (type.includes('text/html')) {
+          const html = await res.clone().text();
+          const assets = [...new Set(html.match(/\/_next\/static\/[^"'\s)]+\.(?:js|css)/g) || [])];
+          await Promise.all(
+            assets.map(async (asset) => {
+              if (await statics.match(asset)) return;
+              const a = await fetch(asset).catch(() => null);
+              if (a && isCacheable(a)) await statics.put(asset, a);
+            }),
+          );
+        }
+        await shell.put(url, res);
+      } catch (e) {
+        // Offline or refused: try again on the next warm.
+      }
+    }),
+  );
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k !== SHELL_CACHE && k !== STATIC_CACHE).map((k) => caches.delete(k)),
+        ),
+      )
       .then(() => self.clients.claim()),
   );
 });
+
+/** The page asks for its screens to be made available offline (after sign-in). */
+self.addEventListener('message', (event) => {
+  const data = event.data || {};
+  if (data.type === 'warm' && Array.isArray(data.urls)) {
+    const urls = data.urls.filter((u) => typeof u === 'string' && u.startsWith('/')).slice(0, 50);
+    event.waitUntil(warm(urls));
+  }
+});
+
+function isCacheable(response) {
+  return response && response.ok && response.type === 'basic' && !response.redirected;
+}
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-
-  // Cross-origin (the API) and anything that looks like an API/data path is
-  // never touched — this service worker caches page shell only.
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api')) return;
 
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        const copy = response.clone();
-        caches
-          .open(CACHE_NAME)
-          .then((cache) => cache.put(request, copy))
-          .catch(() => {});
-        return response;
-      })
-      .catch(() => caches.match(request).then((cached) => cached ?? caches.match('/login'))),
-  );
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  event.respondWith(networkFirst(request, url));
 });
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (isCacheable(response)) {
+    const copy = response.clone();
+    caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+  }
+  return response;
+}
+
+async function networkFirst(request, url) {
+  try {
+    const response = await fetch(request);
+    if (isCacheable(response)) {
+      const copy = response.clone();
+      caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+    }
+    return response;
+  } catch (err) {
+    const exact = await caches.match(request);
+    if (exact) return exact;
+
+    if (request.mode === 'navigate') {
+      // Same screen, different query (e.g. another interview id).
+      const sameScreen = await caches.match(request, { ignoreSearch: true });
+      if (sameScreen) return sameScreen;
+      // On the field host '/' is the field home; '/login' is field-login.
+      const isField = self.location.hostname.startsWith('field.') || url.pathname.startsWith('/field');
+      if (isField) {
+        const home = (await caches.match('/field')) || (await caches.match('/'));
+        if (home) return home;
+      }
+      const offline = await caches.match('/offline.html');
+      if (offline) return offline;
+    }
+    throw err;
+  }
+}

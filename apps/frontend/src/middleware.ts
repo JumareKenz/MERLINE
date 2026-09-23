@@ -92,9 +92,11 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // manifest.json and sw.js must be reachable unauthenticated — the
-    // browser's install-prompt scanner and service worker registration
-    // never carry the auth cookie.
-    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|js)$).*)',
+    // Static files must be reachable unauthenticated — the browser's
+    // install-prompt scanner, service worker registration, iOS splash
+    // loader and the offline page never carry the auth cookie. This
+    // includes field.webmanifest and offline.html, which a /login redirect
+    // would otherwise break.
+    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|js|webmanifest|html|txt)$).*)',
   ],
 };
