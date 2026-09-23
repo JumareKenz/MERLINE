@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { idbPendingRepo, idbRecordingRepo, isIndexedDbAvailable } from '@/lib/field/idb';
 import { recoverInterrupted, runOutbox, type OutboxRunResult } from '@/lib/field/outbox';
 import { prunePending, syncPendingInterviews } from '@/lib/field/pending';
+import { syncAllQuestionLogs } from '@/lib/field/question-log';
 import { apiPendingTransport, apiUploadTransport } from '@/lib/field/transport';
 import type { LocalRecording, PendingInterview } from '@/lib/field/types';
 
@@ -140,6 +141,8 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
       // Interviews started on site must exist on the server before their
       // audio can upload (consent is checked there on every part).
       const pendingResult = await syncPendingInterviews(idbPendingRepo, apiPendingTransport, userId);
+      // Guide marks are small; send them before audio so progress shows early.
+      await syncAllQuestionLogs().catch(() => undefined);
       const notYetCreated = new Set(
         (await idbPendingRepo.list()).filter((p) => p.status !== 'synced').map((p) => p.id),
       );
@@ -157,6 +160,8 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
         (await idbRecordingRepo.list()).filter((r) => r.status !== 'uploaded').map((r) => r.interviewId),
       );
       await prunePending(idbPendingRepo, stillNeeded).catch(() => undefined);
+      // Again after the outbox: an interview created in this run can now take its marks.
+      await syncAllQuestionLogs().catch(() => undefined);
       set({ lastResult: result, lastRunAt: new Date().toISOString() });
     } finally {
       set({ running: false });

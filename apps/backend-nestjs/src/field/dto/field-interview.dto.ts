@@ -71,6 +71,11 @@ export class CreateFieldInterviewDto {
   @MaxLength(200)
   location?: string;
 
+  /** The guide version the device showed (cached offline). */
+  @IsOptional()
+  @IsUUID()
+  questionSetId?: string;
+
   /** Language spoken, if known: used as the transcription hint. */
   @IsOptional()
   @IsIn(TRANSCRIPTION_LANGUAGE_CODES)

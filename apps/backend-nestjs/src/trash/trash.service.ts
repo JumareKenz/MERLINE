@@ -13,6 +13,7 @@ export const TRASH_TYPES = [
   'finding',
   'report',
   'user',
+  'guide',
 ] as const;
 export type TrashType = (typeof TRASH_TYPES)[number];
 
@@ -36,6 +37,19 @@ export class TrashService {
   async list(organizationId: string): Promise<TrashItem[]> {
     const deleted = { organizationId, deletedAt: { not: null } } as const;
     const take = 200;
+    const guides = await this.prisma.questionSet.findMany({
+      where: deleted,
+      take,
+      distinct: ['familyId'],
+      orderBy: { version: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        version: true,
+        deletedAt: true,
+        interviewType: true,
+      },
+    });
     const [
       projects,
       interviews,
@@ -166,6 +180,15 @@ export class TrashService {
         deletedAt: u.deletedAt!,
       })),
     ];
+    items.push(
+      ...guides.map((g) => ({
+        type: 'guide' as const,
+        id: g.id,
+        name: `${g.title} (v${g.version})`,
+        context: g.interviewType,
+        deletedAt: g.deletedAt!,
+      })),
+    );
     return items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
   }
 
@@ -266,6 +289,20 @@ export class TrashService {
         }
         await this.prisma.analysisReport.update({
           where: { id },
+          data: { deletedAt: null },
+        });
+        break;
+      }
+      case 'guide': {
+        const guide = await this.prisma.questionSet.findFirst({ where });
+        if (!guide) throw new NotFoundException('Nothing to restore');
+        // Every version went to the Trash together; bring them back together.
+        await this.prisma.questionSet.updateMany({
+          where: {
+            familyId: guide.familyId,
+            organizationId,
+            deletedAt: guide.deletedAt,
+          },
           data: { deletedAt: null },
         });
         break;

@@ -21,6 +21,7 @@ import type { AuthenticatedUser } from '../common/interfaces';
 import { InterviewsService } from './interviews.service';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import { UpdateInterviewStatusDto } from './dto/update-interview-status.dto';
+import { QuestionLogDto } from './dto/question-log.dto';
 import { CompleteRecordingUploadDto } from './dto/complete-recording-upload.dto';
 
 /**
@@ -80,6 +81,32 @@ export class InterviewsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.interviewsService.findById(id, user.organizationId, user.id);
+  }
+
+  /** The guide this interview used, with what was asked or skipped and when. */
+  @Get(':id/question-log')
+  @Permissions('view.interviews')
+  questionLog(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.questionLog(id, user.organizationId, user.id);
+  }
+
+  /** Asked/skipped marks from the interviewer's device (idempotent, latest wins). */
+  @Put(':id/question-log')
+  @Permissions('edit.interviews')
+  saveQuestionLog(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: QuestionLogDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.saveQuestionLog(
+      id,
+      dto.entries,
+      user.id,
+      user.organizationId,
+    );
   }
 
   /** Administrators only (delete.interviews). Restorable from the Trash. */

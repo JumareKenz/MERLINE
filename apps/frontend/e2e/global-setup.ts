@@ -30,6 +30,29 @@ export default async function globalSetup() {
   const project = projects.items[0];
   if (!project) throw new Error('No project to assign — run the seed');
 
+  // An approved interview guide for this project's interview type, so the
+  // field app shows questions (KII unless the project already has a method).
+  const full = await call<{ settings?: { method?: string } }>('GET', `/projects/${project.id}`, admin);
+  const method = full.settings?.method ?? 'KII';
+  if (!full.settings?.method) {
+    await call('PUT', `/projects/${project.id}`, admin, { settings: { ...(full.settings ?? {}), method } });
+  }
+  // Reuse the test guide across runs rather than approving a new one each time.
+  const existing = (await call<{ id: string; title: string; status: string; projectId: string | null }[]>('GET', `/guides?projectId=${project.id}`, admin)).find(
+    (g) => g.title === 'E2E field guide' && g.status === 'APPROVED' && g.projectId === project.id,
+  );
+  const guide = existing ?? await call<{ id: string }>('POST', '/guides', admin, {
+    title: 'E2E field guide',
+    interviewType: method,
+    languages: ['en', 'ha'],
+    projectId: project.id,
+    questions: [
+      { text: { en: 'What is your role in the community?', ha: 'Mene ne matsayinka a cikin al\u2019umma?' }, type: 'OPEN', probes: { en: 'Ask how long.' }, required: true },
+      { text: { en: 'Main source of drinking water?' }, type: 'SINGLE', options: [{ en: 'Borehole' }, { en: 'River' }] },
+    ],
+  });
+  if (!existing) await call('POST', `/guides/${guide.id}/approve`, admin);
+
   const stamp = Date.now().toString(36);
   // How an admin adds a field worker now: one step, projects + code.
   const worker = await call<{ id: string; code: string }>('POST', '/field-team', admin, {

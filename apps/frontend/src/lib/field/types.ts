@@ -1,3 +1,4 @@
+import type { FieldGuide } from '@/types/field';
 /**
  * Field app — offline recording and upload outbox.
  *
@@ -53,6 +54,9 @@ export interface LocalRecording {
 export interface CachedInterview {
   id: string;
   status: string;
+  /** The guide version this interview uses. */
+  questionSetId?: string | null;
+  language?: string | null;
   scheduledAt?: string | null;
   location?: string | null;
   notes?: string | null;
@@ -76,6 +80,26 @@ export interface CachedProject {
   id: string;
   name: string;
   method?: string | null;
+  /** The approved guide, kept on the phone so questions show offline. */
+  guide?: FieldGuide | null;
+}
+
+/** One question marked during an interview (kept on the phone until sent). */
+export interface QuestionMark {
+  questionId: string;
+  status: 'ASKED' | 'SKIPPED' | 'CLEAR';
+  /** Position in the recording when asked, if one was running. */
+  atMs?: number;
+  /** The local recording id, which becomes the stored recording's upload id. */
+  recordingRef?: string;
+  markedAt: string;
+}
+
+export interface QuestionLogRecord {
+  interviewId: string;
+  marks: QuestionMark[];
+  /** False while there are marks the server has not confirmed. */
+  synced: boolean;
 }
 
 export interface InterviewSnapshot {
@@ -111,6 +135,8 @@ export interface PendingInterview {
     capturedAt: string;
   };
   location?: string;
+  /** The guide version shown on the phone when the interview began. */
+  questionSetId?: string;
   /** Language spoken (e.g. "ha"): the transcription hint. */
   language?: string;
   createdAt: string;

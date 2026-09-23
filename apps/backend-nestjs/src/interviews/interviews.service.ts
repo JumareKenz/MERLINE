@@ -16,7 +16,9 @@ import { ConsentsService } from '../consents/consents.service';
 import { MediaService } from '../media/media.service';
 import { queueTranscriptionForRecording } from '../transcripts/transcription-queue';
 import { defaultInterviewType } from '../common/research/interview-type';
+import { resolveQuestionSet } from '../guides/resolve-question-set';
 import { CreateInterviewDto } from './dto/create-interview.dto';
+import type { QuestionLogEntryDto } from './dto/question-log.dto';
 
 /** Status transitions a caller may request explicitly via PATCH .../status. */
 const ALLOWED_TRANSITIONS: Record<InterviewStatus, InterviewStatus[]> = {
@@ -124,6 +126,133 @@ export class InterviewsService extends BaseService {
   }
 
   /**
+   * The guide this interview used (its exact version) and what was asked,
+   * skipped and when. Recording positions are mapped to the stored
+   * recording where the device's recording id matches its upload id.
+   */
+  async questionLog(id: string, organizationId: string, viewerId?: string) {
+    const interview = await this.findById(id, organizationId, viewerId);
+    if (!interview.questionSetId) return { guide: null, entries: [] };
+    const [guide, entries, recordings] = await Promise.all([
+      this.prisma.questionSet.findUnique({
+        where: { id: interview.questionSetId },
+        include: { questions: { orderBy: { order: 'asc' } } },
+      }),
+      this.prisma.interviewQuestionLog.findMany({ where: { interviewId: id } }),
+      this.prisma.media.findMany({
+        where: { interviewId: id, deletedAt: null },
+        select: { id: true, metadata: true },
+      }),
+    ]);
+    const mediaByRef = new Map(
+      recordings
+        .map(
+          (m) =>
+            [
+              (m.metadata as { uploadId?: string } | null)?.uploadId,
+              m.id,
+            ] as const,
+        )
+        .filter((pair): pair is readonly [string, string] => !!pair[0]),
+    );
+    return {
+      guide,
+      entries: entries.map((e) => ({
+        ...e,
+        mediaId: e.recordingRef
+          ? (mediaByRef.get(e.recordingRef) ?? null)
+          : null,
+      })),
+    };
+  }
+
+  /**
+   * Stores asked/skipped marks from the interviewer's device. Idempotent and
+   * safe to resend: for each question the mark with the latest device time
+   * wins, so an offline device syncing late cannot undo a newer mark.
+   */
+  async saveQuestionLog(
+    id: string,
+    entries: QuestionLogEntryDto[],
+    userId: string,
+    organizationId: string,
+  ) {
+    const interview = await this.findById(id, organizationId, userId);
+    if (!interview.questionSetId) {
+      throw new BadRequestException('This interview has no guide');
+    }
+    const valid = new Set(
+      (
+        await this.prisma.guideQuestion.findMany({
+          where: { questionSetId: interview.questionSetId },
+          select: { id: true },
+        })
+      ).map((q) => q.id),
+    );
+    const unknown = entries.find((e) => !valid.has(e.questionId));
+    if (unknown) {
+      throw new BadRequestException(
+        `Question ${unknown.questionId} is not in this interview's guide`,
+      );
+    }
+
+    // Latest mark per question within this batch.
+    const latest = new Map<string, QuestionLogEntryDto>();
+    for (const e of entries) {
+      const prev = latest.get(e.questionId);
+      if (!prev || new Date(e.markedAt) >= new Date(prev.markedAt)) {
+        latest.set(e.questionId, e);
+      }
+    }
+
+    await this.executeTransaction(async (tx) => {
+      for (const e of latest.values()) {
+        const markedAt = new Date(e.markedAt);
+        const existing = await tx.interviewQuestionLog.findUnique({
+          where: {
+            interviewId_questionId: {
+              interviewId: id,
+              questionId: e.questionId,
+            },
+          },
+        });
+        if (existing && existing.markedAt > markedAt) continue;
+        if (e.status === 'CLEAR') {
+          if (existing)
+            await tx.interviewQuestionLog.delete({
+              where: { id: existing.id },
+            });
+          continue;
+        }
+        const data = {
+          status: e.status,
+          atMs: e.atMs ?? null,
+          recordingRef: e.recordingRef ?? null,
+          note: e.note?.trim() || null,
+          markedAt,
+          recordedById: userId,
+        };
+        if (existing) {
+          await tx.interviewQuestionLog.update({
+            where: { id: existing.id },
+            data,
+          });
+        } else {
+          await tx.interviewQuestionLog.create({
+            data: {
+              ...data,
+              interviewId: id,
+              questionId: e.questionId,
+              organizationId,
+            },
+          });
+        }
+      }
+    });
+    return this.questionLog(id, organizationId, userId);
+  }
+
+  /**
    * Moves an interview to the Trash. It disappears from every list, report
    * and field device; its recordings, transcripts and consent stay intact
    * so an administrator can restore it. Findings already quoting it keep
@@ -225,6 +354,7 @@ export class InterviewsService extends BaseService {
         );
       }
 
+      const type = dto.type ?? (await defaultInterviewType(tx, dto.projectId));
       return tx.interview.create({
         data: {
           participantId: dto.participantId,
@@ -235,7 +365,14 @@ export class InterviewsService extends BaseService {
           location: dto.location,
           notes: dto.notes,
           language: dto.language,
-          type: dto.type ?? (await defaultInterviewType(tx, dto.projectId)),
+          type,
+          questionSetId: await resolveQuestionSet(
+            tx,
+            organizationId,
+            dto.projectId,
+            type,
+            dto.questionSetId,
+          ),
           organizationId,
         },
       });

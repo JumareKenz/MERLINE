@@ -10,6 +10,8 @@ import { resolveFieldScope } from '../common/scoping/field-scope';
 import { jsonObject } from '../common/utils/prisma-json';
 import { CreateFieldInterviewDto } from './dto/field-interview.dto';
 import { defaultInterviewType } from '../common/research/interview-type';
+import { resolveQuestionSet } from '../guides/resolve-question-set';
+import { GuidesService } from '../guides/guides.service';
 
 /** Consent timestamps from a device clock are accepted within these bounds. */
 const MAX_CLOCK_AHEAD_MS = 5 * 60_000;
@@ -87,15 +89,46 @@ export class FieldService extends BaseService {
       mine.map((m) => [m.projectId, m._count._all]),
     );
 
-    return projects.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      method: (p.settings as { method?: string } | null)?.method ?? null,
-      startDate: p.startDate,
-      endDate: p.endDate,
-      myInterviewCount: countByProject.get(p.id) ?? 0,
-    }));
+    // Each project's approved guide rides along, so the device has it offline.
+    return Promise.all(
+      projects.map(async (p) => {
+        const method =
+          (p.settings as { method?: string } | null)?.method ?? null;
+        const guide = await GuidesService.approvedFor(
+          this.prisma,
+          organizationId,
+          p.id,
+          method,
+        );
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          method,
+          startDate: p.startDate,
+          endDate: p.endDate,
+          myInterviewCount: countByProject.get(p.id) ?? 0,
+          guide: guide && {
+            id: guide.id,
+            version: guide.version,
+            title: guide.title,
+            languages: guide.languages,
+            questions: guide.questions.map((q) => ({
+              id: q.id,
+              order: q.order,
+              section: q.section,
+              text: q.text,
+              type: q.type,
+              options: q.options,
+              scaleMin: q.scaleMin,
+              scaleMax: q.scaleMax,
+              probes: q.probes,
+              required: q.required,
+            })),
+          },
+        };
+      }),
+    );
   }
 
   async createFieldInterview(
@@ -219,6 +252,7 @@ export class FieldService extends BaseService {
           actorId: userId,
         },
       });
+      const type = await defaultInterviewType(tx, dto.projectId);
       return tx.interview.create({
         data: {
           id: dto.interviewId,
@@ -230,7 +264,14 @@ export class FieldService extends BaseService {
           startedAt: grantedAt,
           location: dto.location?.trim() || undefined,
           language: dto.language,
-          type: await defaultInterviewType(tx, dto.projectId),
+          type,
+          questionSetId: await resolveQuestionSet(
+            tx,
+            organizationId,
+            dto.projectId,
+            type,
+            dto.questionSetId,
+          ),
           organizationId,
         },
         include: INTERVIEW_INCLUDE,

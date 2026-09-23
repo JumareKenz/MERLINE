@@ -47,6 +47,11 @@ export class CreateInterviewDto {
   @MaxLength(4000)
   notes?: string;
 
+  /** The guide version to use; defaults to the approved guide for the project and type. */
+  @IsOptional()
+  @IsUUID()
+  questionSetId?: string;
+
   /** KII, FGD, IDI or OTHER. Defaults to the project's method. */
   @IsOptional()
   @IsIn(INTERVIEW_TYPES)

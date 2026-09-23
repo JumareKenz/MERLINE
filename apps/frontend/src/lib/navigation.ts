@@ -3,6 +3,7 @@ import {
   ClipboardList,
   FileText,
   FolderKanban,
+  ListChecks,
   MessagesSquare,
   Quote,
   Settings,
@@ -29,9 +30,8 @@ export interface NavItem {
  * where it is needed.
  *
  * Not here, on purpose:
- *  - Questionnaires / Guides and Translations: those are legacy MERL
- *    modules, deregistered on the backend (LEGACY.md). A nav item that
- *    leads to a 404 or a "coming soon" page would not earn its place.
+ *  - The legacy MERL questionnaires and translations (deregistered;
+ *    LEGACY.md). Interview guides are the qualitative replacement.
  *  - Organizations / Workspaces: rarely used, and GET /organizations is not
  *    yet tenant-filtered (see DEPLOYMENT.md known gaps).
  */
@@ -42,6 +42,13 @@ export const PRIMARY_NAV: NavItem[] = [
     icon: FolderKanban,
     description: 'Research studies and what needs attention',
     anyOf: ['view.projects'],
+  },
+  {
+    label: 'Guides',
+    href: '/guides',
+    icon: ListChecks,
+    description: 'Approved interview guides (question sets) for field teams',
+    anyOf: ['view.guides'],
   },
   {
     label: 'Assignments',

@@ -36,6 +36,7 @@ export interface SingleResponse<T> {
 }
 
 export interface ApiError {
+  details?: unknown;
   message: string;
   errors?: Record<string, string[]>;
   status: number;

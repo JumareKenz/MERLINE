@@ -29,6 +29,7 @@ import type * as ResearchProjectTypes from '@/types/research-project';
 import type * as RoleTypes from '@/types/role';
 import type * as StudyTypes from '@/types/study';
 import type * as SubmissionTypes from '@/types/submission';
+import type * as GuideTypes from '@/types/guide';
 import type * as AnalysisTypes from '@/types/analysis-report';
 import type * as TranscriptTypes from '@/types/transcript';
 import type * as UserTypes from '@/types/user';
@@ -122,6 +123,8 @@ class ApiClient {
       return {
         message: error.response.data.message || 'An unexpected error occurred',
         errors: error.response.data.errors,
+        // Structured detail from the API filter (e.g. row-by-row upload problems).
+        details: (error.response.data as { error?: { details?: unknown } }).error?.details,
         status: error.response.status,
         code: error.code,
         request_id: error.response.data.request_id,
@@ -655,6 +658,10 @@ export const API = {
         { headers: { 'Content-Type': 'multipart/form-data' } },
       ),
     delete: (id: string) => apiClient.delete(`/interviews/${id}`),
+    questionLog: (id: string) =>
+      apiClient.get<ApiTypes.Envelope<GuideTypes.InterviewQuestionLog>>(`/interviews/${id}/question-log`),
+    saveQuestionLog: (id: string, entries: unknown[]) =>
+      apiClient.put<ApiTypes.Envelope<GuideTypes.InterviewQuestionLog>>(`/interviews/${id}/question-log`, { entries }),
     deleteRecording: (id: string, mediaId: string) =>
       apiClient.delete(`/interviews/${id}/recordings/${mediaId}`),
     listRecordings: (id: string) =>
@@ -712,6 +719,24 @@ export const API = {
       apiClient.patch<ApiTypes.Envelope<TranscriptTypes.TranscriptSegment>>(`/transcripts/${id}/segments/${segmentId}`, { text }),
     translate: (id: string, language = 'en') =>
       apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}/translate`, { language }),
+  },
+  /** Interview guides: versioned question sets. */
+  guides: {
+    list: (params?: { projectId?: string; interviewType?: string }) =>
+      apiClient.get<ApiTypes.Envelope<GuideTypes.GuideList>>('/guides', { params }),
+    get: (id: string) => apiClient.get<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}`),
+    create: (data: GuideTypes.SaveGuideInput) => apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>('/guides', data),
+    save: (id: string, data: GuideTypes.SaveGuideInput) =>
+      apiClient.put<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}`, data),
+    approve: (id: string) => apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}/approve`),
+    archive: (id: string) => apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}/archive`),
+    delete: (id: string) => apiClient.delete(`/guides/${id}`),
+    import: (data: FormData) =>
+      apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>('/guides/import', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    template: (format: 'csv' | 'xlsx') =>
+      apiClient.get<Blob>('/guides/template', { params: { format }, responseType: 'blob' }),
   },
   /** AI-written interview, project and custom reports (administrators). */
   analysisReports: {

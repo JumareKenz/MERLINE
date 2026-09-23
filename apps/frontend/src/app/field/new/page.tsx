@@ -263,6 +263,8 @@ function StartInterview() {
               },
               location: location.trim() || undefined,
               language: language || undefined,
+              // The guide shown on this phone; kept even if a newer one is approved later.
+              questionSetId: chosenProject.guide?.id,
               createdAt: new Date().toISOString(),
               status: 'pending',
               attempts: 0,

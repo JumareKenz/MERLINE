@@ -39,7 +39,7 @@ function crud(
  * deregistered, so granting access to them would be meaningless.
  *
  * Phase 2: participants, consents, interviews, recordings, transcripts and
- * findings are live. `guides` and `approvals` remain for a later slice.
+ * findings are live, and interview guides (versioned question sets).
  */
 export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('projects', 'Projects', ['view', 'create', 'edit', 'delete']),
@@ -54,6 +54,7 @@ export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('participants', 'Participants', ['view', 'create', 'edit', 'delete']),
   ...crud('consents', 'Consent Records', ['view', 'create', 'withdraw']),
   ...crud('interviews', 'Interviews', ['view', 'create', 'edit', 'delete']),
+  ...crud('guides', 'Interview Guides', ['view', 'create', 'edit', 'approve', 'delete']),
   ...crud('recordings', 'Interview Recordings', ['view', 'upload', 'delete']),
   ...crud('transcripts', 'Transcripts', ['view', 'create', 'edit']),
   ...crud('findings', 'Findings', [
@@ -127,6 +128,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.interviews',
       'create.interviews',
       'edit.interviews',
+      'view.guides',
+      'create.guides',
+      'edit.guides',
+      'approve.guides',
       'upload.recordings',
       'view.findings',
       'create.findings',
@@ -157,6 +162,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.interviews',
       'create.interviews',
       'edit.interviews',
+      'view.guides',
+      'create.guides',
+      'edit.guides',
       'upload.recordings',
       'view.findings',
       'create.findings',
@@ -194,6 +202,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.participants',
       'view.consents',
       'view.interviews',
+      'view.guides',
       'view.findings',
       'approve.findings',
     ],

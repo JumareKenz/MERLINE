@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useMemo } from 'react';
+import { Suspense, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FieldRecorder } from '@/components/field/field-recorder';
 import { RecordingRow } from '@/components/field/recording-row';
+import { FieldGuide } from '@/components/field/field-guide';
 import { consentPermitsRecording, useFieldInterviews } from '@/hooks/use-field-interviews';
 import { useUpdateInterviewStatus } from '@/hooks/use-interviews';
 import { API } from '@/lib/api-client';
 import type { CachedInterview } from '@/lib/field/types';
+import type { FieldGuide as FieldGuideData } from '@/types/field';
 import { useAuthStore } from '@/stores/auth-store';
 import { useFieldOutbox } from '@/stores/field-outbox-store';
 import { cn, formatDateTime } from '@/lib/utils';
@@ -58,7 +60,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function InterviewWorkflow() {
   const id = useSearchParams().get('id') ?? '';
   const userId = useAuthStore((s) => s.user?.id);
-  const { interviews, source, isLoading: listLoading } = useFieldInterviews();
+  const { interviews, projects, source, isLoading: listLoading } = useFieldInterviews();
+  const liveRef = useRef<{ recordingId: string; elapsedMs: number } | null>(null);
+  const onLive = useCallback((live: { recordingId: string; elapsedMs: number } | null) => {
+    liveRef.current = live;
+  }, []);
   const recordings = useFieldOutbox((s) => s.recordings);
   const online = useFieldOutbox((s) => s.online);
   const updateStatus = useUpdateInterviewStatus();
@@ -86,6 +92,8 @@ function InterviewWorkflow() {
         participantId: pending.participantId,
         participantName: pending.participant.displayName,
         projectId: pending.projectId,
+        questionSetId: pending.questionSetId,
+        language: pending.language,
         consent: {
           id: pending.consentId,
           method: pending.consent.method,
@@ -103,10 +111,26 @@ function InterviewWorkflow() {
       notes: d.notes,
       participantId: d.participantId,
       participantName: d.participant?.displayName,
+      projectId: d.projectId,
+      questionSetId: d.questionSetId,
+      language: d.language,
       consent: d.consent ?? null,
       recordingCount: d._count?.recordings,
     };
   }, [fromList, pending, direct.data]);
+
+  // The guide: from the phone's cache when it is the project's current one,
+  // otherwise (an older version) from the server when online.
+  const questionSetId = interview?.questionSetId ?? null;
+  const cachedGuide = projects.find((p) => p.guide?.id === questionSetId)?.guide ?? null;
+  const guideQuery = useQuery({
+    queryKey: ['field', 'guide', id, questionSetId],
+    queryFn: async () => (await API.interviews.questionLog(id)).data.data.guide as unknown as FieldGuideData | null,
+    enabled: !!questionSetId && !cachedGuide && online && !notOnServerYet,
+    staleTime: Infinity,
+    retry: 0,
+  });
+  const guide = cachedGuide ?? guideQuery.data ?? null;
 
   const onDevice = recordings.filter((r) => r.interviewId === id);
   const pendingHere = onDevice.filter((r) => r.status !== 'uploaded').length;
@@ -230,7 +254,19 @@ function InterviewWorkflow() {
 
       {permitted && !closed && (
         <Section title="Record">
-          <FieldRecorder userId={userId} interviewId={interview.id} participantName={interview.participantName} onFirstStart={markStarted} />
+          <FieldRecorder userId={userId} interviewId={interview.id} participantName={interview.participantName} onFirstStart={markStarted} onLive={onLive} />
+        </Section>
+      )}
+
+      {guide && guide.questions.length > 0 && (
+        <Section title="Interview guide">
+          <FieldGuide
+            interviewId={interview.id}
+            guide={guide}
+            language={interview.language}
+            live={() => liveRef.current}
+            readOnly={closed}
+          />
         </Section>
       )}
 

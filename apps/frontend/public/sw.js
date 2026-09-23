@@ -19,7 +19,7 @@
  *  - Cache redirects or error responses (a signed-out 307 to /login must
  *    not be replayed later as the "page").
  */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `merline-shell-${VERSION}`;
 const STATIC_CACHE = `merline-static-${VERSION}`;
 
@@ -34,6 +34,7 @@ const PRECACHE = [
   '/field.webmanifest',
   '/brand/mark-64.png',
   '/brand/mark-128.png',
+  '/brand/mark-dark-64.png',
   '/brand/mark-dark-128.png',
   '/icons/icon-192.png',
   '/icons/icon-maskable-192.png',

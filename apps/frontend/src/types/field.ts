@@ -7,6 +7,28 @@ export interface FieldProject {
   startDate?: string | null;
   endDate?: string | null;
   myInterviewCount: number;
+  /** The approved guide new interviews in this project use (cached offline). */
+  guide?: FieldGuide | null;
+}
+
+/** An approved interview guide as the field app receives it. */
+export interface FieldGuide {
+  id: string;
+  version: number;
+  title: string;
+  languages: string[];
+  questions: {
+    id: string;
+    order: number;
+    section?: string | null;
+    text: Record<string, string>;
+    type: 'OPEN' | 'SINGLE' | 'MULTIPLE' | 'SCALE';
+    options: Record<string, string>[];
+    scaleMin?: number | null;
+    scaleMax?: number | null;
+    probes: Record<string, string>;
+    required: boolean;
+  }[];
 }
 
 export interface FieldConsentInput {
@@ -31,6 +53,7 @@ export interface CreateFieldInterviewInput {
   consent: FieldConsentInput;
   location?: string;
   language?: string;
+  questionSetId?: string;
 }
 
 /** GET /field-team rows. */

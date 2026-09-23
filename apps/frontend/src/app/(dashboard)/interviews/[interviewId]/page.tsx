@@ -16,6 +16,7 @@ import { RecordingPlayer } from '@/components/interviews/recording-player';
 import { RecordingUploader } from '@/components/interviews/recording-uploader';
 import { TranscriptStatus } from '@/components/interviews/transcript-status';
 import { InterviewReportCard } from '@/components/analysis/interview-report-card';
+import { InterviewGuideLog } from '@/components/guides/interview-guide-log';
 import { API } from '@/lib/api-client';
 import { interviewTypeLabel } from '@/types/research-project';
 import { useQueryClient } from '@tanstack/react-query';
@@ -170,6 +171,12 @@ export default function InterviewDetailPage() {
               </details>
             )}
           </Panel>
+
+          {interview.questionSetId && (
+            <Panel title="Interview guide">
+              <InterviewGuideLog interviewId={interviewId} language={interview.language} />
+            </Panel>
+          )}
 
           {interview.notes && (
             <Panel title="Briefing notes">

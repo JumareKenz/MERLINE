@@ -12,6 +12,8 @@ export interface Interview {
   language?: string | null;
   /** KII, FGD, IDI or OTHER. */
   type?: string | null;
+  /** The interview guide version it uses. */
+  questionSetId?: string | null;
   organizationId: string;
   projectId?: string | null;
   participantId: string;

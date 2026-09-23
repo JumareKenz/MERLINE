@@ -159,6 +159,21 @@ sign-in path and their sessions end (`tokenVersion` bump). Settings ›
 Trash restores. New permissions reach existing organizations on startup
 (`PermissionCatalogueSync`).
 
+**15. Interview guides (question sets).** `src/guides` (tables
+`question_sets`, `guide_questions`, `interview_question_logs`; not the
+legacy MERL questionnaires, and `GuideQuestion` because `Question` is a
+legacy model). Versioned by `familyId`: a DRAFT edits in place, saving an
+APPROVED/ARCHIVED one creates version n+1 as a DRAFT; approving archives
+whatever was approved for the same slot (family, or same project +
+interview type). Interviews record `questionSetId` (the device's cached
+version when offline, else the approved one; `resolveQuestionSet`). The
+field app gets the approved guide inside `GET /field/projects` and keeps it
+in the IndexedDB snapshot; asked/skipped marks go to the `questionLog` store
+(IDB v3) and `PUT /interviews/:id/question-log` (idempotent, latest
+`markedAt` wins). `atMs` is the live recording position; `recordingRef` is
+the local recording id, which is the stored media's `metadata.uploadId`.
+CSV/XLSX import: `guide-import.ts` (template at `GET /guides/template`).
+
 ---
 
 ## Invariants — do not weaken these
@@ -211,7 +226,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **345 passing, 26 suites** (as of 2026-09-23; the transcription
+Expect **367 passing, 28 suites** (as of 2026-09-23; the transcription
 pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.

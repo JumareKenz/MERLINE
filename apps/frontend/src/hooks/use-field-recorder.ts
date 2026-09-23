@@ -344,7 +344,9 @@ export function useFieldRecorder({ userId, interviewId, participantName }: Optio
     setPhase(isRecorderSupported() ? 'idle' : 'unsupported');
   }, []);
 
-  return { phase, elapsedMs, level, bytes, error, savedRecording, start, pause, resume, stop, reset };
+  // The recording being captured: guide marks stamp their time against it.
+  const recordingId = phase === 'recording' || phase === 'paused' ? recordingRef.current?.id : undefined;
+  return { phase, elapsedMs, level, bytes, error, savedRecording, recordingId, start, pause, resume, stop, reset };
 }
 
 /** Queue a picked audio file through the same resumable outbox. */

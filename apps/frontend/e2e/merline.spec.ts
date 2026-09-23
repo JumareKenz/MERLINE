@@ -125,8 +125,8 @@ test.describe('admin workspace', () => {
 
     await adminLogin(page);
     const nav = page.getByRole('navigation', { name: 'Primary' });
-    await expect(nav.getByRole('link')).toHaveText(['Projects', 'Assignments', 'Results', 'Transcripts', 'Reports', 'AI Dialogue']);
-    await expect(page.getByRole('link', { name: /Guides|Questionnaires|Organizations|Workspaces|Indicators/ })).toHaveCount(0);
+    await expect(nav.getByRole('link')).toHaveText(['Projects', 'Guides', 'Assignments', 'Results', 'Transcripts', 'Reports', 'AI Dialogue']);
+    await expect(page.getByRole('link', { name: /Questionnaires|Organizations|Workspaces|Indicators/ })).toHaveCount(0);
 
     const logo = page.locator('aside img').first();
     await expect(logo).toHaveAttribute('src', /\/brand\/mark-64\.png/);
@@ -268,8 +268,17 @@ test.describe('field app', () => {
     await page.waitForURL(/\/field\/interview\?id=/);
     const interviewId = new URL(page.url()).searchParams.get('id')!;
     await expect(page.getByText('Recording is consented')).toBeVisible();
+    // The approved guide came down with the project and works offline.
+    await expect(page.getByText('What is your role in the community?')).toBeVisible();
     await page.getByRole('button', { name: 'Start recording' }).click();
-    await page.waitForTimeout(4_000);
+    await page.waitForTimeout(2_500);
+    await page.getByRole('button', { name: 'Asked' }).click();
+    // One question at a time: it moves on; the first shows when it was asked.
+    await expect(page.getByText('1 of 2 done')).toBeVisible();
+    await page.getByRole('button', { name: 'Previous' }).click();
+    await expect(page.getByText(/Asked at 0:0[1-9]/)).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/field-guide-phone.png`, fullPage: true });
+    await page.waitForTimeout(1_500);
     await page.getByRole('button', { name: 'Stop and save recording' }).click();
     await expect(page.getByText('Saved on this phone')).toBeVisible();
 
@@ -283,6 +292,16 @@ test.describe('field app', () => {
     expect(interview.consent).toMatchObject({ allowRecording: true, allowAiAnalysis: false });
     expect(interview.projectId).toBe(projectId);
     expect(interview._count.recordings).toBe(1);
+
+    // The question mark reached the server, timed against the recording.
+    await expect
+      .poll(async () => {
+        const log = ((await (await apiCall(admin, 'GET', `/interviews/${interviewId}/question-log`)).json()) as {
+          data: { entries: { status: string; atMs: number | null; mediaId: string | null }[] };
+        }).data.entries;
+        return log.length === 1 && log[0].status === 'ASKED' && (log[0].atMs ?? 0) > 1000 && !!log[0].mediaId;
+      }, { timeout: 30_000 })
+      .toBe(true);
   });
 
   test('the API, not the UI, confines a field interviewer', async () => {

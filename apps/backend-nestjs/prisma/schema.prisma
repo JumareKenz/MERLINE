@@ -116,6 +116,8 @@ model Organization {
   transcriptSegments  TranscriptSegment[]
   jobs                Job[]
   analysisReports     AnalysisReport[]
+  questionSets        QuestionSet[]
+  interviewQuestionLogs InterviewQuestionLog[]
   findings            Finding[]
   quotations          Quotation[]
 
@@ -172,6 +174,9 @@ model User {
   transcriptsRequested Transcript[]  @relation("TranscriptRequester")
   transcriptSegmentsEdited TranscriptSegment[] @relation("TranscriptSegmentEditor")
   analysisReportsRequested AnalysisReport[] @relation("AnalysisReportRequester")
+  questionSetsCreated  QuestionSet[] @relation("QuestionSetCreator")
+  questionSetsApproved QuestionSet[] @relation("QuestionSetApprover")
+  questionLogEntries   InterviewQuestionLog[] @relation("QuestionLogRecorder")
   findingsCreated      Finding[]     @relation("FindingCreator")
   findingsReviewed     Finding[]     @relation("FindingReviewer")
   quotationsCreated    Quotation[]   @relation("QuotationCreator")
@@ -279,6 +284,7 @@ model Project {
   interviews   Interview[]
   findings     Finding[]
   reports      AnalysisReport[]
+  questionSets QuestionSet[]
 
   @@map("projects")
 }
@@ -1062,6 +1068,8 @@ model Interview {
   language       String?
   /// Interview format: KII, FGD, IDI or OTHER. Defaults to the project's method.
   type           String?
+  /// The exact guide version used (kept when the guide is later revised).
+  questionSetId  String?         @map("question_set_id")
   organizationId String          @map("organization_id")
   projectId      String?         @map("project_id")
   participantId  String          @map("participant_id")
@@ -1083,6 +1091,8 @@ model Interview {
   recordings   Media[]
   transcripts  Transcript[]
   reports      AnalysisReport[]
+  questionSet  QuestionSet?    @relation(fields: [questionSetId], references: [id])
+  questionLog  InterviewQuestionLog[]
 
   @@index([organizationId])
   @@index([participantId])
@@ -1318,4 +1328,103 @@ model AnalysisReport {
   @@index([projectId])
   @@index([interviewId])
   @@map("analysis_reports")
+}
+
+// PHASE 2 — interview guides ("question sets"). Versioned: editing an
+// approved guide creates the next version in the same family, and each
+// interview keeps the exact version it used. Only APPROVED guides reach
+// the field app. Not the legacy MERL questionnaires.
+enum QuestionSetStatus {
+  DRAFT
+  APPROVED
+  ARCHIVED
+}
+
+model QuestionSet {
+  id             String            @id @default(uuid())
+  /// Shared by every version of the same guide (the first version's id).
+  familyId       String            @map("family_id")
+  version        Int               @default(1)
+  title          String
+  description    String?
+  /// KII, FGD, IDI or OTHER.
+  interviewType  String            @map("interview_type")
+  /// Language codes the questions are written in, e.g. ["en", "ha"].
+  languages      String[]          @default(["en"])
+  status         QuestionSetStatus @default(DRAFT)
+  /// Null: available to every project of this interview type.
+  projectId      String?           @map("project_id")
+  organizationId String            @map("organization_id")
+  createdById    String            @map("created_by_id")
+  approvedById   String?           @map("approved_by_id")
+  approvedAt     DateTime?         @map("approved_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  project      Project?        @relation(fields: [projectId], references: [id])
+  createdBy    User            @relation("QuestionSetCreator", fields: [createdById], references: [id])
+  approvedBy   User?           @relation("QuestionSetApprover", fields: [approvedById], references: [id])
+  questions    GuideQuestion[]
+  interviews   Interview[]
+
+  @@unique([familyId, version])
+  @@index([organizationId])
+  @@index([projectId])
+  @@map("question_sets")
+}
+
+model GuideQuestion {
+  id            String   @id @default(uuid())
+  questionSetId String   @map("question_set_id")
+  order         Int
+  section       String?
+  /// Text by language code: {"en": "...", "ha": "..."}.
+  text          Json
+  /// OPEN, SINGLE, MULTIPLE or SCALE.
+  type          String   @default("OPEN")
+  /// Answer options for SINGLE/MULTIPLE, each by language code.
+  options       Json     @default("[]")
+  scaleMin      Int?     @map("scale_min")
+  scaleMax      Int?     @map("scale_max")
+  /// Probing notes for the interviewer, by language code.
+  probes        Json     @default("{}")
+  required      Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  questionSet QuestionSet            @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  logEntries  InterviewQuestionLog[]
+
+  @@index([questionSetId])
+  @@map("guide_questions")
+}
+
+/// What happened to each guide question in an interview: asked or skipped,
+/// and roughly when in the recording, so transcripts can be aligned.
+model InterviewQuestionLog {
+  id             String   @id @default(uuid())
+  interviewId    String   @map("interview_id")
+  questionId     String   @map("question_id")
+  /// ASKED or SKIPPED.
+  status         String
+  /// Position in the recording (ms) when the question was asked, if known.
+  atMs           Int?     @map("at_ms")
+  /// The field device's recording id (= the upload id on the stored media).
+  recordingRef   String?  @map("recording_ref")
+  note           String?
+  markedAt       DateTime @map("marked_at")
+  organizationId String   @map("organization_id")
+  recordedById   String   @map("recorded_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  interview    Interview     @relation(fields: [interviewId], references: [id])
+  question     GuideQuestion @relation(fields: [questionId], references: [id])
+  recordedBy   User          @relation("QuestionLogRecorder", fields: [recordedById], references: [id])
+
+  @@unique([interviewId, questionId])
+  @@index([organizationId])
+  @@map("interview_question_logs")
 }

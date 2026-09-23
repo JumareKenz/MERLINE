@@ -15,6 +15,8 @@ interface Props {
   participantName?: string;
   /** Called once, the first time capture actually starts. */
   onFirstStart?: () => void;
+  /** The recording in progress (id and position), or null when not recording. */
+  onLive?: (live: { recordingId: string; elapsedMs: number } | null) => void;
   onSaved?: () => void;
 }
 
@@ -91,8 +93,12 @@ function FilePicker({ userId, interviewId, participantName, onSaved }: Omit<Prop
  * while recording, so nothing here depends on a connection, and closing
  * the app loses at most the last few seconds.
  */
-export function FieldRecorder({ userId, interviewId, participantName, onFirstStart, onSaved }: Props) {
+export function FieldRecorder({ userId, interviewId, participantName, onFirstStart, onLive, onSaved }: Props) {
   const rec = useFieldRecorder({ userId, interviewId, participantName });
+
+  useEffect(() => {
+    onLive?.(rec.recordingId ? { recordingId: rec.recordingId, elapsedMs: rec.elapsedMs } : null);
+  }, [rec.recordingId, rec.elapsedMs, onLive]);
   const startedOnce = useRef(false);
   const live = rec.phase === 'recording' || rec.phase === 'paused';
 

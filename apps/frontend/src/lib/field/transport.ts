@@ -50,6 +50,7 @@ export const apiPendingTransport: PendingInterviewTransport = {
         consent: p.consent,
         location: p.location,
         language: p.language,
+        questionSetId: p.questionSetId,
       });
     } catch (err) {
       throw toUploadError(err);

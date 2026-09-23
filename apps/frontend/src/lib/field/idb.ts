@@ -1,4 +1,4 @@
-import type { InterviewSnapshot, LocalRecording, PendingInterview, RecordingRepo } from './types';
+import type { InterviewSnapshot, LocalRecording, PendingInterview, QuestionLogRecord, RecordingRepo } from './types';
 
 /**
  * IndexedDB storage for the field app. Deliberately dependency-free: this
@@ -9,13 +9,14 @@ import type { InterviewSnapshot, LocalRecording, PendingInterview, RecordingRepo
  *   slices      audio, as the recorder produced it: [recordingId, seq] -> Blob
  *   snapshots   the signed-in user's assigned interviews, for offline use
  *   pending     interviews started on site, not yet created on the server
+ *   questionLog guide questions marked asked/skipped, per interview, until sent
  *
  * All of it is origin-private device storage. `clearFieldData` removes the
  * interview snapshot on sign-out; unsent audio is kept (it is irreplaceable)
  * but is bound to its userId and only ever uploaded by that user's session.
  */
 const DB_NAME = 'merline-field';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -40,6 +41,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('pending')) {
         db.createObjectStore('pending', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('questionLog')) {
+        db.createObjectStore('questionLog', { keyPath: 'interviewId' });
       }
     };
     request.onsuccess = () => {
@@ -197,6 +201,25 @@ export const idbPendingRepo: PendingInterviewRepo = {
     const db = await openDb();
     const tx = db.transaction('pending', 'readwrite');
     tx.objectStore('pending').delete(id);
+    await committed(tx);
+  },
+};
+
+export const idbQuestionLog = {
+  async get(interviewId: string): Promise<QuestionLogRecord | undefined> {
+    const db = await openDb();
+    return done(db.transaction('questionLog').objectStore('questionLog').get(interviewId)) as Promise<
+      QuestionLogRecord | undefined
+    >;
+  },
+  async list(): Promise<QuestionLogRecord[]> {
+    const db = await openDb();
+    return done(db.transaction('questionLog').objectStore('questionLog').getAll()) as Promise<QuestionLogRecord[]>;
+  },
+  async put(record: QuestionLogRecord): Promise<void> {
+    const db = await openDb();
+    const tx = db.transaction('questionLog', 'readwrite');
+    tx.objectStore('questionLog').put(record);
     await committed(tx);
   },
 };

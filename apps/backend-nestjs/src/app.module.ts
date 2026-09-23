@@ -26,6 +26,7 @@ import { FieldModule } from './field/field.module';
 import { JobsModule } from './jobs/jobs.module';
 import { TrashModule } from './trash/trash.module';
 import { AnalysisModule } from './analysis/analysis.module';
+import { GuidesModule } from './guides/guides.module';
 
 /**
  * PHASE 0 — QUALITATIVE RESET
@@ -68,6 +69,7 @@ import { AnalysisModule } from './analysis/analysis.module';
     JobsModule,
     TrashModule,
     AnalysisModule,
+    GuidesModule,
   ],
   providers: [
     // ─── PHASE 1: global guard chain ───
