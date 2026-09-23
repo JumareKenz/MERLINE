@@ -16,6 +16,36 @@ export interface Interview {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+  /** Summary relations the API returns with every interview read. */
+  participant?: { id: string; displayName: string };
+  interviewer?: { id: string; firstName: string; lastName: string };
+  consent?: InterviewConsentScope;
+  _count?: { recordings: number; transcripts: number };
+}
+
+export interface InterviewConsentScope {
+  id: string;
+  method?: string;
+  allowRecording: boolean;
+  allowTranscription?: boolean;
+  allowAiAnalysis?: boolean;
+  withdrawnAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface RecordingUploadStatus {
+  uploadId: string;
+  receivedParts: number[];
+  completed: Recording | null;
+}
+
+export interface CompleteRecordingUploadDto {
+  totalParts: number;
+  mimeType: string;
+  originalName: string;
+  checksum?: string;
+  durationMs?: number;
+  recordedAt?: string;
 }
 
 export interface CreateInterviewDto {
@@ -43,6 +73,7 @@ export interface Recording {
   interviewId?: string | null;
   organizationId: string;
   uploadedById: string;
+  metadata?: { durationMs?: number; source?: string; recordedAt?: string } | null;
   createdAt: string;
 }
 
@@ -51,4 +82,12 @@ export type RecordingList = Recording[];
 export interface RecordingDownloadUrl {
   url: string;
   expiresIn: number;
+}
+
+/** GET /interviews/interviewers — names only, for assigning work. */
+export interface AssignableInterviewer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  isFieldInterviewer: boolean;
 }

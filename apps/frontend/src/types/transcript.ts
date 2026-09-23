@@ -30,3 +30,36 @@ export interface Transcript {
 }
 
 export type TranscriptList = Transcript[];
+
+/** GET /transcripts (no interviewId): organization-wide list with context. */
+export interface TranscriptSummary extends Transcript {
+  interview?: {
+    id: string;
+    projectId?: string | null;
+    participant?: { id: string; displayName: string };
+  };
+  _count?: { segments: number };
+}
+
+export type TranscriptSummaryList = TranscriptSummary[];
+
+/** POST /transcripts/:id/ask — a grounded, verified answer. */
+export interface DialogueCitation {
+  segmentId: string;
+  segmentIndex: number;
+  excerpt: string;
+  speakerLabel?: string | null;
+  startMs: number;
+  endMs: number;
+}
+
+export interface DialogueAnswer {
+  transcriptId: string;
+  question: string;
+  answer: string;
+  insufficientEvidence: boolean;
+  citations: DialogueCitation[];
+  provider: string;
+  model: string;
+  promptVersion: string;
+}

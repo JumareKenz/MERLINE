@@ -18,6 +18,16 @@ export interface AuthUser {
   organization?: { id: string; name: string; slug: string };
 }
 
+/** GET /auth/me — the full profile, including effective permission slugs. */
+export interface SessionProfile extends Omit<AuthUser, 'roles'> {
+  phone?: string | null;
+  avatarUrl?: string | null;
+  locale?: string;
+  lastLoginAt?: string | null;
+  roles: { id: string; name: string; slug: string }[];
+  permissions: string[];
+}
+
 export interface AuthResponse {
   user: AuthUser;
   token: { accessToken: string; expiresIn: number };
