@@ -50,3 +50,11 @@ export interface AddQuotationDto {
 }
 
 export type FindingList = Finding[];
+
+/** POST /findings/ai-draft: one DRAFT finding per theme in the interview. */
+export interface AiDraftResult {
+  transcriptId: string;
+  findings: (Finding & { quotationCount: number })[];
+  /** Quotations the model produced that were not verbatim, so were not saved. */
+  discardedQuotations: number;
+}

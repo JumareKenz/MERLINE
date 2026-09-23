@@ -720,7 +720,12 @@ export const API = {
     archive: (id: string) =>
       apiClient.post<ApiTypes.Envelope<FindingTypes.Finding>>(`/findings/${id}/archive`),
     aiDraft: (transcriptId: string) =>
-      apiClient.post<ApiTypes.Envelope<FindingTypes.Finding>>('/findings/ai-draft', { transcriptId }),
+      apiClient.post<ApiTypes.Envelope<FindingTypes.AiDraftResult>>(
+        '/findings/ai-draft',
+        { transcriptId },
+        // Reads the whole interview; a long one takes a minute or more.
+        { timeout: 180_000 },
+      ),
   },
   auditLog: {
     list: (params?: ApiTypes.ActivityLogParams) =>

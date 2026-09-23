@@ -164,7 +164,7 @@ export default function TranscriptPage() {
               `${segments.length} segments`,
               lang,
               transcript.durationMs ? formatDuration(transcript.durationMs) : null,
-              transcript.model ? `${transcript.model}${transcript.requestedLanguage ? '' : ', language detected'}` : transcript.provider,
+              transcript.requestedLanguage ? null : 'language detected automatically',
               edits ? `${edits} corrected` : null,
             ]
               .filter(Boolean)

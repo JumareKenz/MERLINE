@@ -119,7 +119,6 @@ export function TranscriptStatus({
               {[
                 noSpeech ? 'No speech detected' : lang,
                 transcript.durationMs ? formatDuration(transcript.durationMs) : null,
-                transcript.model,
               ]
                 .filter(Boolean)
                 .join(' · ')}
@@ -149,10 +148,12 @@ export function TranscriptStatus({
                   loading={aiDraft.isPending}
                   onClick={async () => {
                     const result = await aiDraft.mutateAsync(transcript.id).catch(() => null);
-                    if (result) router.push(`/findings/${result.data.data.id}`);
+                    const drafted = result?.data.data.findings ?? [];
+                    if (drafted.length === 1) router.push(`/findings/${drafted[0].id}`);
+                    else if (drafted.length > 1) router.push('/findings');
                   }}
                 >
-                  <Sparkles className="h-3.5 w-3.5" aria-hidden /> Draft finding
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden /> Draft findings
                 </Button>
               )}
               <Button size="sm" variant="secondary" asChild>
@@ -164,6 +165,25 @@ export function TranscriptStatus({
           )}
         </div>
       </div>
+      {transcript.status === 'COMPLETED' && allowTranscription && (
+        <details className="text-[13px]">
+          <summary className="cursor-pointer text-foreground-secondary hover:text-foreground">
+            Wrong language? Transcribe again
+          </summary>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <LanguagePicker id={`again-lang-${transcript.id}`} value={language} onChange={setLanguage} />
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={requestTranscript.isPending}
+              onClick={() => requestTranscript.mutate({ interviewId, mediaId: recording.id, language: language || undefined })}
+            >
+              Transcribe again
+            </Button>
+            <span className="text-foreground-tertiary">The current transcript, its corrections and findings are kept.</span>
+          </div>
+        </details>
+      )}
       {transcript.errorMessage && (transcript.status === 'FAILED' || retrying) && (
         <p className={transcript.status === 'FAILED' ? 'text-[13px] text-foreground-error' : 'text-[13px] text-foreground-secondary'}>
           {transcript.errorMessage}

@@ -42,6 +42,12 @@ export interface PutObjectOptions {
 interface AwsConfig {
   region: string;
   endpoint?: string;
+  /**
+   * Where browsers reach the store, when that differs from `endpoint`
+   * (e.g. MinIO on 127.0.0.1 behind nginx). Signed URLs are signed for this
+   * host — a signature covers the host, so it cannot be rewritten later.
+   */
+  publicEndpoint?: string;
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
@@ -54,6 +60,8 @@ interface StorageConfig {
 @Injectable()
 export class StorageService {
   private readonly client: S3Client;
+  /** Signs browser-facing URLs; the same as `client` unless a public endpoint is set. */
+  private readonly signer: S3Client;
   private readonly bucket: string;
   private readonly signedUrlTtlSeconds: number;
   private readonly serverSideEncryption?: 'AES256';
@@ -85,6 +93,18 @@ export class StorageService {
     // for real S3 and no SSE for an S3-compatible endpoint — MinIO rejects
     // SSE headers unless KMS is configured, and DEPLOYMENT.md documents this
     // exact default.
+    this.signer = aws.publicEndpoint
+      ? new S3Client({
+          region: aws.region,
+          endpoint: aws.publicEndpoint,
+          forcePathStyle: true,
+          credentials:
+            aws.accessKeyId && aws.secretAccessKey
+              ? { accessKeyId: aws.accessKeyId, secretAccessKey: aws.secretAccessKey }
+              : undefined,
+        })
+      : this.client;
+
     const sseEnv = process.env.STORAGE_SSE;
     if (sseEnv === 'AES256') {
       this.serverSideEncryption = 'AES256';
@@ -166,7 +186,7 @@ export class StorageService {
         : {}),
     });
 
-    return getSignedUrl(this.client, command, { expiresIn: this.signedUrlTtlSeconds });
+    return getSignedUrl(this.signer, command, { expiresIn: this.signedUrlTtlSeconds });
   }
 
   private isNotFound(error: unknown): boolean {

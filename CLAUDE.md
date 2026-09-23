@@ -132,6 +132,11 @@ exclude interview recordings. Segment corrections go to `editedText` (the
 machine `text` is never changed); read via `segmentText()`. Whisper on
 Hausa is phonetic, not accurate (~89% WER measured on FLEURS) — always
 pass the language hint; auto-detect misidentifies Hausa.
+Run DB tests with no local API worker on the same database (or
+`JOBS_WORKER=off`): a running worker can claim a test's queued job.
+Browsers download recordings through `AWS_PUBLIC_ENDPOINT` (nginx proxies
+`/merline-media/` read-only to MinIO); signing for the internal
+`AWS_ENDPOINT` produces links only the server itself can open.
 
 ---
 

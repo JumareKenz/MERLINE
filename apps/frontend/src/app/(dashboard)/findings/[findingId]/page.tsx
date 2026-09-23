@@ -125,8 +125,8 @@ export default function FindingDetailPage() {
         <p className="mb-6 flex items-start gap-2.5 rounded-lg bg-info-bg px-4 py-3 text-[14px] text-foreground">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
           <span>
-            Drafted by AI ({finding.aiModel ?? finding.aiProvider}). Every quotation below was verified as verbatim against its segment before it was saved; the
-            interpretation still needs a researcher’s judgement.
+            AI draft. Every quotation below was checked word for word against the transcript before it was saved; the interpretation still needs a
+            researcher’s judgement.
           </span>
         </p>
       )}

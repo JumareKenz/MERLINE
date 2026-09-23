@@ -60,6 +60,7 @@ Names only. Set these in the Vercel dashboard or with `vercel env add`.
 | `AWS_SECRET_ACCESS_KEY` | |
 | `AWS_BUCKET` | |
 | `AWS_ENDPOINT` | **Only** for S3-compatible services (R2, MinIO). Leave unset for real AWS S3. |
+| `AWS_PUBLIC_ENDPOINT` | Where **browsers** reach the store, when `AWS_ENDPOINT` is internal (e.g. `http://127.0.0.1:9000`). Signed download URLs are signed for this host. On the VPS: `https://api.jrecc.org`, with nginx proxying `/merline-media/` (GET/HEAD only) to MinIO and passing the Host header through. |
 
 **Optional:**
 

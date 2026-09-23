@@ -87,9 +87,10 @@ export function useAiDraftFinding() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (transcriptId: string) => API.findings.aiDraft(transcriptId),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['findings'] });
-      toast.success('AI draft created — review it before approving');
+      const n = res.data.data.findings.length;
+      toast.success(`${n} draft finding${n === 1 ? '' : 's'} created from the whole interview. Review each before approving.`);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'AI drafting failed');

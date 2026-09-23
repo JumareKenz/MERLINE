@@ -34,6 +34,7 @@ export default () => {
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
       bucket: process.env.AWS_BUCKET ?? 'merline-media-dev',
       endpoint: process.env.AWS_ENDPOINT ?? '',
+      publicEndpoint: process.env.AWS_PUBLIC_ENDPOINT ?? '',
     },
     storage: {
       signedUrlTtlSeconds: process.env.SIGNED_URL_TTL_SECONDS ?? '900',
