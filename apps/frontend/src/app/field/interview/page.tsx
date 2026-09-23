@@ -140,7 +140,7 @@ function InterviewWorkflow() {
             : 'It may have been reassigned or cancelled. Check with your research lead.'}
         </p>
         <Button size="lg" variant="secondary" className="mt-5" asChild>
-          <Link href="/field">Back to today</Link>
+          <Link href="/field">Back to projects</Link>
         </Button>
       </div>
     );
@@ -165,7 +165,7 @@ function InterviewWorkflow() {
     <div className="space-y-7">
       <div>
         <Link href="/field" className="-ml-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-[15px] font-medium text-foreground-secondary">
-          <ArrowLeft className="h-5 w-5" aria-hidden /> Today
+          <ArrowLeft className="h-5 w-5" aria-hidden /> Projects
         </Link>
         <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
           {interview.participantName ?? 'Interview'}
@@ -253,16 +253,16 @@ function InterviewWorkflow() {
             loading={updateStatus.isPending}
             onClick={() => updateStatus.mutate({ id, status: 'COMPLETED' })}
           >
-            <Check className="h-5 w-5" aria-hidden /> Finish interview
+            <Check className="h-5 w-5" aria-hidden /> Submit interview
           </Button>
           <p className="mt-2 text-center text-[14px] text-foreground-secondary">
             {!online
-              ? 'Connect to mark the interview finished. Your recordings are safe on this phone.'
+              ? 'Connect to submit. Your recordings are safe on this phone.'
               : notOnServerYet
                 ? 'Sending this interview to the server first…'
               : interview.status !== 'IN_PROGRESS'
                 ? 'Available once the interview has started.'
-                : 'Recordings still on this phone keep uploading after you finish.'}
+                : 'Submitting marks it done for your research lead. Recordings still on this phone keep sending afterwards.'}
           </p>
         </div>
       )}
@@ -270,7 +270,7 @@ function InterviewWorkflow() {
       {closed && (
         <p className="flex items-center gap-2.5 rounded-2xl bg-success-bg px-4 py-3.5 text-[16px] font-medium text-foreground">
           <CheckCircle2 className="h-5 w-5 text-success" aria-hidden />
-          {interview.status === 'COMPLETED' ? 'This interview is finished.' : 'This interview was cancelled.'}
+          {interview.status === 'COMPLETED' ? 'Submitted.' : 'This interview was cancelled.'}
         </p>
       )}
     </div>

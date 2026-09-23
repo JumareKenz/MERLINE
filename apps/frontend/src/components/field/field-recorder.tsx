@@ -147,7 +147,7 @@ export function FieldRecorder({ userId, interviewId, participantName, onFirstSta
             <Mic className="h-5 w-5" aria-hidden /> Record more
           </Button>
           <Button variant="secondary" size="lg" asChild>
-            <Link href="/field/uploads">View uploads</Link>
+            <Link href="/field/history?view=pending">View pending</Link>
           </Button>
         </div>
       </div>

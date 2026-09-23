@@ -208,9 +208,12 @@ test.describe('field app', () => {
 
     await fieldLogin(page);
     const { interviewId, otherInterviewId } = fx();
-    await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link')).toHaveText(['Today', 'People', 'Uploads']);
+    await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link')).toHaveText(['Projects', 'History']);
+    await expect(page.getByRole('link', { name: 'Start an interview' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /Projects|Assignments|Transcripts|AI Dialogue|Settings/ })).toHaveCount(0);
+    // No admin destinations; "Projects" here is the field app's own tab.
+    await expect(page.getByRole('link', { name: /Assignments|Results|Transcripts|Reports|AI Dialogue|Settings/ })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/field');
     await expect(page.getByRole('link', { name: /Prepare interview|Continue interview/ })).toHaveAttribute('href', `/field/interview?id=${interviewId}`);
     await expect(page.getByText('Not for the field worker')).toHaveCount(0);
     expect(await axe(page), 'field today a11y').toEqual([]);
@@ -228,9 +231,13 @@ test.describe('field app', () => {
     await page.goto(`/field/interview?id=${otherInterviewId}`);
     await expect(page.getByRole('heading', { name: 'Interview not available' })).toBeVisible();
 
-    await page.goto('/field/participants');
-    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
-    await page.screenshot({ path: `${SHOTS}/field-people-phone.png`, fullPage: true });
+    await page.goto('/field/history');
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+    for (const tab of ['All', 'Drafts', 'Pending', 'Submitted']) {
+      await expect(page.getByRole('tab', { name: new RegExp(`^${tab}`) })).toBeVisible();
+    }
+    expect(await axe(page), 'field history a11y').toEqual([]);
+    await page.screenshot({ path: `${SHOTS}/field-history-phone.png`, fullPage: true });
 
     // Same prefetch-abort exclusion as the admin test (see there).
     expect(errors.filter((e) => !/Failed to load resource.*40[134]|Failed to fetch RSC payload/.test(e))).toEqual([]);
@@ -240,7 +247,8 @@ test.describe('field app', () => {
     const { projectId, projectName } = fx();
     await context.grantPermissions(['microphone']);
     await fieldLogin(page);
-    await expect(page.getByRole('link', { name: new RegExp(projectName) })).toBeVisible();
+    await expect(page.getByText(projectName).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Start an interview' }).first()).toBeVisible();
     // Make sure the screens are cached before losing the connection.
     await expect
       .poll(() => page.evaluate(() => caches.match('/field/new').then((r) => !!r)), { timeout: 30_000 })
@@ -339,9 +347,11 @@ test.describe('field app', () => {
     expect(rec!.size).toBeLessThan(120 * 1024);
     console.log(`uploaded ${rec!.size} bytes for ${rec!.metadata.durationMs} ms in ${parts.length} part(s)`);
 
+    // The old Uploads address lands on History → Pending, now empty.
     await page.goto('/field/uploads');
-    await expect(page.getByText(/Uploaded /).first()).toBeVisible();
-    await page.screenshot({ path: `${SHOTS}/field-uploads-phone.png`, fullPage: true });
+    await page.waitForURL('**/field/history?view=pending');
+    await expect(page.getByText('Nothing waiting to send.')).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/field-history-pending-phone.png`, fullPage: true });
   });
 
   test('opens an assigned interview with no connection (service worker + device snapshot)', async ({ page, context }) => {

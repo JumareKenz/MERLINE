@@ -87,9 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (isAuthenticated && isPublicRoute) {
-        // An authenticated field worker revisiting /field-login belongs at
-        // '/' (the field app home), never APP_HOME — that's the admin app.
-        router.push(pathname === '/field-login' ? (window.location.hostname.startsWith('field.') ? '/' : '/field') : APP_HOME);
+        // On field.jrecc.org the field sign-in page's address is /login
+        // (middleware rewrites it to /field-login), so the pathname alone
+        // cannot tell the two apps apart. Sending a field worker to
+        // APP_HOME (/projects) there produced a 404 after every sign-in.
+        const onFieldHost = window.location.hostname.startsWith('field.');
+        if (onFieldHost) router.push('/');
+        else router.push(pathname === '/field-login' ? '/field' : APP_HOME);
       }
     }
   }, [isAuthenticated, isLoading, pathname, router]);

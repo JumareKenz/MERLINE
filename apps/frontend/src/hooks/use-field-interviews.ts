@@ -18,6 +18,9 @@ function toCached(i: Interview): CachedInterview {
     participantId: i.participantId,
     participantName: i.participant?.displayName,
     projectId: i.projectId,
+    createdAt: i.createdAt,
+    startedAt: i.startedAt,
+    endedAt: i.endedAt,
     consent: i.consent
       ? {
           id: i.consent.id,

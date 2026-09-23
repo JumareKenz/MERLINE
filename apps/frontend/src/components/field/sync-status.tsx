@@ -46,8 +46,8 @@ export function SyncPill() {
   const Icon = state.icon;
   return (
     <Link
-      href="/field/uploads"
-      aria-label={`Sync status: ${state.label}. Open uploads.`}
+      href="/field/history?view=pending"
+      aria-label={`Sync status: ${state.label}. Open history.`}
       className={cn(
         'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lemon',
         state.tone === 'ok' && 'bg-white/10 text-lemon',

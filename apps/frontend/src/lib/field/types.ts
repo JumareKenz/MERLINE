@@ -59,6 +59,9 @@ export interface CachedInterview {
   participantId: string;
   participantName?: string;
   projectId?: string | null;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
   consent?: {
     id: string;
     method?: string;

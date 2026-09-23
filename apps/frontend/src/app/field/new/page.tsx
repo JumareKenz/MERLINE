@@ -59,7 +59,7 @@ function StartInterview() {
             : 'Connect once so this phone can download the projects you are assigned to.'}
         </p>
         <Button size="lg" variant="secondary" className="mt-5" asChild>
-          <Link href="/field">Back to today</Link>
+          <Link href="/field">Back to projects</Link>
         </Button>
       </div>
     );
@@ -73,7 +73,7 @@ function StartInterview() {
           onClick={() => (step === 'consent' ? setStep('who') : router.push('/field'))}
           className="-ml-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-[15px] font-medium text-foreground-secondary"
         >
-          <ArrowLeft className="h-5 w-5" aria-hidden /> {step === 'consent' ? 'Participant' : 'Today'}
+          <ArrowLeft className="h-5 w-5" aria-hidden /> {step === 'consent' ? 'Participant' : 'Projects'}
         </button>
         <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
           {step === 'who' ? 'New interview' : 'Record consent'}
