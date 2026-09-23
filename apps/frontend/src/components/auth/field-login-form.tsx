@@ -1,165 +1,159 @@
 'use client';
 
-import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
-import { WifiOff, ArrowRight } from 'lucide-react';
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { ArrowRight, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
+import { describeError } from '@/lib/errors';
+import { cn } from '@/lib/utils';
 
-const GROUP_LENGTH = 5;
-const CODE_LENGTH = GROUP_LENGTH * 2;
+const GROUP = 5;
+const LENGTH = GROUP * 2;
 
-function sanitize(value: string): string {
+function sanitize(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 /**
- * PHASE 2 — field.jrecc.org signs in with an access code an admin issues
- * (Users -> Field Access), not email/password. Two segmented 5-character
- * inputs rather than one long field: easier to read back, easier to verify
- * at a glance, and the visual "chunking" itself communicates that this is a
- * short code, not a password, before the user reads a word of copy.
+ * Access-code sign-in (XXXXX-XXXXX, issued by an admin from Settings →
+ * Members). Two chunked fields read back easily outdoors; paste of the
+ * whole code fills both.
  */
 export function FieldLoginForm() {
   const { fieldLogin } = useAuth();
-  const [groupA, setGroupA] = useState('');
-  const [groupB, setGroupB] = useState('');
+  const [a, setA] = useState('');
+  const [b, setB] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isOffline, setIsOffline] = useState(
-    typeof navigator !== 'undefined' ? !navigator.onLine : false,
-  );
+  const [loading, setLoading] = useState(false);
+  const [offline, setOffline] = useState(false);
+  const refA = useRef<HTMLInputElement>(null);
+  const refB = useRef<HTMLInputElement>(null);
+  const code = a + b;
+  const complete = code.length === LENGTH;
 
-  const inputARef = useRef<HTMLInputElement>(null);
-  const inputBRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const update = () => setOffline(!navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
 
-  const code = `${groupA}${groupB}`;
-  const isComplete = code.length === CODE_LENGTH;
-
-  const handleChangeA = (value: string) => {
-    const clean = sanitize(value).slice(0, GROUP_LENGTH);
-    setGroupA(clean);
-    setError(null);
-    if (clean.length === GROUP_LENGTH) inputBRef.current?.focus();
-  };
-
-  const handleChangeB = (value: string) => {
-    const clean = sanitize(value).slice(0, GROUP_LENGTH);
-    setGroupB(clean);
-    setError(null);
-  };
-
-  const handleKeyDownB = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && groupB.length === 0) {
-      inputARef.current?.focus();
-    }
-  };
-
-  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+  const onPaste = (e: ClipboardEvent<HTMLInputElement>) => {
     const pasted = sanitize(e.clipboardData.getData('text'));
-    if (pasted.length >= GROUP_LENGTH) {
+    if (pasted.length > GROUP) {
       e.preventDefault();
-      setGroupA(pasted.slice(0, GROUP_LENGTH));
-      setGroupB(pasted.slice(GROUP_LENGTH, CODE_LENGTH));
-      if (pasted.length >= CODE_LENGTH) {
-        inputBRef.current?.blur();
-      } else {
-        inputBRef.current?.focus();
-      }
+      setA(pasted.slice(0, GROUP));
+      setB(pasted.slice(GROUP, LENGTH));
+      refB.current?.focus();
     }
   };
 
-  const handleSubmit = async () => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      setIsOffline(true);
+  const submit = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!complete || loading) return;
+    if (!navigator.onLine) {
+      setOffline(true);
       return;
     }
-    if (!isComplete) return;
+    setLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      setError(null);
       await fieldLogin(code);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Invalid or expired access code';
-      setError(message);
-      setGroupB('');
-      inputBRef.current?.focus();
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      setError(describeError(err, 'That code isn’t valid. Check it with your research lead.'));
+      setB('');
+      refB.current?.focus();
+      setLoading(false);
     }
   };
 
+  const inputClass = (invalid: boolean) =>
+    cn(
+      'h-16 w-full min-w-0 rounded-2xl border bg-background-elevated text-center font-mono text-[24px] font-semibold uppercase tracking-[0.2em] text-foreground',
+      'focus-visible:border-navy focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-navy/15',
+      invalid ? 'border-error' : 'border-field-line',
+    );
+
   return (
-    <div className="space-y-5">
-      {isOffline && (
-        <div className="flex items-center gap-2 rounded-lg bg-warning-bg text-warning px-3 py-2.5 text-[13px]">
-          <WifiOff className="h-4 w-4 shrink-0" />
-          No connection — you&apos;ll need one to sign in.
-        </div>
-      )}
-
-      {error && !isOffline && (
-        <div className="rounded-lg bg-error-bg border border-error/20 px-3 py-2.5 text-[13px] text-error text-center">
-          {error}
-        </div>
-      )}
-
+    <form onSubmit={submit} noValidate className="space-y-5">
       <div>
-        <label className="block text-[13px] font-medium text-foreground-secondary mb-2 text-center">
+        <label htmlFor="code-a" className="block text-[17px] font-semibold text-foreground">
           Access code
         </label>
-        <div
-          className="flex items-center justify-center gap-2.5"
-          onSubmit={(e) => e.preventDefault()}
-        >
-          <input
-            ref={inputARef}
-            value={groupA}
-            onChange={(e) => handleChangeA(e.target.value)}
-            onPaste={handlePaste}
-            onKeyDown={(e) => e.key === 'Enter' && inputBRef.current?.focus()}
-            inputMode="text"
-            autoCapitalize="characters"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            autoFocus
-            aria-label="Access code, first 5 characters"
-            className="w-[132px] h-14 rounded-xl border border-border bg-background-inset text-center text-[22px] font-semibold tracking-[0.25em] uppercase text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-background"
-            placeholder="•••••"
-          />
-          <span className="text-foreground-tertiary text-lg select-none">–</span>
-          <input
-            ref={inputBRef}
-            value={groupB}
-            onChange={(e) => handleChangeB(e.target.value)}
-            onKeyDown={handleKeyDownB}
-            onPaste={handlePaste}
-            onKeyUp={(e) => e.key === 'Enter' && isComplete && handleSubmit()}
-            inputMode="text"
-            autoCapitalize="characters"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            aria-label="Access code, last 5 characters"
-            className="w-[132px] h-14 rounded-xl border border-border bg-background-inset text-center text-[22px] font-semibold tracking-[0.25em] uppercase text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-background"
-            placeholder="•••••"
-          />
-        </div>
-        <p className="text-center text-[12px] text-foreground-tertiary mt-3">
-          Ask your research lead or admin for a code, from Users → Field Access.
+        <p id="code-hint" className="mt-1 text-[15px] text-foreground-secondary">
+          10 letters and numbers, e.g. <span className="whitespace-nowrap font-mono">K7Q2M-9XH4P</span>
         </p>
       </div>
 
-      <Button
-        type="button"
-        className="w-full h-12 text-[15px]"
-        disabled={!isComplete}
-        loading={isLoading}
-        onClick={handleSubmit}
-      >
-        {isLoading ? 'Signing in…' : 'Sign in'}
-        {!isLoading && <ArrowRight className="h-4 w-4 ml-1.5" />}
+      {offline && (
+        <p className="flex items-start gap-2.5 rounded-2xl bg-warning-bg px-4 py-3 text-[15px] text-foreground" role="alert">
+          <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
+          Signing in needs a connection once. After that, you can record offline.
+        </p>
+      )}
+      {error && !offline && (
+        <p id="code-error" className="rounded-2xl bg-error-bg px-4 py-3 text-[15px] text-foreground" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input
+          id="code-a"
+          ref={refA}
+          value={a}
+          onChange={(e) => {
+            const v = sanitize(e.target.value).slice(0, GROUP);
+            setA(v);
+            setError(null);
+            if (v.length === GROUP) refB.current?.focus();
+          }}
+          onPaste={onPaste}
+          aria-label="Access code, first 5 characters"
+          aria-describedby={error ? 'code-error' : 'code-hint'}
+          aria-invalid={!!error || undefined}
+          autoCapitalize="characters"
+          autoComplete="one-time-code"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="text"
+          enterKeyHint="next"
+          className={inputClass(!!error)}
+        />
+        <span aria-hidden className="text-[22px] font-semibold text-foreground-tertiary">
+          –
+        </span>
+        <input
+          ref={refB}
+          value={b}
+          onChange={(e) => {
+            setB(sanitize(e.target.value).slice(0, GROUP));
+            setError(null);
+          }}
+          onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Backspace' && b.length === 0) refA.current?.focus();
+          }}
+          onPaste={onPaste}
+          aria-label="Access code, last 5 characters"
+          aria-invalid={!!error || undefined}
+          autoCapitalize="characters"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="text"
+          enterKeyHint="go"
+          className={inputClass(!!error)}
+        />
+      </div>
+
+      <Button type="submit" size="xl" className="w-full" disabled={!complete} loading={loading}>
+        {loading ? 'Signing in…' : 'Sign in'}
+        {!loading && <ArrowRight className="h-5 w-5" aria-hidden />}
       </Button>
-    </div>
+    </form>
   );
 }

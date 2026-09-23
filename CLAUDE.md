@@ -18,8 +18,8 @@ learning). That domain is frozen, not deleted. See `LEGACY.md`.
 |---|---|
 | Phase 0 — qualitative reset | Done. MERL deregistered, boundary enforced by tests. |
 | Phase 1 — platform safety | Done. Auth, tenancy, permissions, migrations, storage, audit. |
-| Deployment | In progress. Frontend → Vercel, API → Contabo VPS (4 vCPU / 8 GB / 100 GB). |
-| Phase 2 — interview MVP | **Not started.** Do not start until deployment is verified. |
+| Deployment | Live on the VPS: `/opt/merline` (systemd `merline-web` :3001, `merline-api` :4000, nginx for merline./field./api.jrecc.org). |
+| Phase 2 — interview MVP | Live: participants, consent, interviews, offline field recording, transcripts, evidence-linked findings, AI Dialogue. Guides/questionnaires and translations are **not** built (legacy MERL modules, still deregistered). |
 
 Branch: `phase-0/qualitative-reset` → PR #1 against `master`.
 
@@ -84,6 +84,31 @@ Both live outside `src`. Including either makes the TypeScript root the package
 root, so output nests under `dist/src/` and `npm start` (`node dist/main.js`)
 breaks. This has already been fixed twice.
 
+**9. Never write `api.get<import('@/types/x').T>(url)`.**
+Next's SWC compiler reads an inline `import()` type inside call type
+arguments as a comparison with a dynamic import, and compiles the method
+into an expression that **never sends the request** — tsc and the build both
+pass. This shipped and broke every data screen except sign-in. Use the
+`import type * as XTypes` namespaces at the top of `lib/api-client.ts`.
+Guarded by `src/lib/api-client.test.ts`.
+
+**10. Undecorated routes are "authenticated only".** `PermissionGuard` only
+enforces routes with `@Permissions(...)`, and `TenantGuard` only checks
+`:orgId`/`:organizationId` params (not `:id`). Every new route needs an
+explicit permission and tenant scoping in the service.
+`organizations/authorization-coverage.spec.ts` enforces this for the org
+administration controllers; extend it when you add controllers.
+
+**11. Field-interviewer scoping is server-side.** A user whose only role is
+`field-interviewer` sees only interviews assigned to them and participants
+they registered or are interviewing (`common/scoping/field-scope.ts`).
+Service methods take an optional trailing `viewerId`; controllers must pass
+`user.id`.
+
+**12. Field offline recording** is documented in `docs/FIELD-OFFLINE.md`
+(IndexedDB slices, resumable 512 KiB parts, consent re-checked per part).
+Brand tokens and the asset pipeline are in `docs/BRAND.md`.
+
 ---
 
 ## Invariants — do not weaken these
@@ -136,7 +161,13 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **88 passing, 10 suites**. Anything less means something regressed.
+Expect **191 passing, 16 suites** (as of 2026-09-23). Anything less means
+something regressed. Use a separate database (`merline_test`); never point
+this at the production `merline` database.
+
+Frontend: `npm run typecheck`, `npm run lint`, `npx vitest run`,
+`npm run build`. End-to-end (needs a local API + frontend, see
+`apps/frontend/playwright.config.ts`): `E2E_ADMIN_PASSWORD=… npx playwright test`.
 
 Environment variables are documented by name in `DEPLOYMENT.md`. `.env` is
 gitignored and does not travel with the repo — recreate it from
@@ -182,7 +213,10 @@ gitignored and does not travel with the repo — recreate it from
   Transcription needs a queue and a worker.
 - **No mail transport**, so password reset and invitations cannot deliver.
 - **No observability** — no error tracking, metrics, or tracing.
-- **Legacy routes** (`/studies`, `/questionnaires`, …) are still addressable by
-  URL and will error. Unlinked from navigation, not deleted.
+- **Legacy routes** (`/studies`, `/questionnaires`, `/reports`, …) are still
+  addressable by URL and will error. Unlinked from navigation, not deleted.
+- **Field uploads run in the foreground only** (no Background Sync on iOS).
+- **Creating participants/consent/interviews needs a connection**; offline
+  recording is for interviews assigned and synced beforehand.
 - **Pre-existing API drift** pinned in `api-contract.spec.ts` (`KNOWN_MISSING`):
   `/auth/sessions`, `/teams/*`, `/ai/assist/*`. Shrink that list; never grow it.

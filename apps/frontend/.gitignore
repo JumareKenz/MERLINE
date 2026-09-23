@@ -33,3 +33,9 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Playwright
+/e2e/.fixture.json
+/e2e/screenshots/
+/test-results/
+/playwright-report/

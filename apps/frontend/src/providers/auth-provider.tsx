@@ -1,10 +1,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { APP_HOME } from '@/lib/routes';
 import { API } from '@/lib/api-client';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { clearFieldData } from '@/lib/field/idb';
+import { useFieldOutbox } from '@/stores/field-outbox-store';
 import type { AuthUser } from '@/types/auth';
 import type { Permission } from '@/types/role';
 
@@ -63,6 +67,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hydrate();
   }, [hydrate]);
 
+  // The permission store used by usePermissions() was never populated, so
+  // every permission-gated control stayed hidden. Fill it from /auth/me.
+  const queryClient = useQueryClient();
+  const me = useCurrentUser();
+  useEffect(() => {
+    const slugs = me.data?.data?.data?.permissions;
+    if (isAuthenticated && slugs) {
+      setPermissions(slugs.map((slug) => ({ id: slug, slug, name: slug }) as unknown as Permission));
+    }
+  }, [isAuthenticated, me.data, setPermissions]);
+
   useEffect(() => {
     if (!isLoading) {
       const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
@@ -74,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isAuthenticated && isPublicRoute) {
         // An authenticated field worker revisiting /field-login belongs at
         // '/' (the field app home), never APP_HOME — that's the admin app.
-        router.push(pathname === '/field-login' ? '/' : APP_HOME);
+        router.push(pathname === '/field-login' ? (window.location.hostname.startsWith('field.') ? '/' : '/field') : APP_HOME);
       }
     }
   }, [isAuthenticated, isLoading, pathname, router]);
@@ -100,7 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: authUser, token } = response.data.data;
     setAuthCookie(token.accessToken);
     storeLogin(authUser, token.accessToken);
-    router.push('/');
+    // On field.jrecc.org '/' is the field home; elsewhere the field app
+    // lives under /field. Never route a field worker through the admin app.
+    router.push(window.location.hostname.startsWith('field.') ? '/' : '/field');
   };
 
   const register = async (data: {
@@ -133,6 +150,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       clearAuthCookie();
       storeLogout();
+      queryClient.clear();
+      useFieldOutbox.getState().stop();
+      // Forget cached participant/interview details on this device. Unsent
+      // recordings are kept (irreplaceable) and stay bound to their owner.
+      await clearFieldData().catch(() => undefined);
       router.push('/login');
     }
   };
@@ -140,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     try {
       const response = await API.auth.me();
-      setUser(response.data.data);
+      const profile = response.data.data;
+      setUser({ ...profile, roles: profile.roles.map((r) => r.name) });
     } catch {
       clearAuthCookie();
       storeLogout();

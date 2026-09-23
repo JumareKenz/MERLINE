@@ -1,18 +1,23 @@
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { FieldHeader } from '@/components/layout/field-header';
+import { FieldShell } from '@/components/field/field-shell';
 
 /**
- * PHASE 2 — the field-worker app, served at field.jrecc.org (rewritten here
- * transparently by middleware.ts; also reachable at merline.jrecc.org/field
- * for testing). Deliberately excludes Sidebar/admin nav: only participants,
- * consent, and interview recording — the field-interviewer role's actual
- * permission set (see auth/permission-catalogue.ts on the backend).
+ * field.jrecc.org — the field-worker app (rewritten here by middleware.ts;
+ * also reachable at /field on the main domain). Its own manifest and icon,
+ * so it installs as a separate "Merline Field" app, and its own shell.
  */
+export const metadata: Metadata = {
+  title: { template: '%s · Merline Field', default: 'Merline Field' },
+  manifest: '/field.webmanifest',
+  appleWebApp: { capable: true, title: 'Field', statusBarStyle: 'black-translucent' },
+  icons: { apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }] },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#012C76',
+};
+
 export default function FieldLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex min-h-screen flex-col">
-      <FieldHeader />
-      <main className="flex-1 px-4 py-5 max-w-lg mx-auto w-full">{children}</main>
-    </div>
-  );
+  return <FieldShell>{children}</FieldShell>;
 }

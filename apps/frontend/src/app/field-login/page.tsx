@@ -1,50 +1,35 @@
-import type { Metadata } from 'next';
 import { Logo } from '@/components/brand/logo';
 import { FieldLoginForm } from '@/components/auth/field-login-form';
 
-export const metadata: Metadata = {
-  title: 'Field Sign In',
-  description: 'Sign in to your Merline field workspace',
-};
-
 /**
- * PHASE 2 — deliberately not the admin split-panel login. Full-bleed navy
- * hero + a single white card, stacked vertically — the shape of a phone
- * screen, not a desktop dashboard. See src/app/(auth)/layout.tsx for the
- * admin equivalent.
+ * Field sign-in — a different product from the admin login, on purpose:
+ * full-height navy, one short code, thumb-sized controls, and nothing that
+ * links into research management.
  */
 export default function FieldLoginPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <div
-        className="flex flex-col items-center justify-center gap-4 px-6 pt-16 pb-14 shrink-0"
-        style={{ backgroundColor: 'hsl(var(--brand-navy))' }}
-      >
-        <Logo variant="mark" theme="dark" height={52} />
-        <div className="text-center">
-          <p
-            className="text-[11px] font-semibold tracking-[0.18em] uppercase"
-            style={{ color: 'hsl(var(--brand-lemon))' }}
-          >
-            Field Workspace
-          </p>
-          <h1 className="text-[19px] font-semibold text-white mt-1">Merline Field</h1>
-        </div>
-      </div>
+    <div className="pt-safe pb-safe flex min-h-[100dvh] flex-col bg-navy text-white">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6">
+        <header className="flex items-center gap-2.5 pt-8">
+          <Logo variant="mark" theme="dark" height={32} />
+          <span className="text-[17px] font-semibold tracking-[-0.01em]">
+            Merline <span className="text-lemon">Field</span>
+          </span>
+        </header>
 
-      <div className="flex-1 flex justify-center px-5 -mt-8">
-        <div className="w-full max-w-[400px] rounded-2xl bg-background-elevated shadow-4 border border-border-subtle p-6">
+        <div className="pt-14">
+          <h1 className="font-display text-[34px] font-semibold leading-[1.1] tracking-[-0.025em]">Record today’s interviews.</h1>
+          <p className="mt-3 text-[17px] leading-relaxed text-white/80">
+            Works without a signal. Recordings stay on your phone until they upload safely.
+          </p>
+        </div>
+
+        <div className="mt-10 rounded-3xl bg-field-card p-6 text-foreground shadow-float">
           <FieldLoginForm />
         </div>
-      </div>
 
-      <p className="text-center text-[11px] text-foreground-tertiary py-6">
-        © 2026 Merline. Field access only — need an admin account?{' '}
-        <a href="https://merline.jrecc.org/login" className="text-foreground-link hover:underline">
-          Sign in there instead
-        </a>
-        .
-      </p>
+        <p className="mt-auto py-8 text-center text-[14px] text-white/75">No code? Ask your research lead for a field access code.</p>
+      </div>
     </div>
   );
 }
