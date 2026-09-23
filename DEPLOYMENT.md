@@ -77,6 +77,8 @@ Names only. Set these in the Vercel dashboard or with `vercel env add`.
 | `JOBS_WORKER` | `on` (default) or `off`. The job worker runs inside the API process; turn it off on extra instances that should only serve requests. |
 | `JOBS_POLL_MS`, `JOBS_CONCURRENCY` | Defaults 3000 and 2. |
 | `TRANSCRIPTION_CHUNK_SECONDS`, `TRANSCRIPTION_MAX_DIRECT_BYTES` | Defaults 600 and 20 MB: larger recordings are split at pauses with ffmpeg. |
+| `GROQ_REPORT_MODEL` | Default `openai/gpt-oss-120b`: writes interview, project and custom reports. |
+| `CHROMIUM_PATH` | Chromium binary for PDF export. On the VPS: playwright's headless shell installed for the `merline` user (`PLAYWRIGHT_BROWSERS_PATH=/opt/merline/.cache/ms-playwright npx playwright-core install chromium-headless-shell`). Word and Excel exports need nothing extra. |
 
 **System package:** `ffmpeg` (with `ffprobe`) on the API host. Needed to
 split recordings over 20 MB and to detect silent recordings; smaller files

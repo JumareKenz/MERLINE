@@ -39,12 +39,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         firstName: true,
         lastName: true,
         isActive: true,
+        deletedAt: true,
         organizationId: true,
         tokenVersion: true,
       },
     });
 
-    if (!user || !user.isActive) {
+    // A deleted user is also refused: deletion must end access at once.
+    if (!user || !user.isActive || user.deletedAt) {
       throw new UnauthorizedException('User not found or inactive');
     }
 

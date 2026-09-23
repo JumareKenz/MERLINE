@@ -9,6 +9,7 @@ import { BaseService } from '../common/base/base.service';
 import { resolveFieldScope } from '../common/scoping/field-scope';
 import { jsonObject } from '../common/utils/prisma-json';
 import { CreateFieldInterviewDto } from './dto/field-interview.dto';
+import { defaultInterviewType } from '../common/research/interview-type';
 
 /** Consent timestamps from a device clock are accepted within these bounds. */
 const MAX_CLOCK_AHEAD_MS = 5 * 60_000;
@@ -229,6 +230,7 @@ export class FieldService extends BaseService {
           startedAt: grantedAt,
           location: dto.location?.trim() || undefined,
           language: dto.language,
+          type: await defaultInterviewType(tx, dto.projectId),
           organizationId,
         },
         include: INTERVIEW_INCLUDE,

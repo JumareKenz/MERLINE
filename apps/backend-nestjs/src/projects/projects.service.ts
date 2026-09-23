@@ -133,13 +133,31 @@ export class ProjectsService extends BaseService {
     });
   }
 
+  /**
+   * Moves a project to the Trash together with its interviews,
+   * participants and reports, all stamped with the same time so that
+   * restoring the project brings back exactly what went with it (and not
+   * an interview that had been deleted on its own before).
+   */
   async remove(id: string, organizationId: string) {
     await this.findById(id, organizationId);
+    const deletedAt = new Date();
 
-    await this.prisma.project.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.project.update({ where: { id }, data: { deletedAt } }),
+      this.prisma.interview.updateMany({
+        where: { projectId: id, organizationId, deletedAt: null },
+        data: { deletedAt },
+      }),
+      this.prisma.participant.updateMany({
+        where: { projectId: id, organizationId, deletedAt: null },
+        data: { deletedAt },
+      }),
+      this.prisma.analysisReport.updateMany({
+        where: { projectId: id, organizationId, deletedAt: null },
+        data: { deletedAt },
+      }),
+    ]);
 
     return { deleted: true };
   }

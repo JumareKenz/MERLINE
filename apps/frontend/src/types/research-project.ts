@@ -50,3 +50,15 @@ export interface ResearchProjectInput {
 export function methodLabel(method?: string): string | undefined {
   return RESEARCH_METHODS.find((m) => m.value === method)?.label;
 }
+
+/** One interview's type, singular (interviews carry KII, FGD, IDI or OTHER). */
+export const INTERVIEW_TYPE_LABELS: Record<string, string> = {
+  KII: 'Key informant interview',
+  FGD: 'Focus group discussion',
+  IDI: 'In-depth interview',
+  OTHER: 'Other interview',
+};
+
+export function interviewTypeLabel(type?: string | null): string {
+  return (type && INTERVIEW_TYPE_LABELS[type]) || 'Type not set';
+}

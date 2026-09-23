@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,16 +11,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { StatusBadge } from '@/components/shared/status-badge';
 import { ConsentList } from '@/components/participants/consent-list';
 import { ConsentForm, type ConsentFormValues } from '@/components/participants/consent-form';
-import { useParticipant } from '@/hooks/use-participants';
+import { useDeleteParticipant, useParticipant } from '@/hooks/use-participants';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useConsentsForParticipant, useRecordConsent } from '@/hooks/use-consents';
 import { useInterviews } from '@/hooks/use-interviews';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatDate } from '@/lib/utils';
-import { Mic, ShieldCheck } from 'lucide-react';
+import { Mic, ShieldCheck, Trash2 } from 'lucide-react';
 
 export default function ParticipantDetailPage() {
   const { participantId } = useParams<{ participantId: string }>();
   const [showConsentForm, setShowConsentForm] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const router = useRouter();
+  const deleteParticipant = useDeleteParticipant();
 
   const { data: participantData, isLoading, isError, error, refetch } = useParticipant(participantId);
   const { data: consentsData } = useConsentsForParticipant(participantId);
@@ -62,6 +66,11 @@ export default function ParticipantDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {can('delete.participants') && (
+            <Button variant="ghost" onClick={() => setConfirmDelete(true)} aria-label="Delete participant">
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </Button>
+          )}
           {can('create.consents') && (
             <Button variant="secondary" onClick={() => setShowConsentForm(true)}>
               <ShieldCheck className="h-4 w-4" aria-hidden /> Record consent
@@ -139,6 +148,20 @@ export default function ParticipantDetailPage() {
           />
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete ${participant.displayName}?`}
+        description="The participant moves to the Trash. Their consent records are kept, and their interviews are not deleted. An administrator can restore them."
+        confirmLabel="Delete participant"
+        variant="danger"
+        loading={deleteParticipant.isPending}
+        onConfirm={async () => {
+          const ok = await deleteParticipant.mutateAsync(participantId).then(() => true).catch(() => false);
+          setConfirmDelete(false);
+          if (ok) router.push(participant.projectId ? `/projects/${participant.projectId}` : '/participants');
+        }}
+      />
     </div>
   );
 }

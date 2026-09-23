@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Check, Quote, Sparkles } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Check, Quote, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -14,6 +16,7 @@ import { StatusBadge } from '@/components/shared/status-badge';
 import { EvidenceReference } from '@/components/findings/evidence-reference';
 import { useApproveFinding, useArchiveFinding, useFinding, usePublishFinding, useRejectFinding } from '@/hooks/use-findings';
 import { useSession } from '@/hooks/use-session';
+import { API } from '@/lib/api-client';
 import { cn, formatDate } from '@/lib/utils';
 import type { FindingStatus } from '@/types/finding';
 
@@ -59,7 +62,10 @@ export default function FindingDetailPage() {
   const reject = useRejectFinding();
   const publish = usePublishFinding();
   const archive = useArchiveFinding();
-  const [confirm, setConfirm] = useState<'reject' | 'publish' | 'archive' | null>(null);
+  const [confirm, setConfirm] = useState<'reject' | 'publish' | 'archive' | 'delete' | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   if (isLoading) return <LoadingState message="Loading finding" />;
   const finding = data?.data?.data;
@@ -83,9 +89,30 @@ export default function FindingDetailPage() {
       danger: false,
     },
     archive: { title: 'Archive this finding?', description: 'It will be hidden from active work. Nothing is deleted.', label: 'Archive', danger: false },
+    delete: {
+      title: 'Delete this finding?',
+      description: 'It moves to the Trash with its quotations. The transcripts it quotes are not affected. An administrator can restore it.',
+      label: 'Delete',
+      danger: true,
+    },
   } as const;
 
-  const run = async (action: 'reject' | 'publish' | 'archive') => {
+  const run = async (action: 'reject' | 'publish' | 'archive' | 'delete') => {
+    if (action === 'delete') {
+      setDeleting(true);
+      try {
+        await API.findings.delete(finding.id);
+        queryClient.invalidateQueries({ queryKey: ['findings'] });
+        toast.success('Finding moved to the Trash');
+        router.push('/findings');
+      } catch (e) {
+        toast.error((e as { message?: string })?.message ?? 'The finding could not be deleted');
+      } finally {
+        setDeleting(false);
+        setConfirm(null);
+      }
+      return;
+    }
     const mutation = action === 'reject' ? reject : action === 'publish' ? publish : archive;
     await mutation.mutateAsync(finding.id).catch(() => undefined);
     setConfirm(null);
@@ -99,6 +126,11 @@ export default function FindingDetailPage() {
         meta={<StatusBadge status={finding.status} />}
         actions={
           <>
+            {session.can('delete.findings') && (
+              <Button variant="ghost" onClick={() => setConfirm('delete')} aria-label="Delete finding">
+                <Trash2 className="h-4 w-4" aria-hidden />
+              </Button>
+            )}
             {canArchive && (
               <Button variant="ghost" onClick={() => setConfirm('archive')}>
                 Archive
@@ -176,7 +208,7 @@ export default function FindingDetailPage() {
           description={confirmCopy[confirm].description}
           confirmLabel={confirmCopy[confirm].label}
           variant={confirmCopy[confirm].danger ? 'danger' : 'default'}
-          loading={reject.isPending || publish.isPending || archive.isPending}
+          loading={reject.isPending || publish.isPending || archive.isPending || deleting}
           onConfirm={() => run(confirm)}
         />
       )}

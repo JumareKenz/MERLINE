@@ -10,6 +10,8 @@ export interface Interview {
   notes?: string | null;
   /** Language spoken, if known: the transcription hint. */
   language?: string | null;
+  /** KII, FGD, IDI or OTHER. */
+  type?: string | null;
   organizationId: string;
   projectId?: string | null;
   participantId: string;

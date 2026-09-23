@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -99,6 +100,15 @@ export class FindingsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.findingsService.publish(id, user.organizationId);
+  }
+
+  @Delete(':id')
+  @Permissions('delete.findings')
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.findingsService.remove(id, user.organizationId);
   }
 
   @Post(':id/archive')

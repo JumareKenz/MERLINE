@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -79,6 +80,30 @@ export class InterviewsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.interviewsService.findById(id, user.organizationId, user.id);
+  }
+
+  /** Administrators only (delete.interviews). Restorable from the Trash. */
+  @Delete(':id')
+  @Permissions('delete.interviews')
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.remove(id, user.organizationId);
+  }
+
+  @Delete(':id/recordings/:mediaId')
+  @Permissions('delete.recordings')
+  async removeRecording(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('mediaId', ParseUUIDPipe) mediaId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.removeRecording(
+      id,
+      mediaId,
+      user.organizationId,
+    );
   }
 
   @Put(':id/status')

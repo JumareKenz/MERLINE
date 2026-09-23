@@ -109,8 +109,9 @@ export class OrganizationsController {
   async removeMember(
     @Param('orgId') orgId: string,
     @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.organizationsService.removeMember(orgId, userId);
+    return this.organizationsService.removeMember(orgId, userId, user.id);
   }
 
   /** Same response for "not yours" and "does not exist". */

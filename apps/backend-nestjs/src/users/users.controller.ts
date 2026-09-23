@@ -87,7 +87,7 @@ export class UsersController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.usersService.delete(id, user.organizationId);
+    return this.usersService.delete(id, user.organizationId, user.id);
   }
 
   @Put(':id/roles')

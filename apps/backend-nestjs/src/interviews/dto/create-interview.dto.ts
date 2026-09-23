@@ -8,6 +8,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
+import { INTERVIEW_TYPES } from '../../common/research/interview-type';
 
 export class CreateInterviewDto {
   @IsUUID()
@@ -45,6 +46,11 @@ export class CreateInterviewDto {
   @IsOptional()
   @MaxLength(4000)
   notes?: string;
+
+  /** KII, FGD, IDI or OTHER. Defaults to the project's method. */
+  @IsOptional()
+  @IsIn(INTERVIEW_TYPES)
+  type?: string;
 
   /** Language spoken, if known: used as the transcription hint. */
   @IsOptional()

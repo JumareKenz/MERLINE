@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { AudioLines, CalendarClock, MapPin, UserRound, Languages } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { AudioLines, CalendarClock, MapPin, UserRound, Languages, Tag, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -15,6 +15,11 @@ import { ConsentSummary } from '@/components/interviews/consent-summary';
 import { RecordingPlayer } from '@/components/interviews/recording-player';
 import { RecordingUploader } from '@/components/interviews/recording-uploader';
 import { TranscriptStatus } from '@/components/interviews/transcript-status';
+import { InterviewReportCard } from '@/components/analysis/interview-report-card';
+import { API } from '@/lib/api-client';
+import { interviewTypeLabel } from '@/types/research-project';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useInterview, useRecordings, useUpdateInterviewStatus } from '@/hooks/use-interviews';
 import { useConsent } from '@/hooks/use-consents';
 import { useTranscriptsForInterview } from '@/hooks/use-transcripts';
@@ -51,6 +56,10 @@ export default function InterviewDetailPage() {
   const { data: transcriptsData } = useTranscriptsForInterview(session.can('view.transcripts') ? interviewId : '');
   const updateStatus = useUpdateInterviewStatus();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<null | { kind: 'interview' } | { kind: 'recording'; id: string; name: string }>(null);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   if (isLoading) return <LoadingState message="Loading interview" />;
   if (isError || !interview) {
@@ -77,6 +86,11 @@ export default function InterviewDetailPage() {
               {(interview.status === 'SCHEDULED' || interview.status === 'IN_PROGRESS') && (
                 <Button variant="ghost" onClick={() => setConfirmCancel(true)}>
                   Cancel interview
+                </Button>
+              )}
+              {session.can('delete.interviews') && (
+                <Button variant="ghost" onClick={() => setConfirmDelete({ kind: 'interview' })} aria-label="Delete interview">
+                  <Trash2 className="h-4 w-4" aria-hidden />
                 </Button>
               )}
               {NEXT[interview.status].map((t) => (
@@ -121,6 +135,15 @@ export default function InterviewDetailPage() {
                 {recordings.map((recording) => (
                   <li key={recording.id} className="space-y-3">
                     <RecordingPlayer interviewId={interviewId} recording={recording} />
+                    {session.can('delete.recordings') && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete({ kind: 'recording', id: recording.id, name: recording.originalName })}
+                        className="inline-flex items-center gap-1 text-[12.5px] text-foreground-tertiary hover:text-foreground-error"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete recording
+                      </button>
+                    )}
                     {canViewTranscripts && (
                       <TranscriptStatus
                         interviewId={interviewId}
@@ -192,6 +215,11 @@ export default function InterviewDetailPage() {
                 </div>
               )}
               <div className="flex gap-3">
+                <dt className="sr-only">Type</dt>
+                <Tag className="mt-0.5 h-4 w-4 shrink-0 text-foreground-tertiary" aria-hidden />
+                <dd className="text-foreground-secondary">{interviewTypeLabel(interview.type)}</dd>
+              </div>
+              <div className="flex gap-3">
                 <dt className="sr-only">Language</dt>
                 <Languages className="mt-0.5 h-4 w-4 shrink-0 text-foreground-tertiary" aria-hidden />
                 <dd className="text-foreground-secondary">
@@ -200,6 +228,16 @@ export default function InterviewDetailPage() {
               </div>
             </dl>
           </Panel>
+
+          {canViewTranscripts && (
+            <Panel title="Interview report">
+              <InterviewReportCard
+                interviewId={interviewId}
+                hasTranscript={transcripts.some((t) => t.status === 'COMPLETED' && (t._count?.segments ?? 1) > 0)}
+                aiAllowed={!!consent?.allowAiAnalysis && !consent?.withdrawnAt}
+              />
+            </Panel>
+          )}
 
           <Panel title="Consent">{consent ? <ConsentSummary consent={consent} /> : <LoadingState rows={2} />}</Panel>
         </div>
@@ -217,6 +255,40 @@ export default function InterviewDetailPage() {
         onConfirm={async () => {
           await updateStatus.mutateAsync({ id: interviewId, status: 'CANCELLED' }).catch(() => undefined);
           setConfirmCancel(false);
+        }}
+      />
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+        title={confirmDelete?.kind === 'recording' ? `Delete ${confirmDelete.name}?` : 'Delete this interview?'}
+        description={
+          confirmDelete?.kind === 'recording'
+            ? 'The recording and its transcripts move to the Trash. An administrator can restore them.'
+            : 'The interview moves to the Trash with its recordings, transcripts and reports. The consent record is kept. An administrator can restore it from Settings › Trash.'
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          setDeleting(true);
+          try {
+            if (confirmDelete.kind === 'interview') {
+              await API.interviews.delete(interviewId);
+              toast.success('Interview moved to the Trash');
+              router.push(interview.projectId ? `/projects/${interview.projectId}` : '/interviews');
+            } else {
+              await API.interviews.deleteRecording(interviewId, confirmDelete.id);
+              toast.success('Recording moved to the Trash');
+              queryClient.invalidateQueries({ queryKey: ['interviews', 'recordings', interviewId] });
+              queryClient.invalidateQueries({ queryKey: ['transcripts'] });
+            }
+          } catch (e) {
+            toast.error((e as { message?: string })?.message ?? 'It could not be deleted');
+          } finally {
+            setDeleting(false);
+            setConfirmDelete(null);
+          }
         }}
       />
     </div>

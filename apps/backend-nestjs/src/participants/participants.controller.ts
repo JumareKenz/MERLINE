@@ -67,7 +67,7 @@ export class ParticipantsController {
   }
 
   @Delete(':id')
-  @Permissions('edit.participants')
+  @Permissions('delete.participants')
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,

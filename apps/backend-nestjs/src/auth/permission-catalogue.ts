@@ -50,11 +50,11 @@ export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('workspaces', 'Workspaces', ['view', 'create', 'edit', 'delete']),
   ...crud('ai', 'AI Assistant', ['use', 'view', 'configure']),
   ...crud('audit', 'Audit Log', ['view', 'export']),
-  ...crud('reports', 'Reports', ['view', 'create', 'export']),
-  ...crud('participants', 'Participants', ['view', 'create', 'edit']),
+  ...crud('reports', 'Reports', ['view', 'create', 'export', 'delete']),
+  ...crud('participants', 'Participants', ['view', 'create', 'edit', 'delete']),
   ...crud('consents', 'Consent Records', ['view', 'create', 'withdraw']),
-  ...crud('interviews', 'Interviews', ['view', 'create', 'edit']),
-  ...crud('recordings', 'Interview Recordings', ['view', 'upload']),
+  ...crud('interviews', 'Interviews', ['view', 'create', 'edit', 'delete']),
+  ...crud('recordings', 'Interview Recordings', ['view', 'upload', 'delete']),
   ...crud('transcripts', 'Transcripts', ['view', 'create', 'edit']),
   ...crud('findings', 'Findings', [
     'view',
@@ -62,6 +62,7 @@ export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
     'edit',
     'approve',
     'publish',
+    'delete',
   ]),
 ];
 

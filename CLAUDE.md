@@ -138,6 +138,27 @@ Browsers download recordings through `AWS_PUBLIC_ENDPOINT` (nginx proxies
 `/merline-media/` read-only to MinIO); signing for the internal
 `AWS_ENDPOINT` produces links only the server itself can open.
 
+**14. Reports, deletion and the Trash.** `src/analysis` writes AI reports
+(`analysis_reports`, not the legacy `reports` table): per interview, per
+project (writes any missing/out-of-date interview reports first, then
+synthesises) and custom briefs from plain-language instructions. All are
+jobs (`analysis-report`). Content is a rendering-neutral `ReportDocument`
+(`report-document.ts`) that the web view and the Word (`docx`), Excel
+(`exceljs`) and PDF (headless Chromium via `playwright-core`,
+`CHROMIUM_PATH`) exports share; fonts and marks live in
+`apps/backend-nestjs/assets`. Quotations are checked with `locateExcerpt`
+against the segment's corrected text; project-level quotes can only come
+from the verified pool (`Q-I2-3` ids). Reports are admin-only (routes also
+require `view.transcripts`). Frontend report components live in
+`components/analysis` — `components/reports` is the legacy MERL surface and
+lint forbids importing it. **Deletion** is soft everywhere and
+administrator-only (`delete.*`); a deleted project takes its interviews,
+participants and reports with it (same `deletedAt`, so restore is exact);
+consent records are never deleted. Deleted users are refused at every
+sign-in path and their sessions end (`tokenVersion` bump). Settings ›
+Trash restores. New permissions reach existing organizations on startup
+(`PermissionCatalogueSync`).
+
 ---
 
 ## Invariants — do not weaken these
@@ -190,7 +211,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **319 passing, 23 suites** (as of 2026-09-23; the transcription
+Expect **345 passing, 26 suites** (as of 2026-09-23; the transcription
 pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.

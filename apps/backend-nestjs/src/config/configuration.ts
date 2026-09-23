@@ -70,6 +70,16 @@ export default () => {
       ffmpegPath: process.env.FFMPEG_PATH ?? 'ffmpeg',
       ffprobePath: process.env.FFPROBE_PATH ?? 'ffprobe',
     },
+    // AI-written reports (per interview, per project, and custom briefs).
+    reports: {
+      model:
+        process.env.GROQ_REPORT_MODEL ??
+        process.env.GROQ_MODEL ??
+        'openai/gpt-oss-120b',
+      // PDF rendering uses headless Chromium (playwright-core). Unset means
+      // playwright's default install location for the running user.
+      chromiumPath: process.env.CHROMIUM_PATH ?? '',
+    },
     jobs: {
       // Set JOBS_WORKER=off to run an API instance that only enqueues.
       workerEnabled: (process.env.JOBS_WORKER ?? 'on') !== 'off',

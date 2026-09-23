@@ -29,6 +29,7 @@ import type * as ResearchProjectTypes from '@/types/research-project';
 import type * as RoleTypes from '@/types/role';
 import type * as StudyTypes from '@/types/study';
 import type * as SubmissionTypes from '@/types/submission';
+import type * as AnalysisTypes from '@/types/analysis-report';
 import type * as TranscriptTypes from '@/types/transcript';
 import type * as UserTypes from '@/types/user';
 import type * as WorkspaceTypes from '@/types/workspace';
@@ -103,6 +104,15 @@ class ApiClient {
       const { default: { toast } } = await import('sonner');
       useAuthStore.getState().logout();
       toast.error('Session expired. Please login again.');
+    }
+    // File downloads (responseType 'blob') carry their JSON error as a Blob.
+    const data: unknown = error.response?.data;
+    if (typeof Blob !== 'undefined' && data instanceof Blob && data.type.includes('json')) {
+      try {
+        (error.response as { data: unknown }).data = JSON.parse(await data.text());
+      } catch {
+        // Leave it; normalizeError falls back to a generic message.
+      }
     }
     return Promise.reject(this.normalizeError(error));
   };
@@ -644,6 +654,9 @@ export const API = {
         data,
         { headers: { 'Content-Type': 'multipart/form-data' } },
       ),
+    delete: (id: string) => apiClient.delete(`/interviews/${id}`),
+    deleteRecording: (id: string, mediaId: string) =>
+      apiClient.delete(`/interviews/${id}/recordings/${mediaId}`),
     listRecordings: (id: string) =>
       apiClient.get<ApiTypes.Envelope<InterviewTypes.RecordingList>>(`/interviews/${id}/recordings`),
     getRecordingDownloadUrl: (id: string, mediaId: string) =>
@@ -700,7 +713,32 @@ export const API = {
     translate: (id: string, language = 'en') =>
       apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}/translate`, { language }),
   },
+  /** AI-written interview, project and custom reports (administrators). */
+  analysisReports: {
+    list: (params: { projectId?: string; interviewId?: string }) =>
+      apiClient.get<ApiTypes.Envelope<AnalysisTypes.AnalysisReportList>>('/analysis-reports', { params }),
+    get: (id: string) =>
+      apiClient.get<ApiTypes.Envelope<AnalysisTypes.AnalysisReport>>(`/analysis-reports/${id}`),
+    request: (data: AnalysisTypes.RequestReportInput) =>
+      apiClient.post<ApiTypes.Envelope<AnalysisTypes.AnalysisReport>>('/analysis-reports', data),
+    ask: (data: { projectId: string; question: string; language?: string }) =>
+      apiClient.post<ApiTypes.Envelope<AnalysisTypes.ProjectAnswer>>('/analysis-reports/ask', data, { timeout: 120_000 }),
+    /** The file itself (PDF rendering can take a few seconds). */
+    export: (id: string, format: AnalysisTypes.ExportFormat) =>
+      apiClient.get<Blob>(`/analysis-reports/${id}/export`, {
+        params: { format },
+        responseType: 'blob',
+        timeout: 120_000,
+      }),
+    delete: (id: string) => apiClient.delete(`/analysis-reports/${id}`),
+  },
+  trash: {
+    list: () => apiClient.get<ApiTypes.Envelope<AnalysisTypes.TrashList>>('/trash'),
+    restore: (type: AnalysisTypes.TrashItem['type'], id: string) =>
+      apiClient.post(`/trash/${type}/${id}/restore`),
+  },
   findings: {
+    delete: (id: string) => apiClient.delete(`/findings/${id}`),
     list: (projectId?: string) =>
       apiClient.get<ApiTypes.Envelope<FindingTypes.FindingList>>('/findings', {
         params: projectId ? { projectId } : undefined,

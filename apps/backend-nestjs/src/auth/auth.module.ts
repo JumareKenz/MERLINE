@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { jwtSignOptions } from './jwt.constants';
+import { PermissionCatalogueSync } from './permission-catalogue.sync';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { jwtSignOptions } from './jwt.constants';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, PermissionCatalogueSync],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

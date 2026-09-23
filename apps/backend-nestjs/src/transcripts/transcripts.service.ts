@@ -66,7 +66,11 @@ export class TranscriptsService extends BaseService {
 
   async findAllForOrganization(organizationId: string) {
     return this.prisma.transcript.findMany({
-      where: { organizationId, interview: { deletedAt: null } },
+      where: {
+        organizationId,
+        interview: { deletedAt: null },
+        media: { deletedAt: null },
+      },
       omit: { text: true },
       include: {
         interview: {
@@ -85,7 +89,7 @@ export class TranscriptsService extends BaseService {
 
   async findForInterview(interviewId: string, organizationId: string) {
     return this.prisma.transcript.findMany({
-      where: { interviewId, organizationId },
+      where: { interviewId, organizationId, media: { deletedAt: null } },
       omit: { text: true },
       include: { _count: { select: { segments: true } } },
       orderBy: { createdAt: 'desc' },

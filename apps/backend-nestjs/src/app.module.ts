@@ -24,6 +24,8 @@ import { TranscriptsModule } from './transcripts/transcripts.module';
 import { FindingsModule } from './findings/findings.module';
 import { FieldModule } from './field/field.module';
 import { JobsModule } from './jobs/jobs.module';
+import { TrashModule } from './trash/trash.module';
+import { AnalysisModule } from './analysis/analysis.module';
 
 /**
  * PHASE 0 — QUALITATIVE RESET
@@ -64,6 +66,8 @@ import { JobsModule } from './jobs/jobs.module';
     FindingsModule,
     FieldModule,
     JobsModule,
+    TrashModule,
+    AnalysisModule,
   ],
   providers: [
     // ─── PHASE 1: global guard chain ───

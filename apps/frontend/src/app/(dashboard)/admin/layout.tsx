@@ -13,6 +13,7 @@ const TABS = [
   { href: '/admin/roles', label: 'Roles', anyOf: ['view.roles'] },
   { href: '/admin/ai', label: 'AI', anyOf: ['configure.ai', 'view.ai'] },
   { href: '/admin/activity-log', label: 'Activity', anyOf: ['view.audit'] },
+  { href: '/admin/trash', label: 'Trash', anyOf: ['delete.projects'] },
 ];
 
 /**
@@ -27,7 +28,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
 
   return (
     <div>
-      <PageHeader title="Settings" description="Your organization, its members and roles, AI configuration and the audit trail." className="mb-6" />
+      <PageHeader title="Settings" description="Your organization, its members and roles, AI configuration, the audit trail and deleted items." className="mb-6" />
       <nav aria-label="Settings sections" className="-mx-4 mb-8 overflow-x-auto border-b border-border-subtle px-4 sm:mx-0 sm:px-0">
         <ul className="flex min-w-max gap-6">
           {tabs.map((tab) => {

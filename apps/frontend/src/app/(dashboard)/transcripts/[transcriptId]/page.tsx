@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Check, Languages, MessagesSquare, Pencil, Quote, Search, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -133,6 +133,21 @@ export default function TranscriptPage() {
   }, [activeId, follow, editing, segments]);
 
   const playFrom = useCallback((segment: TranscriptSegment) => player.current?.seekTo(segment.startMs), []);
+
+  // Arriving from a report quotation (?segment=…): show that line and cue the audio there.
+  const linkedSegment = useSearchParams().get('segment');
+  const cued = useRef(false);
+  useEffect(() => {
+    if (!linkedSegment || cued.current || segments.length === 0) return;
+    const target = segments.find((s) => s.id === linkedSegment);
+    if (!target) return;
+    cued.current = true;
+    setPositionMs(target.startMs);
+    requestAnimationFrame(() =>
+      document.getElementById(`segment-${target.index}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+    );
+    player.current?.seekTo(target.startMs, false);
+  }, [linkedSegment, segments]);
 
   if (isLoading) return <LoadingState message="Loading transcript" rows={6} />;
   if (isError || !transcript) {

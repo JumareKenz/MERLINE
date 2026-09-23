@@ -42,3 +42,25 @@ describe('role definitions', () => {
     );
   });
 });
+
+describe('deletion', () => {
+  it('is administrator-only for research records', () => {
+    const deletes = [
+      'delete.projects',
+      'delete.interviews',
+      'delete.recordings',
+      'delete.participants',
+      'delete.findings',
+      'delete.reports',
+      'delete.users',
+    ];
+    for (const role of ROLE_DEFINITIONS) {
+      const granted = permissionsForRole(role).filter((p) => deletes.includes(p));
+      if (role.slug === 'administrator') {
+        expect(granted.sort()).toEqual([...deletes].sort());
+      } else {
+        expect({ role: role.slug, granted }).toEqual({ role: role.slug, granted: [] });
+      }
+    }
+  });
+});

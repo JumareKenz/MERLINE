@@ -94,10 +94,11 @@ export function useTranslateTranscript(transcriptId: string) {
   });
 }
 
-export function useAllTranscripts() {
+export function useAllTranscripts(enabled = true) {
   return useQuery({
     queryKey: ['transcripts', 'all'],
     queryFn: async () => (await API.transcripts.listAll()).data.data,
+    enabled,
     refetchInterval: (query) => ((query.state.data ?? []).some(inFlight) ? POLL_MS : false),
   });
 }

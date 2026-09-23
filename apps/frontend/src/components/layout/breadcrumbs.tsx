@@ -15,6 +15,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   'activity-log': 'Activity',
   settings: 'Settings',
   participants: 'Participants',
+  analysis: 'Reports',
+  trash: 'Trash',
 };
 
 function isId(segment: string) {

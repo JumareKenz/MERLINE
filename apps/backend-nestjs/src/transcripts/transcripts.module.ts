@@ -19,6 +19,6 @@ import { TranscriptDialogueService } from './transcript-dialogue.service';
     TranscriptionJobs,
     TranscriptDialogueService,
   ],
-  exports: [TranscriptsService],
+  exports: [TranscriptsService, TranscriptionProviderService],
 })
 export class TranscriptsModule {}

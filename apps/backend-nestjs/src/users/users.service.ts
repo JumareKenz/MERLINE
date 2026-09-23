@@ -10,6 +10,7 @@ import { BaseService } from '../common/base/base.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRolesDto } from './dto/update-user-roles.dto';
+import { softDeleteUser } from './delete-user';
 
 /** Excludes 0/O/1/I/L — characters that are easy to mis-type or mis-read aloud. */
 const FIELD_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -242,19 +243,9 @@ export class UsersService extends BaseService {
     });
   }
 
-  async delete(id: string, organizationId: string) {
-    const user = await this.prisma.user.findFirst({
-      where: { id, organizationId, deletedAt: null },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with id "${id}" not found`);
-    }
-
-    await this.prisma.user.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+  /** See softDeleteUser: signs them out, stops their field code, keeps one admin. */
+  async delete(id: string, organizationId: string, actorId?: string) {
+    return softDeleteUser(this.prisma, id, organizationId, actorId);
   }
 
   async updateRoles(

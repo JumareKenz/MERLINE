@@ -50,6 +50,8 @@ export const ACTIVE_MODULE_DIRECTORIES = [
   'findings',
   'field',
   'jobs',
+  'trash',
+  'analysis',
 ] as const;
 
 /** Shared foundations. Importable by both sides; owned by neither. */

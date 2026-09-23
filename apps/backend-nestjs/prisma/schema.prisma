@@ -115,6 +115,7 @@ model Organization {
   transcripts         Transcript[]
   transcriptSegments  TranscriptSegment[]
   jobs                Job[]
+  analysisReports     AnalysisReport[]
   findings            Finding[]
   quotations          Quotation[]
 
@@ -170,6 +171,7 @@ model User {
   interviewsConducted  Interview[]   @relation("InterviewInterviewer")
   transcriptsRequested Transcript[]  @relation("TranscriptRequester")
   transcriptSegmentsEdited TranscriptSegment[] @relation("TranscriptSegmentEditor")
+  analysisReportsRequested AnalysisReport[] @relation("AnalysisReportRequester")
   findingsCreated      Finding[]     @relation("FindingCreator")
   findingsReviewed     Finding[]     @relation("FindingReviewer")
   quotationsCreated    Quotation[]   @relation("QuotationCreator")
@@ -276,6 +278,7 @@ model Project {
   participants Participant[]
   interviews   Interview[]
   findings     Finding[]
+  reports      AnalysisReport[]
 
   @@map("projects")
 }
@@ -1057,6 +1060,8 @@ model Interview {
   /// Language spoken, if known (e.g. "en", "ha"). Passed to transcription
   /// as a hint: Whisper does not reliably detect Hausa on its own.
   language       String?
+  /// Interview format: KII, FGD, IDI or OTHER. Defaults to the project's method.
+  type           String?
   organizationId String          @map("organization_id")
   projectId      String?         @map("project_id")
   participantId  String          @map("participant_id")
@@ -1077,6 +1082,7 @@ model Interview {
   interviewer  User         @relation("InterviewInterviewer", fields: [interviewerId], references: [id])
   recordings   Media[]
   transcripts  Transcript[]
+  reports      AnalysisReport[]
 
   @@index([organizationId])
   @@index([participantId])
@@ -1128,6 +1134,7 @@ model Transcript {
   media        Media               @relation(fields: [mediaId], references: [id])
   requestedBy  User                @relation("TranscriptRequester", fields: [requestedById], references: [id])
   segments     TranscriptSegment[]
+  reports      AnalysisReport[]
 
   @@index([organizationId])
   @@index([interviewId])
@@ -1264,4 +1271,51 @@ model Job {
   @@index([organizationId])
   @@index([dedupeKey])
   @@map("jobs")
+}
+
+// PHASE 2 — AI-written research reports: one per interview, one for a
+// whole project, or a custom brief asked for in plain language. `content`
+// is a rendering-neutral document (sections of paragraphs, lists, tables
+// and verified quotations) that the web view and the Word, Excel and PDF
+// exports all draw from. Not the legacy MERL `reports` table.
+enum AnalysisReportScope {
+  INTERVIEW
+  PROJECT
+  CUSTOM
+}
+
+model AnalysisReport {
+  id             String              @id @default(uuid())
+  scope          AnalysisReportScope
+  status         TranscriptStatus    @default(PENDING)
+  title          String
+  /// What was asked for (CUSTOM reports).
+  instructions   String?
+  language       String              @default("en")
+  content        Json?
+  model          String?
+  promptVersion  String?             @map("prompt_version")
+  errorMessage   String?             @map("error_message")
+  /// How many interviews the report drew on.
+  sourceCount    Int                 @default(0) @map("source_count")
+  projectId      String?             @map("project_id")
+  interviewId    String?             @map("interview_id")
+  transcriptId   String?             @map("transcript_id")
+  organizationId String              @map("organization_id")
+  requestedById  String              @map("requested_by_id")
+  completedAt    DateTime?           @map("completed_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  deletedAt      DateTime?           @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  interview    Interview?   @relation(fields: [interviewId], references: [id])
+  transcript   Transcript?  @relation(fields: [transcriptId], references: [id])
+  requestedBy  User         @relation("AnalysisReportRequester", fields: [requestedById], references: [id])
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([interviewId])
+  @@map("analysis_reports")
 }

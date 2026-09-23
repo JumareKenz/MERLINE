@@ -15,6 +15,7 @@ import {
 import { ConsentsService } from '../consents/consents.service';
 import { MediaService } from '../media/media.service';
 import { queueTranscriptionForRecording } from '../transcripts/transcription-queue';
+import { defaultInterviewType } from '../common/research/interview-type';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 
 /** Status transitions a caller may request explicitly via PATCH .../status. */
@@ -123,6 +124,37 @@ export class InterviewsService extends BaseService {
   }
 
   /**
+   * Moves an interview to the Trash. It disappears from every list, report
+   * and field device; its recordings, transcripts and consent stay intact
+   * so an administrator can restore it. Findings already quoting it keep
+   * their evidence.
+   */
+  async remove(id: string, organizationId: string) {
+    await this.findById(id, organizationId);
+    await this.prisma.interview.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    return { deleted: true };
+  }
+
+  /** Moves one recording (and so its transcripts) to the Trash. */
+  async removeRecording(id: string, mediaId: string, organizationId: string) {
+    await this.findById(id, organizationId);
+    const media = await this.prisma.media.findFirst({
+      where: { id: mediaId, interviewId: id, organizationId, deletedAt: null },
+    });
+    if (!media) {
+      throw new NotFoundException('Recording not found on this interview');
+    }
+    await this.prisma.media.update({
+      where: { id: media.id },
+      data: { deletedAt: new Date() },
+    });
+    return { deleted: true };
+  }
+
+  /**
    * Creation is transactional: the participant/consent ownership checks and
    * the insert must be atomic, since this is the point where the "no
    * interview without consent" invariant is enforced.
@@ -203,6 +235,7 @@ export class InterviewsService extends BaseService {
           location: dto.location,
           notes: dto.notes,
           language: dto.language,
+          type: dto.type ?? (await defaultInterviewType(tx, dto.projectId)),
           organizationId,
         },
       });

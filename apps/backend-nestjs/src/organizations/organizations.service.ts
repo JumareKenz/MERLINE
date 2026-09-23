@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { BaseService } from '../common/base/base.service';
 import { PrismaService } from '../database/prisma.service';
+import { softDeleteUser } from '../users/delete-user';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { v4 as uuidv4 } from 'uuid';
@@ -189,22 +190,9 @@ export class OrganizationsService extends BaseService {
     return { updated: true };
   }
 
-  async removeMember(orgId: string, userId: string) {
+  async removeMember(orgId: string, userId: string, actorId?: string) {
     await this.findById(orgId);
-
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, organizationId: orgId, deletedAt: null },
-    });
-    if (!user) {
-      throw new NotFoundException('User not found in organization');
-    }
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { deletedAt: new Date(), isActive: false },
-    });
-
-    return { deleted: true };
+    return softDeleteUser(this.prisma, userId, orgId, actorId);
   }
 
   /** A role id from a request body must be one of this organization's roles. */

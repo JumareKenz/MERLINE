@@ -135,7 +135,7 @@ export class AuthService {
       },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -194,7 +194,7 @@ export class AuthService {
       include: { roles: { include: { role: true } } },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException('Invalid or expired access code');
     }
     if (!user.isActive) {
@@ -241,7 +241,7 @@ export class AuthService {
       },
     });
 
-    if (!dbUser || !dbUser.isActive) {
+    if (!dbUser || !dbUser.isActive || dbUser.deletedAt) {
       throw new UnauthorizedException('User not found or inactive');
     }
 

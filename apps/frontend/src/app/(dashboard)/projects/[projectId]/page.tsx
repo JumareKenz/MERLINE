@@ -2,30 +2,41 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Check, ClipboardList, Quote, Settings2, UserRound } from 'lucide-react';
+import { Check, ClipboardList, Quote, Settings2, Trash2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { LoadingState } from '@/components/shared/loading-state';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { InterviewTable } from '@/components/interviews/interview-table';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { ProjectInterviewsFolder } from '@/components/projects/project-interviews-folder';
+import { ProjectReportPanel } from '@/components/projects/project-report-panel';
+import { ProjectAskPanel } from '@/components/projects/project-ask-panel';
+import { useAnalysisReports } from '@/hooks/use-analysis-reports';
+import { useAllTranscripts } from '@/hooks/use-transcripts';
 import { FieldTeamPanel } from '@/components/field-team/field-team-panel';
 import { useFieldTeam } from '@/hooks/use-field-team';
 import { useResearchProject } from '@/hooks/use-research-projects';
 import { useSession } from '@/hooks/use-session';
 import { API } from '@/lib/api-client';
+import { toast } from 'sonner';
 import { cn, formatDate } from '@/lib/utils';
 import { methodLabel } from '@/types/research-project';
 
-type Tab = 'interviews' | 'team' | 'participants' | 'findings';
+type Tab = 'interviews' | 'report' | 'ask' | 'team' | 'participants' | 'findings';
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const session = useSession();
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>('interviews');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // Transcripts and reports quote participants: administrators only.
+  const showAnalysis = session.can('view.transcripts');
   const project = useResearchProject(projectId);
 
   const interviews = useQuery({
@@ -44,6 +55,9 @@ export default function ProjectOverviewPage() {
     enabled: !!projectId && session.can('view.findings'),
   });
 
+  const transcripts = useAllTranscripts(showAnalysis);
+  const reports = useAnalysisReports({ projectId }, showAnalysis);
+
   const team = useFieldTeam();
   const teamOnProject = (team.data ?? []).filter((w) => w.projects.some((p) => p.id === projectId));
 
@@ -58,6 +72,15 @@ export default function ProjectOverviewPage() {
   const participantList = participants.data ?? [];
   const findingList = findings.data ?? [];
   const recorded = interviewList.filter((i) => (i._count?.recordings ?? 0) > 0).length;
+  const interviewIds = new Set(interviewList.map((i) => i.id));
+  const projectTranscripts = (transcripts.data ?? []).filter((t) => interviewIds.has(t.interviewId));
+  const reportList = reports.data ?? [];
+  const eligible = interviewList.filter(
+    (i) =>
+      i.consent?.allowAiAnalysis !== false &&
+      !i.consent?.withdrawnAt &&
+      projectTranscripts.some((t) => t.interviewId === i.id && t.status === 'COMPLETED' && (t._count?.segments ?? 1) > 0),
+  ).length;
 
   // Setup: each step is derived from real data, and links to where it's done.
   const steps = [
@@ -90,6 +113,11 @@ export default function ProjectOverviewPage() {
                 <Link href="/assignments">
                   <ClipboardList className="h-4 w-4" aria-hidden /> Field team
                 </Link>
+              </Button>
+            )}
+            {session.can('delete.projects') && (
+              <Button variant="ghost" onClick={() => setConfirmDelete(true)} aria-label="Delete project">
+                <Trash2 className="h-4 w-4" aria-hidden />
               </Button>
             )}
           </>
@@ -137,6 +165,12 @@ export default function ProjectOverviewPage() {
         {(
           [
             ['interviews', `Interviews · ${interviewList.length}`],
+            ...(showAnalysis
+              ? [
+                  ['report', 'Project report'],
+                  ['ask', 'Ask AI'],
+                ]
+              : []),
             ['team', `Field team · ${teamOnProject.length}`],
             ['participants', `Participants · ${participantList.length}`],
             ...(session.can('view.findings') ? [['findings', `Findings · ${findingList.length}`]] : []),
@@ -159,15 +193,19 @@ export default function ProjectOverviewPage() {
 
       <div role="tabpanel">
         {tab === 'interviews' && (
-          <InterviewTable
-            data={interviewList}
+          <ProjectInterviewsFolder
+            interviews={interviewList}
             isLoading={interviews.isLoading}
-            isError={interviews.isError}
-            error={interviews.error as { message?: string } | null}
-            onRetry={() => interviews.refetch()}
-            emptyDescription="Interviews appear here as your field team collects them. Add people to this project's field team to begin."
+            transcripts={projectTranscripts}
+            reports={reportList}
+            showAnalysis={showAnalysis}
+            canGenerate={session.can('create.reports') && session.can('use.ai')}
           />
         )}
+
+        {tab === 'report' && showAnalysis && <ProjectReportPanel projectId={projectId} reports={reportList} eligibleInterviews={eligible} />}
+
+        {tab === 'ask' && showAnalysis && <ProjectAskPanel projectId={projectId} />}
 
         {tab === 'team' && <FieldTeamPanel projectId={projectId} />}
 
@@ -212,6 +250,27 @@ export default function ProjectOverviewPage() {
             </ul>
           ))}
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete “${p.name}”?`}
+        description={`The project moves to the Trash with its ${interviewList.length} interview${interviewList.length === 1 ? '' : 's'}, ${participantList.length} participant${participantList.length === 1 ? '' : 's'} and its reports. Consent records are kept. An administrator can restore it all from Settings › Trash.`}
+        confirmLabel="Delete project"
+        variant="danger"
+        loading={deleting}
+        onConfirm={async () => {
+          setDeleting(true);
+          try {
+            await API.researchProjects.delete(projectId);
+            router.push('/projects');
+          } catch (e) {
+            toast.error((e as { message?: string })?.message ?? 'The project could not be deleted');
+          } finally {
+            setDeleting(false);
+            setConfirmDelete(false);
+          }
+        }}
+      />
     </div>
   );
 }
