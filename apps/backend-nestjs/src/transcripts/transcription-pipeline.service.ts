@@ -85,10 +85,17 @@ export class TranscriptionPipelineService {
         'transcription.maxDirectBytes',
         20 * 1024 * 1024,
       );
-      const analysis = await this.analyse(source, size <= maxDirectBytes);
+      // A provider with a per-request length limit (Gemini) needs the
+      // duration of every recording, not just the large ones.
+      const limit = this.provider.maxRequestSeconds;
+      const analysis = await this.analyse(
+        source,
+        size <= maxDirectBytes && !limit,
+      );
 
       if (analysis && analysis.silentFraction >= SILENT_FRACTION) {
         await this.complete(transcript.id, transcript.organizationId, {
+          provider: this.provider.sttProvider,
           model: this.provider.sttModel,
           language: transcript.requestedLanguage,
           segments: [],
@@ -108,6 +115,7 @@ export class TranscriptionPipelineService {
       );
 
       let language: string | null = null;
+      let provider: string = this.provider.sttProvider;
       const results: {
         chunk: ChunkPlan;
         segments: ReturnType<typeof dropNonSpeech>;
@@ -119,13 +127,20 @@ export class TranscriptionPipelineService {
           language: transcript.requestedLanguage,
         });
         const kept = dropNonSpeech(result.segments);
+        provider = result.provider;
         if (!language && kept.length > 0) language = result.language;
         results.push({ chunk: piece.chunk, segments: kept });
       }
 
-      const segments = stitchSegments(results);
+      let segments = stitchSegments(results);
+      // Speaker labels are only consistent within one request: "Speaker 1"
+      // in one part of a split recording may be "Speaker 2" in the next.
+      if (pieces.length > 1) {
+        segments = segments.map((seg) => ({ ...seg, speakerLabel: null }));
+      }
       const lastEnd = segments.at(-1)?.endMs ?? 0;
       await this.complete(transcript.id, transcript.organizationId, {
+        provider,
         model: this.provider.sttModel,
         language: language ?? transcript.requestedLanguage,
         segments,
@@ -264,6 +279,7 @@ export class TranscriptionPipelineService {
     transcriptId: string,
     organizationId: string,
     result: {
+      provider: string;
       model: string;
       language: string | null;
       segments: ReturnType<typeof stitchSegments>;
@@ -283,6 +299,7 @@ export class TranscriptionPipelineService {
             index,
             startMs: s.startMs,
             endMs: s.endMs,
+            speakerLabel: s.speakerLabel ?? null,
             text: s.text,
             confidence: s.confidence,
           })),
@@ -292,7 +309,7 @@ export class TranscriptionPipelineService {
         where: { id: transcriptId },
         data: {
           status: 'COMPLETED',
-          provider: 'groq',
+          provider: result.provider,
           model: result.model,
           language: result.language,
           text: result.segments.map((s) => s.text).join(' '),
@@ -357,7 +374,9 @@ export class TranscriptionPipelineService {
     workDir: string,
     media: { originalName: string; filename: string; mimeType: string },
   ) {
-    if (size <= maxDirectBytes || !analysis) {
+    const limit = this.provider.maxRequestSeconds;
+    const tooLong = !!limit && !!analysis && analysis.durationSec > limit;
+    if ((size <= maxDirectBytes && !tooLong) || !analysis) {
       return [
         {
           path: source,
@@ -380,14 +399,19 @@ export class TranscriptionPipelineService {
         'Could not determine the length of this recording',
       );
     }
-    const chunkSeconds = this.config.get<number>(
-      'transcription.chunkSeconds',
-      600,
-    );
+    // Gemini: parts as long as a request allows, so fewer recordings are
+    // split (and more keep their speaker labels). planChunks may let the
+    // last part run to 1.25× its target, so aim below the limit.
+    // Groq: the configured size.
+    const chunkSeconds = limit
+      ? Math.floor(limit / 1.25)
+      : this.config.get<number>('transcription.chunkSeconds', 600);
     const plan = planChunks(
       analysis.durationSec,
       analysis.silences,
       chunkSeconds,
+      45,
+      limit ?? Number.POSITIVE_INFINITY,
     );
     const ffmpeg = this.config.get<string>(
       'transcription.ffmpegPath',

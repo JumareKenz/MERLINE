@@ -65,7 +65,7 @@ class FakeProvider extends TranscriptionProviderService {
 
   result(segments: Partial<TranscriptionResult['segments'][number]>[]) {
     return {
-      provider: 'groq' as const,
+      provider: 'groq' as TranscriptionResult['provider'],
       model: this.sttModel,
       language: 'ha',
       segments: segments.map((s) => ({
@@ -419,6 +419,118 @@ describeDb('transcription pipeline (database)', () => {
     expect(starts[2]).toBeLessThan(62_000);
     expect(done.segments.map((s) => s.index)).toEqual([0, 1, 2]);
   }, 60_000);
+
+  describe('with Gemini (gemini-3.5-transcribe)', () => {
+    /** The real limit is 25 minutes; the tests use seconds. */
+    let limit: number | null = null;
+    function geminiQueue() {
+      config.transcription.provider = 'gemini';
+      const jobs = queue();
+      Object.defineProperty(fake, 'maxRequestSeconds', { get: () => limit });
+      fake.result = (segments) => ({
+        provider: 'gemini' as const,
+        model: 'gemini-3.5-transcribe',
+        language: 'ha',
+        segments: segments.map((seg) => ({
+          startMs: 0,
+          endMs: 1000,
+          text: 'x',
+          confidence: null,
+          noSpeechProb: null,
+          avgLogprob: null,
+          ...seg,
+        })),
+      });
+      return jobs;
+    }
+
+    it('stores speakers and the provider for a recording sent in one request', async () => {
+      limit = 1500;
+      const jobs = geminiQueue();
+      fake.next = () =>
+        Promise.resolve(
+          fake.result([
+            {
+              startMs: 0,
+              endMs: 3000,
+              text: 'Yaya aikin gona?',
+              speakerLabel: 'Speaker 1',
+            },
+            {
+              startMs: 3500,
+              endMs: 9000,
+              text: 'Muna noma dawa.',
+              speakerLabel: 'Speaker 2',
+            },
+          ]),
+        );
+      const { transcript } = await interviewWithRecording(
+        makeAudio('gemini-short.webm', 'speech', 40),
+        {},
+        'ha',
+      );
+      await jobs.drain({ organizationId: orgId });
+      const done = await prisma.transcript.findUniqueOrThrow({
+        where: { id: transcript!.id },
+        include: { segments: { orderBy: { index: 'asc' } } },
+      });
+      expect(done.status).toBe('COMPLETED');
+      expect(done.provider).toBe('gemini');
+      expect(done.model).toBe('gemini-3.5-transcribe');
+      expect(fake.calls).toHaveLength(1);
+      expect(fake.calls[0].language).toBe('ha');
+      expect(done.segments.map((seg) => [seg.speakerLabel, seg.text])).toEqual([
+        ['Speaker 1', 'Yaya aikin gona?'],
+        ['Speaker 2', 'Muna noma dawa.'],
+      ]);
+    }, 60_000);
+
+    it('splits a small file that is longer than one request allows, and drops per-part speakers', async () => {
+      limit = 30;
+      const jobs = geminiQueue();
+      const lengths: number[] = [];
+      fake.next = (i) => {
+        // Measured while the job runs: parts are deleted afterwards.
+        const out = execFileSync('ffprobe', [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=duration',
+          '-of',
+          'csv=p=0',
+          fake.calls[i].path,
+        ]).toString();
+        lengths.push(Number.parseFloat(out));
+        return Promise.resolve(
+          fake.result([
+            {
+              startMs: 200,
+              endMs: 1200,
+              text: `part ${i}`,
+              speakerLabel: 'Speaker 1',
+            },
+          ]),
+        );
+      };
+      const { transcript } = await interviewWithRecording(
+        makeAudio('gemini-long.webm', 'speech', 70),
+      );
+      await jobs.drain({ organizationId: orgId });
+      const done = await prisma.transcript.findUniqueOrThrow({
+        where: { id: transcript!.id },
+        include: { segments: { orderBy: { index: 'asc' } } },
+      });
+      expect(done.status).toBe('COMPLETED');
+      // Well under maxDirectBytes, yet split because of the length limit.
+      expect(fake.calls.length).toBeGreaterThan(2);
+      expect(lengths).toHaveLength(fake.calls.length);
+      expect(Math.max(...lengths)).toBeLessThanOrEqual(30.5);
+      expect(done.segments.every((seg) => seg.speakerLabel === null)).toBe(
+        true,
+      );
+      expect(done.provider).toBe('gemini');
+    }, 60_000);
+  });
 
   it('reschedules on a rate limit, fails visibly when attempts run out, and can be retried', async () => {
     const jobs = queue();

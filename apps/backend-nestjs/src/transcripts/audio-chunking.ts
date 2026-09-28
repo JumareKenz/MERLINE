@@ -87,13 +87,16 @@ export function parseSilencedetect(stderr: string): AudioAnalysis {
  * Splits a recording into pieces of about `targetSec`, cutting in the
  * middle of the pause nearest each boundary (within `windowSec`) so no word
  * is split between two requests. With no pause nearby it cuts at the
- * target itself.
+ * target itself. `maxSec`, when given, is a hard ceiling on any piece (a
+ * provider's per-request limit): a pause that would overshoot it is not
+ * used, and the target must be at most maxSec / 1.25.
  */
 export function planChunks(
   durationSec: number,
   silences: Silence[],
   targetSec: number,
   windowSec = 45,
+  maxSec = Number.POSITIVE_INFINITY,
 ): ChunkPlan[] {
   if (durationSec <= targetSec * 1.25) {
     return [{ startSec: 0, endSec: durationSec }];
@@ -108,7 +111,12 @@ export function planChunks(
     for (const s of silences) {
       const mid = (s.startSec + s.endSec) / 2;
       const distance = Math.abs(mid - target);
-      if (distance <= windowSec && distance < best && mid > start + 1) {
+      if (
+        distance <= windowSec &&
+        distance < best &&
+        mid > start + 1 &&
+        mid - start <= maxSec
+      ) {
         best = distance;
         cut = mid;
       }
@@ -163,6 +171,8 @@ export interface TimedSegment {
   endMs: number;
   text: string;
   confidence: number | null;
+  /** Who spoke, when the provider tells us (Gemini diarization). */
+  speakerLabel?: string | null;
 }
 
 /**

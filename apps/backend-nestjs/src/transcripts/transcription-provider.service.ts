@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { openAsBlob } from 'fs';
 import { PermanentJobError, RetryableJobError } from '../jobs/job-errors';
 import type { TimedSegment } from './audio-chunking';
+import {
+  GEMINI_MAX_REQUEST_SECONDS,
+  GeminiTranscriber,
+  segmentsFromWords,
+  type GeminiConfig,
+} from './gemini-transcriber';
 import { TRANSCRIPTION_LANGUAGES } from './languages';
 
 export interface ProviderSegment extends TimedSegment {
@@ -10,8 +16,10 @@ export interface ProviderSegment extends TimedSegment {
   avgLogprob: number | null;
 }
 
+export type SttProvider = 'gemini' | 'groq';
+
 export interface TranscriptionResult {
-  provider: 'groq';
+  provider: SttProvider;
   model: string;
   /** ISO code where known (en, ha), otherwise the provider's name for it. */
   language: string | null;
@@ -28,7 +36,9 @@ const LANGUAGE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * Groq speech-to-text (Whisper) and chat completions, server-side only.
+ * Speech-to-text (Gemini's gemini-3.5-transcribe, or Groq Whisper) and
+ * chat completions (Groq), server-side only. Which speech-to-text provider
+ * runs is configuration (transcription.provider); see gemini-transcriber.ts.
  *
  * Errors are classified for the job runner rather than thrown as HTTP
  * exceptions: rate limits (429, with the provider's retry-after), timeouts
@@ -42,11 +52,45 @@ export class TranscriptionProviderService {
 
   constructor(private readonly config: ConfigService) {}
 
+  get sttProvider(): SttProvider {
+    return this.config.get<string>('transcription.provider', 'groq') ===
+      'gemini'
+      ? 'gemini'
+      : 'groq';
+  }
+
   get sttModel(): string {
+    if (this.sttProvider === 'gemini') return this.geminiConfig().model;
     return this.config.get<string>(
       'transcription.sttModel',
       'whisper-large-v3',
     );
+  }
+
+  /**
+   * The longest audio one request may carry, if the provider has a limit
+   * (Gemini: 30 minutes with word timestamps). Longer recordings are split.
+   */
+  get maxRequestSeconds(): number | null {
+    return this.sttProvider === 'gemini' ? GEMINI_MAX_REQUEST_SECONDS : null;
+  }
+
+  private geminiConfig(): GeminiConfig {
+    return {
+      apiKey: this.config.get<string>('transcription.gemini.apiKey', ''),
+      model: this.config.get<string>(
+        'transcription.gemini.model',
+        'gemini-3.5-transcribe',
+      ),
+      baseUrl: this.config.get<string>(
+        'transcription.gemini.baseUrl',
+        'https://generativelanguage.googleapis.com',
+      ),
+      languageCodes: this.config.get<Record<string, string>>(
+        'transcription.gemini.languageCodes',
+        { en: 'en-GB', ha: 'ha-NG' },
+      ),
+    };
   }
 
   get translationModel(): string {
@@ -60,6 +104,8 @@ export class TranscriptionProviderService {
     filePath: string,
     options: { filename: string; mimeType: string; language?: string | null },
   ): Promise<TranscriptionResult> {
+    if (this.sttProvider === 'gemini')
+      return this.transcribeGemini(filePath, options);
     const model = this.sttModel;
     const form = new FormData();
     const blob = await openAsBlob(filePath, { type: options.mimeType });
@@ -102,6 +148,36 @@ export class TranscriptionProviderService {
       model,
       language: normaliseLanguage(options.language || data.language),
       segments,
+    };
+  }
+
+  private async transcribeGemini(
+    filePath: string,
+    options: { filename: string; mimeType: string; language?: string | null },
+  ): Promise<TranscriptionResult> {
+    const config = this.geminiConfig();
+    const transcriber = new GeminiTranscriber(config, (m) =>
+      this.logger.warn(m),
+    );
+    const { words } = await transcriber.transcribe(filePath, options);
+    const segments = segmentsFromWords(words);
+    const speakers = speakerNames(segments.map((seg) => seg.speaker));
+    return {
+      provider: 'gemini',
+      model: config.model,
+      // The interview's own language when set; the model detects otherwise
+      // but does not report it per request.
+      language: normaliseLanguage(options.language),
+      segments: segments.map((s, i) => ({
+        startMs: s.startMs,
+        endMs: s.endMs,
+        text: s.text,
+        speakerLabel: speakers[i],
+        // Gemini reports no per-segment confidence.
+        confidence: null,
+        noSpeechProb: null,
+        avgLogprob: null,
+      })),
     };
   }
 
@@ -218,6 +294,20 @@ export function parseRetryAfter(headers: Headers): number | undefined {
   if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
   const date = Date.parse(value);
   return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
+}
+
+/**
+ * The model's speaker labels ("spk_0", "spk:1", …) → "Speaker 1", "Speaker 2"
+ * in order of first appearance. Labels only mean something within one
+ * request, so this runs per request.
+ */
+export function speakerNames(labels: (string | null)[]): (string | null)[] {
+  const order = new Map<string, number>();
+  return labels.map((label) => {
+    if (!label) return null;
+    if (!order.has(label)) order.set(label, order.size + 1);
+    return `Speaker ${order.get(label)}`;
+  });
 }
 
 function extractErrorMessage(body: string): string {

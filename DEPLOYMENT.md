@@ -71,7 +71,11 @@ Names only. Set these in the Vercel dashboard or with `vercel env add`.
 | `SIGNED_URL_TTL_SECONDS` | Default 900. |
 | `OPENAI_API_KEY` | Without at least one AI key, `/ai/chat` returns 503 by design — it no longer fabricates a reply. |
 | `OPENROUTER_API_KEY` | Alternative to the above. |
-| `GROQ_API_KEY` | Transcription (Whisper) and transcript translation. Without it, transcription jobs fail visibly with "GROQ_API_KEY is not set" and can be retried once it is set. Server-side only. |
+| `GEMINI_API_KEY` | Transcription with Google's `gemini-3.5-transcribe`. When set, it is used for all new transcriptions (unless `TRANSCRIPTION_PROVIDER=groq`). **Use a paid (billing-enabled) key**: on the free tier Google may use the audio to improve its products, which interview recordings must not be. Paid price ≈ $0.005 per audio minute. Server-side only. |
+| `TRANSCRIPTION_PROVIDER` | `gemini` or `groq`. Unset: `gemini` when `GEMINI_API_KEY` is set, otherwise `groq` (Whisper). |
+| `GEMINI_STT_MODEL` | Default `gemini-3.5-transcribe`. |
+| `GEMINI_ENGLISH_LOCALE` | Language code sent for English interviews. Default `en-GB` (the model has no Nigerian English locale; Hausa is `ha-NG`). |
+| `GROQ_API_KEY` | Transcript translation, AI drafting and reports, and transcription when the provider is Groq (Whisper). Without it, transcription jobs fail visibly with "GROQ_API_KEY is not set" and can be retried once it is set. Server-side only. |
 | `GROQ_STT_MODEL` | Default `whisper-large-v3`. `whisper-large-v3-turbo` is faster but measured markedly worse on Hausa. |
 | `GROQ_TRANSLATION_MODEL` | Default `openai/gpt-oss-120b` (falls back to `GROQ_MODEL`). |
 | `JOBS_WORKER` | `on` (default) or `off`. The job worker runs inside the API process; turn it off on extra instances that should only serve requests. |

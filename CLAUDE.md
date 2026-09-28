@@ -137,6 +137,16 @@ retryable. Uploads queue transcription automatically when consent allows
 in `timestamp without time zone`; raw SQL must use
 `now() AT TIME ZONE 'UTC'`, never bare `now()` (the DB runs in
 Europe/Berlin — bare `now()` made rescheduled jobs run immediately).
+**Speech-to-text provider:** Google `gemini-3.5-transcribe` when
+`GEMINI_API_KEY` is set (else Groq Whisper; `TRANSCRIPTION_PROVIDER`
+overrides). Gemini path: `transcripts/gemini-transcriber.ts` (Files API
+upload → Interactions API, verbatim mode, word timestamps + speaker
+diarization → sentence-sized segments with `speakerLabel`; upload deleted
+afterwards). A request may carry at most 30 min of audio with timestamps,
+so recordings over 25 min are split (`maxRequestSeconds`, and
+`planChunks` takes a hard `maxSec`); speaker labels are kept only when a
+recording went in one request, since labels do not match across parts.
+Chat, translation and reports stay on Groq.
 Recordings and transcripts are **administrator-only**; `/media` routes
 exclude interview recordings. Segment corrections go to `editedText` (the
 machine `text` is never changed); read via `segmentText()`. Whisper on
@@ -255,7 +265,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **398 passing, 30 suites** (as of 2026-09-28; the transcription
+Expect **411 passing, 31 suites** (as of 2026-09-29; the transcription
 pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.

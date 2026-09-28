@@ -51,6 +51,25 @@ export default () => {
     // Speech-to-text and translation. Model names live here only, so they
     // can be swapped without touching code.
     transcription: {
+      // "gemini" (gemini-3.5-transcribe) or "groq" (Whisper). Unset: Gemini
+      // when GEMINI_API_KEY is present, otherwise Groq, so a deploy
+      // without the key keeps transcribing as before.
+      provider:
+        process.env.TRANSCRIPTION_PROVIDER ??
+        (process.env.GEMINI_API_KEY ? 'gemini' : 'groq'),
+      gemini: {
+        apiKey: process.env.GEMINI_API_KEY ?? '',
+        model: process.env.GEMINI_STT_MODEL ?? 'gemini-3.5-transcribe',
+        baseUrl:
+          process.env.GEMINI_BASE_URL ??
+          'https://generativelanguage.googleapis.com',
+        // The model has no Nigerian English locale; en-GB is closest in
+        // spelling. Hausa is supported as ha-NG.
+        languageCodes: {
+          en: process.env.GEMINI_ENGLISH_LOCALE ?? 'en-GB',
+          ha: 'ha-NG',
+        },
+      },
       groqBaseUrl:
         process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
       sttModel: process.env.GROQ_STT_MODEL ?? 'whisper-large-v3',
