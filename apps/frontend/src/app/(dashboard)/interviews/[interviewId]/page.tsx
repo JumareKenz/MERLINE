@@ -80,7 +80,12 @@ export default function InterviewDetailPage() {
       <PageHeader
         eyebrow="Interview"
         title={interview.participant?.displayName ?? 'Interview'}
-        meta={<StatusBadge status={interview.status} />}
+        meta={
+          <>
+            <StatusBadge status={interview.status} />
+            {interview.respondentLinkId && <StatusBadge status="self-administered" variant="info" />}
+          </>
+        }
         actions={
           canEdit && (
             <>
@@ -195,10 +200,20 @@ export default function InterviewDetailPage() {
                   <Link href={`/participants/${interview.participantId}`} className="font-medium text-foreground-link hover:underline">
                     {interview.participant?.displayName ?? 'Participant'}
                   </Link>
-                  {interview.interviewer && (
+                  {interview.respondentLinkId ? (
                     <span className="block text-[13px] text-foreground-secondary">
-                      Interviewer: {interview.interviewer.firstName} {interview.interviewer.lastName}
+                      Answered on their own through a{' '}
+                      <Link href="/links" className="text-foreground-link hover:underline">
+                        self-interview link
+                      </Link>
+                      {interview.interviewer && ` created by ${interview.interviewer.firstName} ${interview.interviewer.lastName}`}
                     </span>
+                  ) : (
+                    interview.interviewer && (
+                      <span className="block text-[13px] text-foreground-secondary">
+                        Interviewer: {interview.interviewer.firstName} {interview.interviewer.lastName}
+                      </span>
+                    )
                   )}
                 </dd>
               </div>

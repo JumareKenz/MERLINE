@@ -115,6 +115,11 @@ export default function GuidesPage() {
                     <p className="flex flex-wrap items-center gap-2">
                       <span className="truncate text-[15px] font-semibold text-foreground">{latest.title}</span>
                       <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[11.5px] font-semibold text-primary-700">{latest.interviewType}</span>
+                      {latest.linkOnly && (
+                        <span className="rounded bg-background-surface px-1.5 py-0.5 text-[11.5px] font-medium text-foreground-secondary ring-1 ring-border-subtle">
+                          For self-interview links
+                        </span>
+                      )}
                     </p>
                     <p className="mt-0.5 text-[13px] text-foreground-tertiary">
                       {[

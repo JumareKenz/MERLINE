@@ -85,6 +85,7 @@ export class GuidesService {
           interviewType: dto.interviewType,
           languages: dto.languages,
           projectId: dto.projectId ?? null,
+          linkOnly: !!dto.linkOnly,
           organizationId,
           createdById: userId,
         },
@@ -147,6 +148,7 @@ export class GuidesService {
           ...data,
           familyId: current.familyId,
           version: (latest?.version ?? current.version) + 1,
+          linkOnly: current.linkOnly,
           organizationId,
           createdById: userId,
         },
@@ -175,6 +177,8 @@ export class GuidesService {
       // One approved guide per slot (project or organization-wide, and
       // interview type), so there is never doubt which one field teams use:
       // the family's earlier version and any other guide for the same slot.
+      // Link-only guides never reach field teams, so they neither take the
+      // slot nor are displaced from it; only their own earlier version is.
       this.prisma.questionSet.updateMany({
         where: {
           organizationId,
@@ -182,7 +186,15 @@ export class GuidesService {
           id: { not: id },
           OR: [
             { familyId: set.familyId },
-            { interviewType: set.interviewType, projectId: set.projectId },
+            ...(set.linkOnly
+              ? []
+              : [
+                  {
+                    interviewType: set.interviewType,
+                    projectId: set.projectId,
+                    linkOnly: false,
+                  },
+                ]),
           ],
         },
         data: { status: 'ARCHIVED' },
@@ -244,6 +256,7 @@ export class GuidesService {
         description: dto.description,
         interviewType: dto.interviewType,
         projectId: dto.projectId,
+        linkOnly: dto.linkOnly,
         languages: parsed.languages,
         questions: parsed.questions,
       },
@@ -269,6 +282,7 @@ export class GuidesService {
         organizationId,
         deletedAt: null,
         status: 'APPROVED',
+        linkOnly: false,
         interviewType,
         OR: [...(projectId ? [{ projectId }] : []), { projectId: null }],
       },

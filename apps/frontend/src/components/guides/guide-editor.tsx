@@ -93,7 +93,9 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
         title={guide?.title ?? 'New guide'}
         meta={guide && <StatusBadge status={guide.status} />}
         description={
-          guide?.status === 'APPROVED'
+          guide?.linkOnly
+            ? `For self-interview links only: field teams never see it.${guide.status === 'DRAFT' ? ' Approve it to use it in a link.' : guide.status === 'ARCHIVED' ? ' Archived: kept for the responses that used it.' : ''}`
+            : guide?.status === 'APPROVED'
             ? `Approved ${guide.approvedAt ? formatDate(guide.approvedAt) : ''}${guide.approvedBy ? ` by ${guide.approvedBy.firstName} ${guide.approvedBy.lastName}` : ''}. Field teams use this version; ${guide._count?.interviews ?? 0} interview${guide._count?.interviews === 1 ? '' : 's'} so far.`
             : guide?.status === 'DRAFT'
               ? 'Draft: field teams do not see it until it is approved.'
@@ -268,7 +270,9 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
         onOpenChange={(o) => !o && setConfirm(null)}
         title={confirm === 'approve' ? `Approve version ${guide?.version}?` : 'Delete this guide?'}
         description={
-          confirm === 'approve'
+          confirm === 'approve' && guide?.linkOnly
+            ? 'It can then be used in self-interview links. Its earlier version is archived; field teams are not affected.'
+            : confirm === 'approve'
             ? 'Field teams will use it for new interviews of this type from their next sync. Whatever was approved for the same project and interview type (including an earlier version) is archived; interviews already done keep theirs.'
             : 'Every version moves to the Trash. Interviews that used it keep their record of the questions.'
         }

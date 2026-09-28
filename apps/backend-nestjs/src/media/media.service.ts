@@ -425,6 +425,13 @@ export class MediaService extends BaseService {
       originalName: string;
       checksum?: string;
       metadata?: Record<string, unknown>;
+      /**
+       * Who the stored recording is attributed to, when that is not the
+       * key the parts were sent under (a self-interview link's respondent
+       * sends parts under their session; the recording belongs to the
+       * link's owner).
+       */
+      uploadedById?: string;
     },
   ) {
     const existing = await this.findCompletedRecording(
@@ -481,7 +488,11 @@ export class MediaService extends BaseService {
       key,
       body,
       contentType: baseMime,
-      metadata: { organizationId, uploadedBy: userId, uploadId },
+      metadata: {
+        organizationId,
+        uploadedBy: options.uploadedById ?? userId,
+        uploadId,
+      },
     });
 
     if (options.checksum && options.checksum !== checksum) {
@@ -507,7 +518,7 @@ export class MediaService extends BaseService {
         path: key,
         checksum,
         metadata: jsonObject({ ...(options.metadata ?? {}), uploadId }),
-        uploadedById: userId,
+        uploadedById: options.uploadedById ?? userId,
         organizationId,
         interviewId: options.interviewId,
       },

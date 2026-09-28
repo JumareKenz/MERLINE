@@ -36,7 +36,7 @@ export function useGuideAction(action: 'approve' | 'archive' | 'delete') {
     mutationFn: (id: string) => API.guides[action](id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['guides'] });
-      toast.success(action === 'approve' ? 'Approved: field teams now use this version' : action === 'archive' ? 'Archived' : 'Moved to the Trash');
+      toast.success(action === 'approve' ? 'Approved' : action === 'archive' ? 'Archived' : 'Moved to the Trash');
     },
     onError: (e: Error) => toast.error(e.message || 'That did not work'),
   });

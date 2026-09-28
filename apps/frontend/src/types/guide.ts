@@ -25,6 +25,8 @@ export interface Guide {
   interviewType: string;
   languages: string[];
   status: GuideStatus;
+  /** Made for self-interview links: never shown to field teams. */
+  linkOnly?: boolean;
   projectId?: string | null;
   project?: { id: string; name: string } | null;
   approvedAt?: string | null;
@@ -56,6 +58,8 @@ export interface QuestionLogEntry {
   recordingRef?: string | null;
   mediaId?: string | null;
   note?: string | null;
+  /** A self-interview respondent's answer to a closed question. */
+  answer?: { selected?: number[]; labels?: string[]; value?: number } | null;
   markedAt: string;
 }
 

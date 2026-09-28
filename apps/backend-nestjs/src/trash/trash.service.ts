@@ -14,6 +14,7 @@ export const TRASH_TYPES = [
   'report',
   'user',
   'guide',
+  'link',
 ] as const;
 export type TrashType = (typeof TRASH_TYPES)[number];
 
@@ -180,6 +181,25 @@ export class TrashService {
         deletedAt: u.deletedAt!,
       })),
     ];
+    const links = await this.prisma.respondentLink.findMany({
+      where: deleted,
+      take,
+      select: {
+        id: true,
+        title: true,
+        deletedAt: true,
+        project: { select: { name: true } },
+      },
+    });
+    items.push(
+      ...links.map((l) => ({
+        type: 'link' as const,
+        id: l.id,
+        name: l.title,
+        context: l.project.name,
+        deletedAt: l.deletedAt!,
+      })),
+    );
     items.push(
       ...guides.map((g) => ({
         type: 'guide' as const,
@@ -305,6 +325,15 @@ export class TrashService {
           },
           data: { deletedAt: null },
         });
+        break;
+      }
+      case 'link': {
+        // Same URL as before; it works again at once.
+        const count = await this.prisma.respondentLink.updateMany({
+          where,
+          data: { deletedAt: null },
+        });
+        if (!count.count) throw new NotFoundException('Nothing to restore');
         break;
       }
       case 'user': {

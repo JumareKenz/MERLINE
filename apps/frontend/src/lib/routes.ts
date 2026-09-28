@@ -21,3 +21,15 @@ export const ROUTES = {
   projects: '/projects',
   profile: '/profile',
 } as const;
+
+/**
+ * Self-interview links (/r/<token>): open to anyone holding the link,
+ * signed in or not. Neither the middleware nor the auth provider may
+ * redirect them — not to /login, and not a signed-in admin testing their
+ * own link away to the app.
+ */
+export const RESPONDENT_PREFIX = '/r/';
+
+export function isRespondentPath(pathname: string | null | undefined): boolean {
+  return !!pathname && pathname.startsWith(RESPONDENT_PREFIX);
+}

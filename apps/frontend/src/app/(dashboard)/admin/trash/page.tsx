@@ -19,6 +19,8 @@ const LABEL: Record<TrashItem['type'], string> = {
   finding: 'Finding',
   report: 'Report',
   user: 'Member',
+  guide: 'Guide',
+  link: 'Self-interview link',
 };
 
 /**
@@ -47,7 +49,7 @@ export default function TrashPage() {
   return (
     <div className="space-y-5">
       <p className="max-w-2xl text-[14px] leading-relaxed text-foreground-secondary">
-        Deleted projects, interviews, recordings, participants, findings, reports and members. Restoring a project brings back everything
+        Deleted projects, interviews, recordings, participants, findings, reports, guides, self-interview links and members. Restoring a project brings back everything
         that was deleted with it. Consent records are never deleted.
       </p>
 

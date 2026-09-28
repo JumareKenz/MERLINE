@@ -3,6 +3,7 @@ import {
   ClipboardList,
   FileText,
   FolderKanban,
+  Link2,
   ListChecks,
   MessagesSquare,
   Quote,
@@ -56,6 +57,13 @@ export const PRIMARY_NAV: NavItem[] = [
     icon: ClipboardList,
     description: 'Field team and the projects they collect interviews for',
     anyOf: ['create.interviews'],
+  },
+  {
+    label: 'Self-interviews',
+    href: '/links',
+    icon: Link2,
+    description: 'Links key informants open to answer on their own, with no account',
+    anyOf: ['view.links'],
   },
   {
     label: 'Results',

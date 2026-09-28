@@ -82,7 +82,7 @@ export interface ProjectAnswer {
 }
 
 export interface TrashItem {
-  type: 'project' | 'interview' | 'recording' | 'participant' | 'finding' | 'report' | 'user';
+  type: 'project' | 'interview' | 'recording' | 'participant' | 'finding' | 'report' | 'user' | 'guide' | 'link';
   id: string;
   name: string;
   context?: string | null;

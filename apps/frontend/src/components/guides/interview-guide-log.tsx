@@ -36,7 +36,17 @@ export function InterviewGuideLog({ interviewId, language }: { interviewId: stri
           return (
             <li key={q.id ?? i} className="flex items-start gap-3 py-2.5">
               <span className="mt-0.5 w-5 shrink-0 text-right text-[12.5px] tabular-nums text-foreground-tertiary">{i + 1}</span>
-              <p className="min-w-0 flex-1 text-[14px] leading-snug text-foreground">{localized(q.text, lang)}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] leading-snug text-foreground">{localized(q.text, lang)}</p>
+                {e?.answer && (e.answer.labels?.length || e.answer.value !== undefined) && (
+                  <p className="mt-1 text-[13px] text-foreground-secondary">
+                    Answer:{' '}
+                    <span className="font-medium text-foreground">
+                      {e.answer.labels?.length ? e.answer.labels.join(', ') : `${e.answer.value} (${q.scaleMin ?? 1}–${q.scaleMax ?? 5})`}
+                    </span>
+                  </p>
+                )}
+              </div>
               <span
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium',

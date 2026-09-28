@@ -55,6 +55,8 @@ export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('consents', 'Consent Records', ['view', 'create', 'withdraw']),
   ...crud('interviews', 'Interviews', ['view', 'create', 'edit', 'delete']),
   ...crud('guides', 'Interview Guides', ['view', 'create', 'edit', 'approve', 'delete']),
+  // Self-interview links: a respondent opens one and interviews themselves.
+  ...crud('links', 'Self-interview Links', ['view', 'create', 'edit', 'delete']),
   ...crud('recordings', 'Interview Recordings', ['view', 'upload', 'delete']),
   ...crud('transcripts', 'Transcripts', ['view', 'create', 'edit']),
   ...crud('findings', 'Findings', [
@@ -132,6 +134,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'create.guides',
       'edit.guides',
       'approve.guides',
+      'view.links',
+      'create.links',
+      'edit.links',
       'upload.recordings',
       'view.findings',
       'create.findings',
@@ -165,6 +170,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'view.guides',
       'create.guides',
       'edit.guides',
+      'view.links',
+      'create.links',
+      'edit.links',
       'upload.recordings',
       'view.findings',
       'create.findings',

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { APP_HOME } from '@/lib/routes';
+import { APP_HOME, isRespondentPath } from '@/lib/routes';
 
 const PUBLIC_ROUTES = ['/login', '/field-login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
@@ -29,6 +29,8 @@ function resolveOrigin(request: NextRequest): string {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Respondents have no account; the link's token is their invitation.
+  if (isRespondentPath(pathname)) return NextResponse.next();
   const host =
     request.headers.get('x-forwarded-host') ??
     request.headers.get('host') ??

@@ -30,6 +30,7 @@ import type * as RoleTypes from '@/types/role';
 import type * as StudyTypes from '@/types/study';
 import type * as SubmissionTypes from '@/types/submission';
 import type * as GuideTypes from '@/types/guide';
+import type * as LinkTypes from '@/types/respondent-link';
 import type * as AnalysisTypes from '@/types/analysis-report';
 import type * as TranscriptTypes from '@/types/transcript';
 import type * as UserTypes from '@/types/user';
@@ -719,6 +720,23 @@ export const API = {
       apiClient.patch<ApiTypes.Envelope<TranscriptTypes.TranscriptSegment>>(`/transcripts/${id}/segments/${segmentId}`, { text }),
     translate: (id: string, language = 'en') =>
       apiClient.post<ApiTypes.Envelope<TranscriptTypes.Transcript>>(`/transcripts/${id}/translate`, { language }),
+  },
+  /** Self-interview links: respondents answer a guide on their own, no account. */
+  respondentLinks: {
+    list: (params?: { projectId?: string }) =>
+      apiClient.get<ApiTypes.Envelope<LinkTypes.RespondentLink[]>>('/respondent-links', { params }),
+    get: (id: string) => apiClient.get<ApiTypes.Envelope<LinkTypes.RespondentLink>>(`/respondent-links/${id}`),
+    responses: (id: string) =>
+      apiClient.get<ApiTypes.Envelope<LinkTypes.RespondentLinkResponse[]>>(`/respondent-links/${id}/responses`),
+    create: (data: LinkTypes.CreateRespondentLinkInput) =>
+      apiClient.post<ApiTypes.Envelope<LinkTypes.RespondentLink>>('/respondent-links', data),
+    update: (id: string, data: LinkTypes.UpdateRespondentLinkInput) =>
+      apiClient.put<ApiTypes.Envelope<LinkTypes.RespondentLink>>(`/respondent-links/${id}`, data),
+    close: (id: string) => apiClient.post<ApiTypes.Envelope<LinkTypes.RespondentLink>>(`/respondent-links/${id}/close`),
+    reopen: (id: string) => apiClient.post<ApiTypes.Envelope<LinkTypes.RespondentLink>>(`/respondent-links/${id}/reopen`),
+    regenerate: (id: string) =>
+      apiClient.post<ApiTypes.Envelope<LinkTypes.RespondentLink>>(`/respondent-links/${id}/regenerate`),
+    delete: (id: string) => apiClient.delete(`/respondent-links/${id}`),
   },
   /** Interview guides: versioned question sets. */
   guides: {

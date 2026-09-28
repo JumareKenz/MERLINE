@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -83,6 +83,11 @@ export class SaveGuideDto {
   @ValidateNested({ each: true })
   @Type(() => GuideQuestionDto)
   questions: GuideQuestionDto[];
+
+  /** Only read when a guide is created; versions inherit it. */
+  @IsOptional()
+  @IsBoolean()
+  linkOnly?: boolean;
 }
 
 /** Multipart fields that accompany an uploaded CSV/XLSX file. */
@@ -103,4 +108,10 @@ export class ImportGuideDto {
   @IsString()
   @MaxLength(4000)
   description?: string;
+
+  /** For self-interview links only (never the field teams' guide). */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  linkOnly?: boolean;
 }

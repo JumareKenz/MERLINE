@@ -91,15 +91,15 @@ enum SyncStatus {
 }
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  logoUrl     String?
-  settings    Json     @default("{}")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  logoUrl   String?
+  settings  Json      @default("{}")
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   users       User[]
   roles       Role[]
@@ -109,38 +109,39 @@ model Organization {
   studies     Study[]
 
   // PHASE 2 — qualitative interview product
-  participants        Participant[]
-  consents            Consent[]
-  interviews          Interview[]
-  transcripts         Transcript[]
-  transcriptSegments  TranscriptSegment[]
-  jobs                Job[]
-  analysisReports     AnalysisReport[]
-  questionSets        QuestionSet[]
+  participants          Participant[]
+  consents              Consent[]
+  interviews            Interview[]
+  transcripts           Transcript[]
+  transcriptSegments    TranscriptSegment[]
+  jobs                  Job[]
+  analysisReports       AnalysisReport[]
+  questionSets          QuestionSet[]
+  respondentLinks       RespondentLink[]
   interviewQuestionLogs InterviewQuestionLog[]
-  findings            Finding[]
-  quotations          Quotation[]
+  findings              Finding[]
+  quotations            Quotation[]
 
   @@map("organizations")
 }
 
 model User {
-  id                            String    @id @default(uuid())
-  email                         String    @unique
-  passwordHash                  String    @map("password_hash")
-  firstName                     String    @map("first_name")
-  lastName                      String    @map("last_name")
-  phone                         String?
-  avatarUrl                     String?   @map("avatar_url")
-  locale                        String    @default("en")
-  isActive                      Boolean   @default(true) @map("is_active")
-  emailVerifiedAt               DateTime? @map("email_verified_at")
-  emailVerificationToken        String?   @map("email_verification_token")
+  id                              String    @id @default(uuid())
+  email                           String    @unique
+  passwordHash                    String    @map("password_hash")
+  firstName                       String    @map("first_name")
+  lastName                        String    @map("last_name")
+  phone                           String?
+  avatarUrl                       String?   @map("avatar_url")
+  locale                          String    @default("en")
+  isActive                        Boolean   @default(true) @map("is_active")
+  emailVerifiedAt                 DateTime? @map("email_verified_at")
+  emailVerificationToken          String?   @map("email_verification_token")
   emailVerificationTokenExpiresAt DateTime? @map("email_verification_token_expires_at")
-  resetPasswordToken            String?   @map("reset_password_token")
-  resetPasswordTokenExpiresAt   DateTime? @map("reset_password_token_expires_at")
-  tokenVersion                  Int       @default(0) @map("token_version")
-  lastLoginAt                   DateTime? @map("last_login_at")
+  resetPasswordToken              String?   @map("reset_password_token")
+  resetPasswordTokenExpiresAt     DateTime? @map("reset_password_token_expires_at")
+  tokenVersion                    Int       @default(0) @map("token_version")
+  lastLoginAt                     DateTime? @map("last_login_at")
   // PHASE 2: field-worker sign-in. An admin issues this from the users
   // screen; the field app exchanges it for a session at POST
   // /auth/field-login instead of email+password. Stored as an opaque,
@@ -150,68 +151,69 @@ model User {
   // ThrottlerGuard's existing rate limit on this route is the defense here,
   // the same trust model as an API key. @unique makes the lookup O(1) and
   // makes a collision on generation fail loudly instead of overwriting.
-  fieldAccessCode                String?   @unique @map("field_access_code")
-  fieldAccessCodeIssuedAt        DateTime? @map("field_access_code_issued_at")
-  organizationId                String    @map("organization_id")
-  createdAt                     DateTime  @default(now()) @map("created_at")
-  updatedAt                     DateTime  @updatedAt @map("updated_at")
-  deletedAt                     DateTime? @map("deleted_at")
+  fieldAccessCode                 String?   @unique @map("field_access_code")
+  fieldAccessCodeIssuedAt         DateTime? @map("field_access_code_issued_at")
+  organizationId                  String    @map("organization_id")
+  createdAt                       DateTime  @default(now()) @map("created_at")
+  updatedAt                       DateTime  @updatedAt @map("updated_at")
+  deletedAt                       DateTime? @map("deleted_at")
 
-  organization    Organization @relation(fields: [organizationId], references: [id])
+  organization    Organization  @relation(fields: [organizationId], references: [id])
   roles           RoleUser[]
   auditLogs       AuditLog[]
   assignments     Assignment[]
   submissions     Submission[]
-  projectsCreated Project[]    @relation("ProjectCreator")
+  projectsCreated Project[]     @relation("ProjectCreator")
   studyTeams      StudyTeam[]
   projectTeams    ProjectTeam[]
 
   // PHASE 2 — qualitative interview product
-  participantsCreated  Participant[] @relation("ParticipantCreator")
-  consentsRecorded     Consent[]     @relation("ConsentActor")
-  consentsWithdrawn    Consent[]     @relation("ConsentWithdrawnBy")
-  interviewsConducted  Interview[]   @relation("InterviewInterviewer")
-  transcriptsRequested Transcript[]  @relation("TranscriptRequester")
-  transcriptSegmentsEdited TranscriptSegment[] @relation("TranscriptSegmentEditor")
-  analysisReportsRequested AnalysisReport[] @relation("AnalysisReportRequester")
-  questionSetsCreated  QuestionSet[] @relation("QuestionSetCreator")
-  questionSetsApproved QuestionSet[] @relation("QuestionSetApprover")
-  questionLogEntries   InterviewQuestionLog[] @relation("QuestionLogRecorder")
-  findingsCreated      Finding[]     @relation("FindingCreator")
-  findingsReviewed     Finding[]     @relation("FindingReviewer")
-  quotationsCreated    Quotation[]   @relation("QuotationCreator")
+  participantsCreated      Participant[]          @relation("ParticipantCreator")
+  consentsRecorded         Consent[]              @relation("ConsentActor")
+  consentsWithdrawn        Consent[]              @relation("ConsentWithdrawnBy")
+  interviewsConducted      Interview[]            @relation("InterviewInterviewer")
+  transcriptsRequested     Transcript[]           @relation("TranscriptRequester")
+  transcriptSegmentsEdited TranscriptSegment[]    @relation("TranscriptSegmentEditor")
+  analysisReportsRequested AnalysisReport[]       @relation("AnalysisReportRequester")
+  questionSetsCreated      QuestionSet[]          @relation("QuestionSetCreator")
+  questionSetsApproved     QuestionSet[]          @relation("QuestionSetApprover")
+  questionLogEntries       InterviewQuestionLog[] @relation("QuestionLogRecorder")
+  respondentLinks          RespondentLink[]       @relation("RespondentLinkCreator")
+  findingsCreated          Finding[]              @relation("FindingCreator")
+  findingsReviewed         Finding[]              @relation("FindingReviewer")
+  quotationsCreated        Quotation[]            @relation("QuotationCreator")
 
   @@map("users")
 }
 
 model Role {
-  id             String       @id @default(uuid())
+  id             String   @id @default(uuid())
   name           String
   slug           String
   description    String?
-  organizationId String       @map("organization_id")
-  isSystem       Boolean      @default(false) @map("is_system")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organizationId String   @map("organization_id")
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  users          RoleUser[]
-  permissions    PermissionRole[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  users        RoleUser[]
+  permissions  PermissionRole[]
 
   @@unique([slug, organizationId])
   @@map("roles")
 }
 
 model Permission {
-  id             String       @id @default(uuid())
+  id             String   @id @default(uuid())
   name           String
   slug           String
   module         String
-  organizationId String       @map("organization_id")
-  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  roles          PermissionRole[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  roles        PermissionRole[]
 
   @@unique([slug, organizationId])
   @@map("permissions")
@@ -240,104 +242,105 @@ model PermissionRole {
 }
 
 model Workspace {
-  id             String       @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   description    String?
-  organizationId String       @map("organization_id")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
+  organizationId String    @map("organization_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  projects       Project[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  projects     Project[]
 
   @@map("workspaces")
 }
 
 model Project {
-  id          String     @id @default(uuid())
-  name        String
-  description String?
-  status      String     @default("active")
-  startDate   DateTime?  @map("start_date")
-  endDate     DateTime?  @map("end_date")
-  settings    Json       @default("{}")
-  workspaceId String?    @map("workspace_id")
-  organizationId String @map("organization_id")
-  createdById String     @map("created_by_id")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  deletedAt   DateTime?  @map("deleted_at")
+  id             String    @id @default(uuid())
+  name           String
+  description    String?
+  status         String    @default("active")
+  startDate      DateTime? @map("start_date")
+  endDate        DateTime? @map("end_date")
+  settings       Json      @default("{}")
+  workspaceId    String?   @map("workspace_id")
+  organizationId String    @map("organization_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
-  createdBy   User       @relation("ProjectCreator", fields: [createdById], references: [id])
-  studies     Study[]
-  teams       ProjectTeam[]
-  projectTags ProjectTag[]
-  tags        ProjectProjectTag[]
-  activities  ProjectActivity[]
-  logframe    Logframe?
+  workspace    Workspace?          @relation(fields: [workspaceId], references: [id])
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  createdBy    User                @relation("ProjectCreator", fields: [createdById], references: [id])
+  studies      Study[]
+  teams        ProjectTeam[]
+  projectTags  ProjectTag[]
+  tags         ProjectProjectTag[]
+  activities   ProjectActivity[]
+  logframe     Logframe?
 
   // PHASE 2 — qualitative interview product
-  participants Participant[]
-  interviews   Interview[]
-  findings     Finding[]
-  reports      AnalysisReport[]
-  questionSets QuestionSet[]
+  participants    Participant[]
+  interviews      Interview[]
+  findings        Finding[]
+  reports         AnalysisReport[]
+  questionSets    QuestionSet[]
+  respondentLinks RespondentLink[]
 
   @@map("projects")
 }
 
 model Logframe {
-  id             String          @id @default(uuid())
+  id             String   @id @default(uuid())
   goal           String
-  goalNarrative  String?         @map("goal_narrative")
-  projectId      String          @unique @map("project_id")
-  organizationId String          @map("organization_id")
-  createdById    String          @map("created_by_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  goalNarrative  String?  @map("goal_narrative")
+  projectId      String   @unique @map("project_id")
+  organizationId String   @map("organization_id")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  outcomes       LogframeRow[]   @relation("LogframeOutcomes")
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outcomes LogframeRow[] @relation("LogframeOutcomes")
 
   @@map("logframes")
 }
 
 model LogframeRow {
-  id             String          @id @default(uuid())
-  level          String
-  title          String
-  description    String?
-  meansOfVerification String?    @map("means_of_verification")
-  assumptions    String?
-  orderIndex     Int             @default(0) @map("order_index")
-  logframeId     String?         @map("logframe_id")
-  parentId       String?         @map("parent_id")
-  organizationId String          @map("organization_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid())
+  level               String
+  title               String
+  description         String?
+  meansOfVerification String?  @map("means_of_verification")
+  assumptions         String?
+  orderIndex          Int      @default(0) @map("order_index")
+  logframeId          String?  @map("logframe_id")
+  parentId            String?  @map("parent_id")
+  organizationId      String   @map("organization_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  logframe       Logframe?       @relation("LogframeOutcomes", fields: [logframeId], references: [id], onDelete: Cascade)
-  parent         LogframeRow?    @relation("LogframeHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children       LogframeRow[]   @relation("LogframeHierarchy")
-  indicators     LogframeRowIndicator[]
+  logframe   Logframe?              @relation("LogframeOutcomes", fields: [logframeId], references: [id], onDelete: Cascade)
+  parent     LogframeRow?           @relation("LogframeHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children   LogframeRow[]          @relation("LogframeHierarchy")
+  indicators LogframeRowIndicator[]
 
   @@map("logframe_rows")
 }
 
 model LogframeRowIndicator {
-  id           String      @id @default(uuid())
-  rowId        String      @map("row_id")
-  indicatorId  String      @map("indicator_id")
-  baseline     Float?
-  target       Float?
-  actual       Float?
-  createdAt    DateTime    @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  rowId       String   @map("row_id")
+  indicatorId String   @map("indicator_id")
+  baseline    Float?
+  target      Float?
+  actual      Float?
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  row          LogframeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
-  indicator    Indicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  row       LogframeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  indicator Indicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@unique([rowId, indicatorId])
   @@map("logframe_row_indicators")
@@ -350,22 +353,22 @@ model ProjectTeam {
   role      String   @default("member")
   createdAt DateTime @default(now()) @map("created_at")
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@map("project_teams")
 }
 
 model ProjectTag {
-  id        String             @id @default(uuid())
+  id        String   @id @default(uuid())
   name      String
   color     String?
-  projectId String             @map("project_id")
-  createdAt DateTime           @default(now()) @map("created_at")
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projects  ProjectProjectTag[]
+  project  Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projects ProjectProjectTag[]
 
   @@map("project_tags")
 }
@@ -374,8 +377,8 @@ model ProjectProjectTag {
   projectId String @map("project_id")
   tagId     String @map("tag_id")
 
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tag       ProjectTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag     ProjectTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([projectId, tagId])
   @@map("project_project_tag")
@@ -390,36 +393,36 @@ model ProjectActivity {
   userId    String?  @map("user_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_activities")
 }
 
 model Study {
-  id             String       @id @default(uuid())
+  id             String      @id @default(uuid())
   title          String
   code           String?
   description    String?
-  status         StudyStatus  @default(DRAFT)
+  status         StudyStatus @default(DRAFT)
   type           StudyType?
-  studyDesign    Json?        @map("study_design")
-  location       Json?        @default("{}")
-  targetDetails  Json?        @map("target_details")
-  startDate      DateTime?    @map("start_date")
-  endDate        DateTime?    @map("end_date")
-  isLocked       Boolean      @default(false) @map("is_locked")
-  lockedAt       DateTime?    @map("locked_at")
-  lockedById     String?      @map("locked_by_id")
-  settings       Json         @default("{}")
-  projectId      String       @map("project_id")
-  organizationId String       @map("organization_id")
-  createdById    String       @map("created_by_id")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
+  studyDesign    Json?       @map("study_design")
+  location       Json?       @default("{}")
+  targetDetails  Json?       @map("target_details")
+  startDate      DateTime?   @map("start_date")
+  endDate        DateTime?   @map("end_date")
+  isLocked       Boolean     @default(false) @map("is_locked")
+  lockedAt       DateTime?   @map("locked_at")
+  lockedById     String?     @map("locked_by_id")
+  settings       Json        @default("{}")
+  projectId      String      @map("project_id")
+  organizationId String      @map("organization_id")
+  createdById    String      @map("created_by_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
 
-  project        Project      @relation(fields: [projectId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  project        Project         @relation(fields: [projectId], references: [id])
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   teams          StudyTeam[]
   questionnaires Questionnaire[]
   assignments    Assignment[]
@@ -437,56 +440,56 @@ model StudyTeam {
   role      String   @default("member")
   createdAt DateTime @default(now()) @map("created_at")
 
-  study     Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([studyId, userId])
   @@map("study_teams")
 }
 
 model Indicator {
-  id                 String           @id @default(uuid())
-  name               String
-  description        String?
-  type               String
-  unit               String?
-  calculation        String?
-  baseline           Float?
-  target             Float?
-  dataSource         String?          @map("data_source")
-  frequency          String?
-  disaggregation     Json?            @default("[]")
-  thresholdWarning   Float?           @map("threshold_warning")
-  thresholdCritical  Float?           @map("threshold_critical")
-  isApproved         Boolean          @default(false) @map("is_approved")
-  approvedById       String?          @map("approved_by_id")
-  approvedAt         DateTime?        @map("approved_at")
-  supersededById     String?          @map("superseded_by_id")
-  studyId            String           @map("study_id")
-  organizationId     String           @map("organization_id")
-  createdById        String           @map("created_by_id")
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
-  deletedAt          DateTime?        @map("deleted_at")
+  id                String    @id @default(uuid())
+  name              String
+  description       String?
+  type              String
+  unit              String?
+  calculation       String?
+  baseline          Float?
+  target            Float?
+  dataSource        String?   @map("data_source")
+  frequency         String?
+  disaggregation    Json?     @default("[]")
+  thresholdWarning  Float?    @map("threshold_warning")
+  thresholdCritical Float?    @map("threshold_critical")
+  isApproved        Boolean   @default(false) @map("is_approved")
+  approvedById      String?   @map("approved_by_id")
+  approvedAt        DateTime? @map("approved_at")
+  supersededById    String?   @map("superseded_by_id")
+  studyId           String    @map("study_id")
+  organizationId    String    @map("organization_id")
+  createdById       String    @map("created_by_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
 
-  study              Study            @relation(fields: [studyId], references: [id])
-  values             IndicatorValue[]
-  targets            IndicatorTarget[]
-  logframeRows       LogframeRowIndicator[]
+  study        Study                  @relation(fields: [studyId], references: [id])
+  values       IndicatorValue[]
+  targets      IndicatorTarget[]
+  logframeRows LogframeRowIndicator[]
 
   @@map("indicators")
 }
 
 model IndicatorValue {
-  id          String   @id @default(uuid())
-  value       Float
-  date        DateTime
-  note        String?
-  indicatorId String   @map("indicator_id")
-  recordedById String  @map("recorded_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  value        Float
+  date         DateTime
+  note         String?
+  indicatorId  String   @map("indicator_id")
+  recordedById String   @map("recorded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicator Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@map("indicator_values")
 }
@@ -500,76 +503,76 @@ model IndicatorTarget {
   createdById String   @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicator Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@map("indicator_targets")
 }
 
 model Questionnaire {
-  id            String      @id @default(uuid())
-  title         String
-  description   String?
-  version       Int         @default(1)
-  status        String      @default("draft")
-  locale        String      @default("en")
-  studyId       String      @map("study_id")
-  organizationId String     @map("organization_id")
-  createdById   String      @map("created_by_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  deletedAt     DateTime?   @map("deleted_at")
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  version        Int       @default(1)
+  status         String    @default("draft")
+  locale         String    @default("en")
+  studyId        String    @map("study_id")
+  organizationId String    @map("organization_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  study         Study       @relation(fields: [studyId], references: [id])
-  sections      Section[]
+  study    Study     @relation(fields: [studyId], references: [id])
+  sections Section[]
 
   @@map("questionnaires")
 }
 
 model Section {
-  id               String       @id @default(uuid())
-  title            String
-  description      String?
-  sortOrder        Int          @map("sort_order")
-  questionnaireId  String       @map("questionnaire_id")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  title           String
+  description     String?
+  sortOrder       Int      @map("sort_order")
+  questionnaireId String   @map("questionnaire_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  questionnaire    Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
-  questions        Question[]
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  questions     Question[]
 
   @@map("sections")
 }
 
 model Question {
-  id              String             @id @default(uuid())
-  text            String
-  description     String?
-  type            String
-  sortOrder       Int                @map("sort_order")
-  isRequired      Boolean            @default(false) @map("is_required")
-  sectionId       String             @map("section_id")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  text        String
+  description String?
+  type        String
+  sortOrder   Int      @map("sort_order")
+  isRequired  Boolean  @default(false) @map("is_required")
+  sectionId   String   @map("section_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  section         Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  options         QuestionOption[]
-  skipLogic       SkipLogic[]
-  validations     QuestionValidation[]
-  translations    QuestionTranslation[]
+  section      Section               @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options      QuestionOption[]
+  skipLogic    SkipLogic[]
+  validations  QuestionValidation[]
+  translations QuestionTranslation[]
 
   @@map("questions")
 }
 
 model QuestionOption {
-  id          String   @id @default(uuid())
-  text        String
-  value       String
-  sortOrder   Int      @map("sort_order")
-  questionId  String   @map("question_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(uuid())
+  text       String
+  value      String
+  sortOrder  Int      @map("sort_order")
+  questionId String   @map("question_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("question_options")
 }
@@ -582,7 +585,7 @@ model SkipLogic {
   questionId String   @map("question_id")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("skip_logic")
 }
@@ -595,119 +598,119 @@ model QuestionValidation {
   questionId String   @map("question_id")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("question_validations")
 }
 
 model QuestionTranslation {
-  id         String   @id @default(uuid())
-  locale     String
-  text       String
+  id          String   @id @default(uuid())
+  locale      String
+  text        String
   description String?
-  questionId String   @map("question_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  questionId  String   @map("question_id")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([questionId, locale])
   @@map("question_translations")
 }
 
 model Assignment {
-  id              String           @id @default(uuid())
-  status          AssignmentStatus @default(ASSIGNED)
-  notes           String?
-  assignedAt      DateTime         @default(now()) @map("assigned_at")
-  startedAt       DateTime?        @map("started_at")
-  completedAt     DateTime?        @map("completed_at")
-  enumeratorId    String           @map("enumerator_id")
-  studyId         String           @map("study_id")
-  organizationId  String           @map("organization_id")
-  createdById     String           @map("created_by_id")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id             String           @id @default(uuid())
+  status         AssignmentStatus @default(ASSIGNED)
+  notes          String?
+  assignedAt     DateTime         @default(now()) @map("assigned_at")
+  startedAt      DateTime?        @map("started_at")
+  completedAt    DateTime?        @map("completed_at")
+  enumeratorId   String           @map("enumerator_id")
+  studyId        String           @map("study_id")
+  organizationId String           @map("organization_id")
+  createdById    String           @map("created_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
-  enumerator      User             @relation(fields: [enumeratorId], references: [id])
-  study           Study            @relation(fields: [studyId], references: [id])
-  submissions     Submission[]
+  enumerator  User         @relation(fields: [enumeratorId], references: [id])
+  study       Study        @relation(fields: [studyId], references: [id])
+  submissions Submission[]
 
   @@map("assignments")
 }
 
 model Submission {
-  id             String           @id @default(uuid())
-  status         SubmissionStatus @default(DRAFT)
-  answers        Json             @default("{}")
-  location       Json?            @default("{}")
-  startedAt      DateTime?        @map("started_at")
-  completedAt    DateTime?        @map("completed_at")
-  syncedAt       DateTime?        @map("synced_at")
-  deviceId       String?          @map("device_id")
-  notes          String?
-  qualityScore   Float?           @map("quality_score")
-  reviewedById   String?          @map("reviewed_by_id")
-  reviewedAt     DateTime?        @map("reviewed_at")
-  assignmentId   String?          @map("assignment_id")
-  studyId        String           @map("study_id")
-  questionnaireId String?         @map("questionnaire_id")
-  enumeratorId   String?          @map("enumerator_id")
-  organizationId String           @map("organization_id")
-  createdById    String           @map("created_by_id")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
-  deletedAt      DateTime?        @map("deleted_at")
+  id              String           @id @default(uuid())
+  status          SubmissionStatus @default(DRAFT)
+  answers         Json             @default("{}")
+  location        Json?            @default("{}")
+  startedAt       DateTime?        @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+  syncedAt        DateTime?        @map("synced_at")
+  deviceId        String?          @map("device_id")
+  notes           String?
+  qualityScore    Float?           @map("quality_score")
+  reviewedById    String?          @map("reviewed_by_id")
+  reviewedAt      DateTime?        @map("reviewed_at")
+  assignmentId    String?          @map("assignment_id")
+  studyId         String           @map("study_id")
+  questionnaireId String?          @map("questionnaire_id")
+  enumeratorId    String?          @map("enumerator_id")
+  organizationId  String           @map("organization_id")
+  createdById     String           @map("created_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
 
-  assignment     Assignment?      @relation(fields: [assignmentId], references: [id])
-  study          Study            @relation(fields: [studyId], references: [id])
-  enumerator     User?            @relation(fields: [enumeratorId], references: [id])
-  media          Media[]
+  assignment Assignment? @relation(fields: [assignmentId], references: [id])
+  study      Study       @relation(fields: [studyId], references: [id])
+  enumerator User?       @relation(fields: [enumeratorId], references: [id])
+  media      Media[]
 
   @@map("submissions")
 }
 
 model Media {
-  id              String          @id @default(uuid())
-  filename        String
-  originalName    String          @map("original_name")
-  mimeType        String          @map("mime_type")
-  size            Int
-  type            MediaType
+  id               String           @id @default(uuid())
+  filename         String
+  originalName     String           @map("original_name")
+  mimeType         String           @map("mime_type")
+  size             Int
+  type             MediaType
   processingStatus ProcessingStatus @default(PENDING) @map("processing_status")
-  path            String
-  thumbnailPath   String?         @map("thumbnail_path")
-  checksum        String?
-  metadata        Json            @default("{}")
-  submissionId    String?         @map("submission_id")
-  uploadedById    String          @map("uploaded_by_id")
-  organizationId  String          @map("organization_id")
+  path             String
+  thumbnailPath    String?          @map("thumbnail_path")
+  checksum         String?
+  metadata         Json             @default("{}")
+  submissionId     String?          @map("submission_id")
+  uploadedById     String           @map("uploaded_by_id")
+  organizationId   String           @map("organization_id")
   // PHASE 2: set when this object is an interview recording. Nullable because
   // Media is also used for non-interview uploads (avatars, generic files).
-  interviewId     String?         @map("interview_id")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
-  deletedAt       DateTime?       @map("deleted_at")
+  interviewId      String?          @map("interview_id")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  deletedAt        DateTime?        @map("deleted_at")
 
-  submission      Submission?     @relation(fields: [submissionId], references: [id])
-  interview       Interview?      @relation(fields: [interviewId], references: [id])
-  chunks          MediaChunk[]
-  transcripts     Transcript[]
+  submission  Submission?  @relation(fields: [submissionId], references: [id])
+  interview   Interview?   @relation(fields: [interviewId], references: [id])
+  chunks      MediaChunk[]
+  transcripts Transcript[]
 
   @@index([interviewId])
   @@map("media")
 }
 
 model MediaChunk {
-  id         String   @id @default(uuid())
-  identifier String
-  index      Int
-  size       Int
-  checksum   String?
-  mediaId    String?  @map("media_id")
-  uploadedById String @map("uploaded_by_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  identifier   String
+  index        Int
+  size         Int
+  checksum     String?
+  mediaId      String?  @map("media_id")
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  media      Media?   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  media Media? @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 
   @@map("media_chunks")
 }
@@ -730,38 +733,38 @@ model SyncLog {
 }
 
 model SyncBatch {
-  id             String   @id @default(uuid())
-  batchId        String   @map("batch_id")
-  entityType     String   @map("entity_type")
-  totalItems     Int      @map("total_items")
-  processedItems Int      @default(0) @map("processed_items")
-  failedItems    Int      @default(0) @map("failed_items")
-  status         String   @default("in_progress")
-  organizationId String   @map("organization_id")
-  userId         String   @map("user_id")
-  startedAt      DateTime @default(now()) @map("started_at")
+  id             String    @id @default(uuid())
+  batchId        String    @map("batch_id")
+  entityType     String    @map("entity_type")
+  totalItems     Int       @map("total_items")
+  processedItems Int       @default(0) @map("processed_items")
+  failedItems    Int       @default(0) @map("failed_items")
+  status         String    @default("in_progress")
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  startedAt      DateTime  @default(now()) @map("started_at")
   completedAt    DateTime? @map("completed_at")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   @@map("sync_batches")
 }
 
 model DashboardAlert {
-  id             String              @id @default(uuid())
+  id             String    @id @default(uuid())
   title          String
   message        String
-  severity       String              @default("info")
+  severity       String    @default("info")
   type           String
-  meta           Json                @default("{}")
-  isResolved     Boolean             @default(false) @map("is_resolved")
-  resolvedAt     DateTime?           @map("resolved_at")
-  resolvedById   String?             @map("resolved_by_id")
-  organizationId String              @map("organization_id")
-  createdById    String              @map("created_by_id")
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
+  meta           Json      @default("{}")
+  isResolved     Boolean   @default(false) @map("is_resolved")
+  resolvedAt     DateTime? @map("resolved_at")
+  resolvedById   String?   @map("resolved_by_id")
+  organizationId String    @map("organization_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  logs           DashboardAlertLog[]
+  logs DashboardAlertLog[]
 
   @@map("dashboard_alerts")
 }
@@ -789,7 +792,7 @@ model DashboardAlertLog {
   userId    String?  @map("user_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  alert     DashboardAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  alert DashboardAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
 
   @@map("dashboard_alert_logs")
 }
@@ -822,55 +825,55 @@ model UserDashboardPreference {
 }
 
 model Report {
-  id             String          @id @default(uuid())
+  id             String    @id @default(uuid())
   title          String
   description    String?
   type           String
-  config         Json            @default("{}")
-  data           Json?           @default("{}")
-  status         String          @default("draft")
-  studyId        String?         @map("study_id")
-  templateId     String?         @map("template_id")
-  organizationId String          @map("organization_id")
-  createdById    String          @map("created_by_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  deletedAt      DateTime?       @map("deleted_at")
+  config         Json      @default("{}")
+  data           Json?     @default("{}")
+  status         String    @default("draft")
+  studyId        String?   @map("study_id")
+  templateId     String?   @map("template_id")
+  organizationId String    @map("organization_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  study          Study?          @relation(fields: [studyId], references: [id])
-  schedules      ReportSchedule[]
+  study     Study?           @relation(fields: [studyId], references: [id])
+  schedules ReportSchedule[]
 
   @@map("reports")
 }
 
 model ReportTemplate {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  config      Json     @default("{}")
-  category    String?
-  isPublic    Boolean  @default(false) @map("is_public")
-  organizationId String @map("organization_id")
-  createdById String   @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  config         Json     @default("{}")
+  category       String?
+  isPublic       Boolean  @default(false) @map("is_public")
+  organizationId String   @map("organization_id")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("report_templates")
 }
 
 model ReportSchedule {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   cron        String
-  config      Json     @default("{}")
-  isActive    Boolean  @default(true) @map("is_active")
+  config      Json      @default("{}")
+  isActive    Boolean   @default(true) @map("is_active")
   lastRunAt   DateTime? @map("last_run_at")
   nextRunAt   DateTime? @map("next_run_at")
-  reportId    String   @map("report_id")
-  createdById String   @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  reportId    String    @map("report_id")
+  createdById String    @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@map("report_schedules")
 }
@@ -890,37 +893,37 @@ model AuditLog {
   organizationId String?  @map("organization_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  user           User?    @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
 }
 
 model AiSession {
-  id             String       @id @default(uuid())
+  id             String    @id @default(uuid())
   title          String?
-  context        Json         @default("{}")
-  metadata       Json         @default("{}")
-  isActive       Boolean      @default(true) @map("is_active")
-  organizationId String       @map("organization_id")
-  userId         String       @map("user_id")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
+  context        Json      @default("{}")
+  metadata       Json      @default("{}")
+  isActive       Boolean   @default(true) @map("is_active")
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  messages       AiMessage[]
+  messages AiMessage[]
 
   @@map("ai_sessions")
 }
 
 model AiMessage {
-  id          String    @id @default(uuid())
-  role        String
-  content     String
-  meta        Json      @default("{}")
-  sessionId   String    @map("session_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  role      String
+  content   String
+  meta      Json     @default("{}")
+  sessionId String   @map("session_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  session     AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("ai_messages")
 }
@@ -959,15 +962,15 @@ model AiPrompt {
 }
 
 model DocumentChunk {
-  id             String   @id @default(uuid())
+  id             String                       @id @default(uuid())
   content        String
   embedding      Unsupported("vector(1536)")?
-  metadata       Json     @default("{}")
+  metadata       Json                         @default("{}")
   source         String?
-  documentId     String?  @map("document_id")
-  organizationId String   @map("organization_id")
-  createdById    String   @map("created_by_id")
-  createdAt      DateTime @default(now()) @map("created_at")
+  documentId     String?                      @map("document_id")
+  organizationId String                       @map("organization_id")
+  createdById    String                       @map("created_by_id")
+  createdAt      DateTime                     @default(now()) @map("created_at")
 
   @@map("document_chunks")
 }
@@ -1056,47 +1059,53 @@ enum InterviewStatus {
 }
 
 model Interview {
-  id             String          @id @default(uuid())
-  status         InterviewStatus @default(SCHEDULED)
-  scheduledAt    DateTime?       @map("scheduled_at")
-  startedAt      DateTime?       @map("started_at")
-  endedAt        DateTime?       @map("ended_at")
-  location       String?
-  notes          String?
+  id               String          @id @default(uuid())
+  status           InterviewStatus @default(SCHEDULED)
+  scheduledAt      DateTime?       @map("scheduled_at")
+  startedAt        DateTime?       @map("started_at")
+  endedAt          DateTime?       @map("ended_at")
+  location         String?
+  notes            String?
   /// Language spoken, if known (e.g. "en", "ha"). Passed to transcription
   /// as a hint: Whisper does not reliably detect Hausa on its own.
-  language       String?
+  language         String?
   /// Interview format: KII, FGD, IDI or OTHER. Defaults to the project's method.
-  type           String?
+  type             String?
   /// The exact guide version used (kept when the guide is later revised).
-  questionSetId  String?         @map("question_set_id")
-  organizationId String          @map("organization_id")
-  projectId      String?         @map("project_id")
-  participantId  String          @map("participant_id")
+  questionSetId    String?         @map("question_set_id")
+  /// Set when the respondent answered on their own through a shared link
+  /// (self-administered); the interviewer is then the link's creator.
+  respondentLinkId String?         @map("respondent_link_id")
+  organizationId   String          @map("organization_id")
+  projectId        String?         @map("project_id")
+  participantId    String          @map("participant_id")
   // Required: an interview cannot exist without a consent record. Whether a
   // *recording* may be made is a further, narrower check on
   // consent.allowRecording performed by InterviewsService, since consent can
   // be granted before recording is permitted (e.g. observation-only).
-  consentId      String          @map("consent_id")
-  interviewerId  String          @map("interviewer_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  deletedAt      DateTime?       @map("deleted_at")
+  consentId        String          @map("consent_id")
+  interviewerId    String          @map("interviewer_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  deletedAt        DateTime?       @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  project      Project?     @relation(fields: [projectId], references: [id])
-  participant  Participant  @relation(fields: [participantId], references: [id])
-  consent      Consent      @relation(fields: [consentId], references: [id])
-  interviewer  User         @relation("InterviewInterviewer", fields: [interviewerId], references: [id])
-  recordings   Media[]
-  transcripts  Transcript[]
-  reports      AnalysisReport[]
-  questionSet  QuestionSet?    @relation(fields: [questionSetId], references: [id])
-  questionLog  InterviewQuestionLog[]
+  organization      Organization           @relation(fields: [organizationId], references: [id])
+  project           Project?               @relation(fields: [projectId], references: [id])
+  participant       Participant            @relation(fields: [participantId], references: [id])
+  consent           Consent                @relation(fields: [consentId], references: [id])
+  interviewer       User                   @relation("InterviewInterviewer", fields: [interviewerId], references: [id])
+  recordings        Media[]
+  transcripts       Transcript[]
+  reports           AnalysisReport[]
+  questionSet       QuestionSet?           @relation(fields: [questionSetId], references: [id])
+  questionLog       InterviewQuestionLog[]
+  respondentLink    RespondentLink?        @relation(fields: [respondentLinkId], references: [id])
+  respondentSession RespondentSession?
 
   @@index([organizationId])
   @@index([participantId])
   @@index([consentId])
+  @@index([respondentLinkId])
   @@map("interviews")
 }
 
@@ -1352,6 +1361,9 @@ model QuestionSet {
   /// Language codes the questions are written in, e.g. ["en", "ha"].
   languages      String[]          @default(["en"])
   status         QuestionSetStatus @default(DRAFT)
+  /// Made for self-interview links only: approving it never replaces the
+  /// field teams' guide, and field phones never receive it.
+  linkOnly       Boolean           @default(false) @map("link_only")
   /// Null: available to every project of this interview type.
   projectId      String?           @map("project_id")
   organizationId String            @map("organization_id")
@@ -1362,12 +1374,13 @@ model QuestionSet {
   updatedAt      DateTime          @updatedAt @map("updated_at")
   deletedAt      DateTime?         @map("deleted_at")
 
-  organization Organization    @relation(fields: [organizationId], references: [id])
-  project      Project?        @relation(fields: [projectId], references: [id])
-  createdBy    User            @relation("QuestionSetCreator", fields: [createdById], references: [id])
-  approvedBy   User?           @relation("QuestionSetApprover", fields: [approvedById], references: [id])
-  questions    GuideQuestion[]
-  interviews   Interview[]
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  project         Project?         @relation(fields: [projectId], references: [id])
+  createdBy       User             @relation("QuestionSetCreator", fields: [createdById], references: [id])
+  approvedBy      User?            @relation("QuestionSetApprover", fields: [approvedById], references: [id])
+  questions       GuideQuestion[]
+  interviews      Interview[]
+  respondentLinks RespondentLink[]
 
   @@unique([familyId, version])
   @@index([organizationId])
@@ -1413,6 +1426,9 @@ model InterviewQuestionLog {
   /// The field device's recording id (= the upload id on the stored media).
   recordingRef   String?  @map("recording_ref")
   note           String?
+  /// The respondent's own answer to a closed question (self-administered
+  /// interviews): the chosen option(s) or scale value.
+  answer         Json?
   markedAt       DateTime @map("marked_at")
   organizationId String   @map("organization_id")
   recordedById   String   @map("recorded_by_id")
@@ -1427,4 +1443,71 @@ model InterviewQuestionLog {
   @@unique([interviewId, questionId])
   @@index([organizationId])
   @@map("interview_question_logs")
+}
+
+/// A link a respondent opens to interview themselves, with no account: they
+/// read the guide's questions, consent, and record their answers. Each
+/// response is an ordinary participant + consent + interview, so
+/// transcription, reports and the Trash treat it like any other.
+model RespondentLink {
+  id             String    @id @default(uuid())
+  /// The secret in the shared URL (/r/<token>). Revocable by closing the link.
+  token          String    @unique
+  title          String
+  /// Shown on the respondent's welcome screen.
+  intro          String?
+  /// Shown before consent; stored with each consent record as given.
+  consentText    String    @map("consent_text")
+  /// KII, FGD, IDI or OTHER.
+  interviewType  String    @default("KII") @map("interview_type")
+  /// Language the respondent speaks by default (transcription hint).
+  language       String    @default("en")
+  /// For a personal link: the respondent's name, prefilled.
+  respondentName String?   @map("respondent_name")
+  /// Completed responses allowed; null for no limit.
+  maxResponses   Int?      @map("max_responses")
+  expiresAt      DateTime? @map("expires_at")
+  closedAt       DateTime? @map("closed_at")
+  projectId      String    @map("project_id")
+  questionSetId  String    @map("question_set_id")
+  organizationId String    @map("organization_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  project      Project             @relation(fields: [projectId], references: [id])
+  questionSet  QuestionSet         @relation(fields: [questionSetId], references: [id])
+  createdBy    User                @relation("RespondentLinkCreator", fields: [createdById], references: [id])
+  sessions     RespondentSession[]
+  interviews   Interview[]
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@map("respondent_links")
+}
+
+/// One respondent's visit through a link. The id and the secret are made on
+/// the respondent's device, so starting is idempotent; only a hash of the
+/// secret is stored, and every later call must present the secret.
+model RespondentSession {
+  id             String    @id
+  secretHash     String    @map("secret_hash")
+  linkId         String    @map("link_id")
+  interviewId    String    @unique @map("interview_id")
+  /// Upload ids this session has used: parts can only be sent to these.
+  uploadIds      String[]  @default([]) @map("upload_ids")
+  userAgent      String?   @map("user_agent")
+  finishedAt     DateTime? @map("finished_at")
+  organizationId String    @map("organization_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  link      RespondentLink @relation(fields: [linkId], references: [id])
+  interview Interview      @relation(fields: [interviewId], references: [id])
+
+  @@index([linkId])
+  @@index([organizationId])
+  @@map("respondent_sessions")
 }

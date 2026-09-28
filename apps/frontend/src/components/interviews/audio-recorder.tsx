@@ -5,6 +5,7 @@ import { Mic, Pause, Play, Square, Upload, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUploadRecording } from '@/hooks/use-interviews';
 import { formatDuration } from '@/lib/utils';
+import { RECORDING_BITRATE } from '@/hooks/use-field-recorder';
 
 type RecorderState = 'idle' | 'requesting' | 'recording' | 'paused' | 'stopped' | 'denied' | 'unsupported';
 
@@ -54,7 +55,9 @@ export function AudioRecorder({ interviewId }: { interviewId: string }) {
   const handleStart = async () => {
     setState('requesting');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       streamRef.current = stream;
       chunksRef.current = [];
       pausedAccumMsRef.current = 0;
@@ -66,7 +69,8 @@ export function AudioRecorder({ interviewId }: { interviewId: string }) {
           ? 'audio/webm'
           : undefined;
 
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      // Same speech settings as the field app (~11 MB an hour, not 60+).
+      const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: RECORDING_BITRATE });
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };

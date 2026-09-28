@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
-import { APP_HOME } from '@/lib/routes';
+import { APP_HOME, isRespondentPath } from '@/lib/routes';
 import { API } from '@/lib/api-client';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { clearFieldData } from '@/lib/field/idb';
@@ -79,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, me.data, setPermissions]);
 
   useEffect(() => {
+    if (isRespondentPath(pathname)) return;
     if (!isLoading) {
       const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
 

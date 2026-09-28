@@ -174,6 +174,25 @@ in the IndexedDB snapshot; asked/skipped marks go to the `questionLog` store
 the local recording id, which is the stored media's `metadata.uploadId`.
 CSV/XLSX import: `guide-import.ts` (template at `GET /guides/template`).
 
+**16. Self-interview links (self-administered KII).** `src/respondent-links`
+(tables `respondent_links`, `respondent_sessions`). Admin page: Self-interviews
+(`/links`). A link pins one approved guide version; respondents open
+`/r/<token>` with **no account** (`RespondController` is `@Public`; the
+middleware and AuthProvider let `/r/` through via `isRespondentPath`). The
+device makes the session id and secret; only the secret's hash is stored and
+every later call sends `X-Respondent-Key`. Each response is an ordinary
+participant + DIGITAL consent (the exact consent text is kept in its
+metadata) + interview with `respondentLinkId`; interviewer, consent actor and
+uploader are the link's creator. One continuous recording per respondent
+(reports read one transcript per interview); question start times go to the
+question log, closed answers to `interview_question_logs.answer`. Upload
+parts are keyed `respondent-<sessionId>` so sessions cannot touch each
+other's uploads. The respondent page uses its own fetch client
+(`lib/respond/api.ts`), never `apiClient` (which signs users out on 401).
+Guides uploaded for a link are `linkOnly`: they never replace or reach the
+field teams' guide (`approve()` and `approvedFor()` skip them).
+Optional consent scopes on the respondent page start unticked (opt-in).
+
 ---
 
 ## Invariants — do not weaken these
@@ -226,7 +245,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **367 passing, 28 suites** (as of 2026-09-23; the transcription
+Expect **388 passing, 29 suites** (as of 2026-09-28; the transcription
 pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.

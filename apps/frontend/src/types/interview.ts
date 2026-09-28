@@ -14,6 +14,8 @@ export interface Interview {
   type?: string | null;
   /** The interview guide version it uses. */
   questionSetId?: string | null;
+  /** Set when the respondent answered on their own through a shared link. */
+  respondentLinkId?: string | null;
   organizationId: string;
   projectId?: string | null;
   participantId: string;
