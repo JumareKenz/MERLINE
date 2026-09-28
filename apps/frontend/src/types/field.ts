@@ -54,11 +54,19 @@ export interface CreateFieldInterviewInput {
   location?: string;
   language?: string;
   questionSetId?: string;
+  /** Who is conducting it: several enumerators may share one access code. */
+  enumeratorName?: string;
 }
 
-/** GET /field-team rows. */
+/**
+ * GET /field-team rows: one per access code. A code is a field account
+ * named for a team, place or person, opening one or more projects; any
+ * number of enumerators can sign in with it.
+ */
 export interface FieldWorker {
   id: string;
+  /** The code's name, e.g. "Kano team A". */
+  name: string;
   firstName: string;
   lastName: string;
   email: string | null;
@@ -68,12 +76,11 @@ export interface FieldWorker {
   accessCodeIssuedAt: string | null;
   projects: { id: string; name: string; status: string }[];
   interviews: { total: number; inProgress: number; completed: number };
+  /** Names typed on interviews made with this code, most active first. */
+  enumerators: { name: string; interviews: number }[];
 }
 
-export interface CreateFieldWorkerInput {
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
+export interface CreateAccessCodeInput {
+  name: string;
   projectIds: string[];
 }

@@ -12,7 +12,8 @@ import { Permissions } from '../common/decorators/permissions.decorator';
 import type { AuthenticatedUser } from '../common/interfaces';
 import { CreateFieldInterviewDto } from './dto/field-interview.dto';
 import {
-  CreateFieldWorkerDto,
+  CreateAccessCodeDto,
+  RenameAccessCodeDto,
   SetFieldWorkerProjectsDto,
 } from './dto/field-team.dto';
 import { FieldService } from './field.service';
@@ -57,10 +58,30 @@ export class FieldTeamController {
   @Post()
   @Permissions('create.users')
   create(
-    @Body() dto: CreateFieldWorkerDto,
+    @Body() dto: CreateAccessCodeDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.fieldTeamService.create(dto, user.organizationId);
+  }
+
+  /** Reads a code back (managers only; the list never includes codes). */
+  @Get(':userId/code')
+  @Permissions('edit.users')
+  code(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.fieldTeamService.code(userId, user.organizationId);
+  }
+
+  @Put(':userId/name')
+  @Permissions('edit.users')
+  rename(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: RenameAccessCodeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.fieldTeamService.rename(userId, dto.name, user.organizationId);
   }
 
   @Put(':userId/projects')

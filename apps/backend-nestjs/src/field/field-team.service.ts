@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,7 +9,7 @@ import { BaseService } from '../common/base/base.service';
 import { FIELD_ROLE_SLUG } from '../common/scoping/field-scope';
 import { provisionOrganizationRoles } from '../auth/organization-provisioning';
 import { UsersService } from '../users/users.service';
-import { CreateFieldWorkerDto } from './dto/field-team.dto';
+import { CreateAccessCodeDto } from './dto/field-team.dto';
 
 /**
  * Field workers without an email of their own get an address on this
@@ -20,10 +19,13 @@ import { CreateFieldWorkerDto } from './dto/field-team.dto';
 export const FIELD_EMAIL_DOMAIN = 'field.merline.invalid';
 
 /**
- * PHASE 2 — the field team: who collects interviews, on which projects,
- * and whether they can sign in. One person, one access code; the projects
- * they're assigned to (one, several or all) decide where they can start
- * interviews. Assignment is ProjectTeam membership with role "field".
+ * PHASE 2 — access codes for the field app. Each code is a field account
+ * (a User with the field-interviewer role) named for a team, a place or a
+ * person; the projects it is assigned to (one, several or all) decide
+ * where interviews can be started. Any number of enumerators can sign in
+ * with the same code; each interview records who conducted it
+ * (Interview.enumeratorName). Assignment is ProjectTeam membership with
+ * role "field".
  */
 @Injectable()
 export class FieldTeamService extends BaseService {
@@ -60,6 +62,17 @@ export class FieldTeamService extends BaseService {
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });
 
+    const byEnumerator = await this.prisma.interview.groupBy({
+      by: ['interviewerId', 'enumeratorName'],
+      where: {
+        organizationId,
+        deletedAt: null,
+        interviewerId: { in: users.map((u) => u.id) },
+        enumeratorName: { not: null },
+      },
+      _count: { _all: true },
+    });
+
     const stats = await this.prisma.interview.groupBy({
       by: ['interviewerId', 'status'],
       where: {
@@ -78,6 +91,7 @@ export class FieldTeamService extends BaseService {
           .reduce((sum, s) => sum + s._count._all, 0);
       return {
         id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim(),
         firstName: u.firstName,
         lastName: u.lastName,
         email: u.email.endsWith(`@${FIELD_EMAIL_DOMAIN}`) ? null : u.email,
@@ -86,6 +100,11 @@ export class FieldTeamService extends BaseService {
         lastLoginAt: u.lastLoginAt,
         accessCodeIssuedAt: u.fieldAccessCodeIssuedAt,
         projects: u.projectTeams.map((t) => t.project),
+        // Who has used this code, by the names typed on each interview.
+        enumerators: byEnumerator
+          .filter((e) => e.interviewerId === u.id && e.enumeratorName)
+          .map((e) => ({ name: e.enumeratorName as string, interviews: e._count._all }))
+          .sort((a, b) => b.interviews - a.interviews),
         interviews: {
           total: count(),
           inProgress: count('IN_PROGRESS'),
@@ -96,22 +115,15 @@ export class FieldTeamService extends BaseService {
   }
 
   /**
-   * Creates the field worker, assigns their projects and issues their
-   * access code in one step. The code is returned once, here.
+   * Creates an access code for the projects chosen, in one step: the field
+   * account behind it, its project assignments and the code itself.
    */
-  async create(dto: CreateFieldWorkerDto, organizationId: string) {
+  async create(dto: CreateAccessCodeDto, organizationId: string) {
     await this.assertProjectsInOrganization(dto.projectIds, organizationId);
     const roles = await provisionOrganizationRoles(this.prisma, organizationId);
     const fieldRoleId = roles.get(FIELD_ROLE_SLUG) as string;
 
-    const email =
-      dto.email?.trim().toLowerCase() ||
-      `field-${randomBytes(6).toString('hex')}@${FIELD_EMAIL_DOMAIN}`;
-    const taken = await this.prisma.user.findUnique({ where: { email } });
-    if (taken)
-      throw new ConflictException(
-        'That email is already used by another account',
-      );
+    const email = `field-${randomBytes(6).toString('hex')}@${FIELD_EMAIL_DOMAIN}`;
 
     // Unusable password: field workers only ever sign in with a code.
     const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 12);
@@ -120,9 +132,9 @@ export class FieldTeamService extends BaseService {
       const created = await tx.user.create({
         data: {
           email,
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
-          phone: dto.phone?.trim() || undefined,
+          // The code's name; an access code is not one person.
+          firstName: dto.name.trim(),
+          lastName: '',
           passwordHash,
           organizationId,
         },
@@ -149,10 +161,33 @@ export class FieldTeamService extends BaseService {
     );
     return {
       id: user.id,
+      name: user.firstName,
       firstName: user.firstName,
       lastName: user.lastName,
       code,
     };
+  }
+
+  /** The code itself, for an administrator to pass on to a new enumerator. */
+  async code(userId: string, organizationId: string) {
+    await this.requireFieldWorker(userId, organizationId);
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { fieldAccessCode: true, fieldAccessCodeIssuedAt: true },
+    });
+    return {
+      code: user.fieldAccessCode,
+      issuedAt: user.fieldAccessCodeIssuedAt,
+    };
+  }
+
+  async rename(userId: string, name: string, organizationId: string) {
+    await this.requireFieldWorker(userId, organizationId);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { firstName: name.trim(), lastName: '' },
+    });
+    return (await this.list(organizationId)).find((w) => w.id === userId);
   }
 
   /** Replaces the set of projects a field worker is assigned to. */

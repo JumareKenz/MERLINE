@@ -21,6 +21,16 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 export function configureApp(app: INestApplication): INestApplication {
   app.setGlobalPrefix('api/v1');
 
+  // The API sits behind nginx on the same machine. Without this every
+  // request's address is 127.0.0.1, so each per-IP rate limit was in fact
+  // shared by every user of the platform (60 requests a minute per route,
+  // for everyone). Only a proxy on loopback is trusted to set
+  // X-Forwarded-For, so a client cannot spoof its own address.
+  const http = app.getHttpAdapter().getInstance() as {
+    set?: (key: string, value: unknown) => void;
+  };
+  http.set?.('trust proxy', 'loopback');
+
   const corsOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
     : process.env.NODE_ENV === 'production'

@@ -82,14 +82,15 @@ describeDb('field access code (database)', () => {
 
   it('generates a code, logs in with it, and the code is usable with or without formatting', async () => {
     const { code } = await users.generateFieldAccessCode(userAId, orgAId);
-    expect(code).toMatch(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/);
+    // 4 characters, no look-alikes (0/O, 1/I/L).
+    expect(code).toMatch(/^[A-HJKMNP-Z2-9]{4}$/);
 
     const loginResult = await auth.fieldLogin({ code });
     expect(loginResult.user.id).toBe(userAId);
     expect(loginResult.token.accessToken).toBeTruthy();
 
-    // Same code, no dash, lowercase, stray whitespace — must still work.
-    const loose = ` ${code.replace('-', '').toLowerCase()} `;
+    // Lowercase, spaces or a dash typed in the middle — must still work.
+    const loose = ` ${code.slice(0, 2).toLowerCase()}-${code.slice(2)} `;
     const loginResult2 = await auth.fieldLogin({ code: loose });
     expect(loginResult2.user.id).toBe(userAId);
   });
@@ -140,5 +141,41 @@ describeDb('field access code (database)', () => {
 
     const loginResult = await auth.fieldLogin({ code: second.code });
     expect(loginResult.user.id).toBe(userAId);
+  });
+
+  it('still accepts an older 10-character code until it is reissued', async () => {
+    const legacy = `L${run.slice(0, 4).toUpperCase().replace(/[^A-Z]/g, 'Q')}-ZZZZ9`;
+    await prisma.user.update({
+      where: { id: userAId },
+      data: { fieldAccessCode: legacy, fieldAccessCodeIssuedAt: new Date() },
+    });
+    const res = await auth.fieldLogin({ code: legacy.replace('-', '').toLowerCase() });
+    expect(res.user.id).toBe(userAId);
+  });
+
+  it('reissuing or revoking a code signs out every phone using it', async () => {
+    await users.generateFieldAccessCode(userAId, orgAId);
+    const version = async () =>
+      (await prisma.user.findUniqueOrThrow({ where: { id: userAId } }))
+        .tokenVersion;
+    const v0 = await version();
+    await users.generateFieldAccessCode(userAId, orgAId);
+    const v1 = await version();
+    expect(v1).toBe(v0 + 1);
+    await users.revokeFieldAccessCode(userAId, orgAId);
+    expect(await version()).toBe(v1 + 1);
+  });
+
+  it('logging out on one phone does not sign out others sharing the code', async () => {
+    await users.generateFieldAccessCode(userAId, orgAId);
+    const before = (await prisma.user.findUniqueOrThrow({ where: { id: userAId } })).tokenVersion;
+    await auth.logout(userAId);
+    const after = (await prisma.user.findUniqueOrThrow({ where: { id: userAId } })).tokenVersion;
+    expect(after).toBe(before);
+
+    // A normal (email) account still ends every session on logout.
+    const b0 = (await prisma.user.findUniqueOrThrow({ where: { id: userBId } })).tokenVersion;
+    await auth.logout(userBId);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: userBId } })).tokenVersion).toBe(b0 + 1);
   });
 });

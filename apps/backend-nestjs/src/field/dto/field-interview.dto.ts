@@ -71,6 +71,16 @@ export class CreateFieldInterviewDto {
   @MaxLength(200)
   location?: string;
 
+  /**
+   * Who is conducting the interview, as they typed it. Several enumerators
+   * may share one access code. Optional only so interviews queued offline
+   * by an older version of the app still sync.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  enumeratorName?: string;
+
   /** The guide version the device showed (cached offline). */
   @IsOptional()
   @IsUUID()

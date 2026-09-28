@@ -1076,6 +1076,10 @@ model Interview {
   /// Set when the respondent answered on their own through a shared link
   /// (self-administered); the interviewer is then the link's creator.
   respondentLinkId String?         @map("respondent_link_id")
+  /// Who conducted it, as typed on the field app. Several enumerators can
+  /// share one access code (one field account), so the account alone does
+  /// not say who it was.
+  enumeratorName   String?         @map("enumerator_name")
   organizationId   String          @map("organization_id")
   projectId        String?         @map("project_id")
   participantId    String          @map("participant_id")

@@ -266,11 +266,15 @@ export const API = {
     createInterview: (data: FieldTypes.CreateFieldInterviewInput) =>
       apiClient.post<ApiTypes.Envelope<InterviewTypes.Interview>>('/field/interviews', data, { timeout: 60_000 }),
   },
-  /** Admin: field workers, their projects and access. */
+  /** Admin: field access codes, their projects and who used them. */
   fieldTeam: {
     list: () => apiClient.get<ApiTypes.Envelope<FieldTypes.FieldWorker[]>>('/field-team'),
-    create: (data: FieldTypes.CreateFieldWorkerInput) =>
-      apiClient.post<ApiTypes.Envelope<{ id: string; firstName: string; lastName: string; code: string }>>('/field-team', data),
+    create: (data: FieldTypes.CreateAccessCodeInput) =>
+      apiClient.post<ApiTypes.Envelope<{ id: string; name: string; code: string }>>('/field-team', data),
+    code: (userId: string) =>
+      apiClient.get<ApiTypes.Envelope<{ code: string | null; issuedAt: string | null }>>(`/field-team/${userId}/code`),
+    rename: (userId: string, name: string) =>
+      apiClient.put<ApiTypes.Envelope<FieldTypes.FieldWorker>>(`/field-team/${userId}/name`, { name }),
     setProjects: (userId: string, projectIds: string[]) =>
       apiClient.put<ApiTypes.Envelope<FieldTypes.FieldWorker>>(`/field-team/${userId}/projects`, { projectIds }),
   },

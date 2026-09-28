@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useState, type FormEvent } from 'react';
-import { Check, Copy, KeyRound, MoreHorizontal, Plus, UsersRound } from 'lucide-react';
+import { Check, Copy, Eye, KeyRound, MoreHorizontal, Plus, UsersRound } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field, describedBy } from '@/components/ui/field';
@@ -14,16 +15,24 @@ import { LoadingState } from '@/components/shared/loading-state';
 import { useResearchProjects } from '@/hooks/use-research-projects';
 import { useSession } from '@/hooks/use-session';
 import {
-  useCreateFieldWorker,
+  fetchAccessCode,
+  useCreateAccessCode,
   useFieldTeam,
   useIssueAccessCode,
+  useRenameAccessCode,
   useRevokeAccessCode,
   useSetFieldWorkerProjects,
 } from '@/hooks/use-field-team';
-import { cn, formatDate } from '@/lib/utils';
+import { describeError } from '@/lib/errors';
+import { formatDate } from '@/lib/utils';
 import type { FieldWorker } from '@/types/field';
 
 const FIELD_APP_URL = 'field.jrecc.org';
+
+/** Older codes were 10 characters; show them as XXXXX-XXXXX. */
+function prettyCode(code: string) {
+  return code.length === 10 && !code.includes('-') ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
+}
 
 /** Checkbox list of active projects, with select all / none. */
 function ProjectPicker({
@@ -80,21 +89,21 @@ function ProjectPicker({
   );
 }
 
-/** Shows a freshly issued access code — the only time it can be read. */
-function CodeReveal({ name, code, onClose }: { name: string; code: string; onClose: () => void }) {
+/** A code, large enough to read out to a team. */
+function CodeReveal({ name, code, fresh, onClose }: { name: string; code: string; fresh?: boolean; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const pretty = code.includes('-') ? code : `${code.slice(0, 5)}-${code.slice(5)}`;
+  const pretty = prettyCode(code);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Access code for {name}</DialogTitle>
+          <DialogTitle>{fresh ? `Access code for ${name}` : name}</DialogTitle>
           <DialogDescription>
-            Share it with them privately. It is shown only now — if it is lost, issue a new one (the old one stops working).
+            Share it with the enumerators who will use it. Everyone can use the same code; each interview asks who is conducting it.
           </DialogDescription>
         </DialogHeader>
         <div className="my-4 flex items-center justify-between gap-3 rounded-xl bg-navy px-5 py-4">
-          <code className="font-mono text-[26px] font-semibold tracking-[0.18em] text-white">{pretty}</code>
+          <code className="font-mono text-[34px] font-semibold tracking-[0.3em] text-white">{pretty}</code>
           <Button
             variant="accent"
             size="sm"
@@ -108,7 +117,7 @@ function CodeReveal({ name, code, onClose }: { name: string; code: string; onClo
           </Button>
         </div>
         <p className="text-[14px] text-foreground-secondary">
-          They sign in at <span className="font-medium text-foreground">{FIELD_APP_URL}</span> with this code. Their assigned projects appear there
+          They sign in at <span className="font-medium text-foreground">{FIELD_APP_URL}</span> with this code. The projects it opens appear there
           automatically.
         </p>
         <DialogFooter className="mt-4">
@@ -119,21 +128,15 @@ function CodeReveal({ name, code, onClose }: { name: string; code: string; onClo
   );
 }
 
-function AddWorkerDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (name: string, code: string) => void }) {
+function CreateCodeDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (name: string, code: string) => void }) {
   const id = useId();
-  const create = useCreateFieldWorker();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const create = useCreateAccessCode();
+  const [name, setName] = useState('');
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const reset = () => {
-    setFirstName('');
-    setLastName('');
-    setPhone('');
-    setEmail('');
+    setName('');
     setProjectIds([]);
     setErrors({});
   };
@@ -141,54 +144,47 @@ function AddWorkerDialog({ open, onOpenChange, onCreated }: { open: boolean; onO
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const next: Record<string, string> = {};
-    if (!firstName.trim()) next.first = 'Enter a first name.';
-    if (!lastName.trim()) next.last = 'Enter a last name.';
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) next.email = 'Enter a valid email, or leave it empty.';
-    if (projectIds.length === 0) next.projects = 'Choose at least one project they will collect interviews for.';
+    if (!name.trim()) next.name = 'Give the code a name, such as a team or place.';
+    if (projectIds.length === 0) next.projects = 'Choose at least one project this code opens.';
     setErrors(next);
     if (Object.keys(next).length) return;
-    const created = await create
-      .mutateAsync({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-        projectIds,
-      })
-      .catch(() => null);
+    const created = await create.mutateAsync({ name: name.trim(), projectIds }).catch(() => null);
     if (created) {
       onOpenChange(false);
       reset();
-      onCreated(`${created.firstName} ${created.lastName}`, created.code);
+      onCreated(created.name, created.code);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) reset();
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add a field worker</DialogTitle>
-          <DialogDescription>They get an access code for the field app and can start interviews in the projects you choose.</DialogDescription>
+          <DialogTitle>New access code</DialogTitle>
+          <DialogDescription>
+            A 4-character code for the field app that opens the projects you choose. Any number of enumerators can use it.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="mt-2 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id={`${id}-first`} label="First name" error={errors.first}>
-              <Input id={`${id}-first`} value={firstName} onChange={(e) => setFirstName(e.target.value)} error={!!errors.first} aria-describedby={describedBy(`${id}-first`, { error: errors.first })} autoFocus />
-            </Field>
-            <Field id={`${id}-last`} label="Last name" error={errors.last}>
-              <Input id={`${id}-last`} value={lastName} onChange={(e) => setLastName(e.target.value)} error={!!errors.last} aria-describedby={describedBy(`${id}-last`, { error: errors.last })} />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id={`${id}-phone`} label="Phone" optional>
-              <Input id={`${id}-phone`} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </Field>
-            <Field id={`${id}-email`} label="Email" optional error={errors.email} hint="Not needed to sign in.">
-              <Input id={`${id}-email`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={!!errors.email} aria-describedby={describedBy(`${id}-email`, { error: errors.email, hint: true })} />
-            </Field>
-          </div>
+          <Field id={`${id}-name`} label="Name" error={errors.name} hint="For you: a team, a place, or a person, e.g. “Kano team A”.">
+            <Input
+              id={`${id}-name`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              error={!!errors.name}
+              aria-describedby={describedBy(`${id}-name`, { error: errors.name, hint: true })}
+              maxLength={100}
+              autoFocus
+            />
+          </Field>
           <div>
-            <p className="mb-1.5 text-[14px] font-medium text-foreground">Projects</p>
+            <p className="mb-1.5 text-[14px] font-medium text-foreground">Projects it opens</p>
             <ProjectPicker value={projectIds} onChange={setProjectIds} describedById={errors.projects ? `${id}-projects-error` : undefined} />
             {errors.projects && (
               <p id={`${id}-projects-error`} className="mt-1.5 text-[13px] text-foreground-error">
@@ -201,7 +197,7 @@ function AddWorkerDialog({ open, onOpenChange, onCreated }: { open: boolean; onO
               Cancel
             </Button>
             <Button type="submit" loading={create.isPending}>
-              Add and issue code
+              Create code
             </Button>
           </DialogFooter>
         </form>
@@ -217,10 +213,8 @@ function EditProjectsDialog({ worker, onClose }: { worker: FieldWorker; onClose:
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            Projects for {worker.firstName} {worker.lastName}
-          </DialogTitle>
-          <DialogDescription>They can start interviews in these projects. Changes reach their phone the next time it connects.</DialogDescription>
+          <DialogTitle>Projects for {worker.name}</DialogTitle>
+          <DialogDescription>Interviews can be started in these projects with this code. Changes reach phones the next time they connect.</DialogDescription>
         </DialogHeader>
         <div className="mt-3">
           <ProjectPicker value={projectIds} onChange={setProjectIds} />
@@ -232,7 +226,10 @@ function EditProjectsDialog({ worker, onClose }: { worker: FieldWorker; onClose:
           <Button
             loading={setProjects.isPending}
             onClick={async () => {
-              const ok = await setProjects.mutateAsync({ userId: worker.id, projectIds }).then(() => true).catch(() => false);
+              const ok = await setProjects
+                .mutateAsync({ userId: worker.id, projectIds })
+                .then(() => true)
+                .catch(() => false);
               if (ok) onClose();
             }}
           >
@@ -244,10 +241,47 @@ function EditProjectsDialog({ worker, onClose }: { worker: FieldWorker; onClose:
   );
 }
 
+function RenameDialog({ worker, onClose }: { worker: FieldWorker; onClose: () => void }) {
+  const rename = useRenameAccessCode();
+  const [name, setName] = useState(worker.name);
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rename code</DialogTitle>
+          <DialogDescription>The code itself does not change.</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-2 space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            const ok = await rename
+              .mutateAsync({ userId: worker.id, name: name.trim() })
+              .then(() => true)
+              .catch(() => false);
+            if (ok) onClose();
+          }}
+        >
+          <Input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoFocus />
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={rename.isPending} disabled={!name.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /**
- * The field team: who collects interviews, on which projects, and whether
- * they can sign in. Admins don't set up participants or consent here —
- * field workers meet participants and record consent on site.
+ * Access codes for the field app: each opens one or more projects, and any
+ * number of enumerators can share it. Who conducted each interview is asked
+ * on the phone at the start of every interview.
  */
 export function FieldTeamPanel({ projectId }: { projectId?: string }) {
   const session = useSession();
@@ -256,13 +290,29 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
   const revoke = useRevokeAccessCode();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<FieldWorker | null>(null);
-  const [reveal, setReveal] = useState<{ name: string; code: string } | null>(null);
+  const [renaming, setRenaming] = useState<FieldWorker | null>(null);
+  const [reveal, setReveal] = useState<{ name: string; code: string; fresh?: boolean } | null>(null);
+  const [showing, setShowing] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'reissue' | 'revoke'; worker: FieldWorker } | null>(null);
 
   const canManage = !session.isResolved || session.canAny('create.users', 'edit.users');
-  const workers = (data ?? []).filter((w) => !projectId || w.projects.some((p) => p.id === projectId));
+  const canReadCodes = !session.isResolved || session.can('edit.users');
+  const codes = (data ?? []).filter((w) => !projectId || w.projects.some((p) => p.id === projectId));
 
-  if (isLoading) return <LoadingState message="Loading field team" />;
+  const showCode = async (w: FieldWorker) => {
+    setShowing(w.id);
+    try {
+      const code = await fetchAccessCode(w.id);
+      if (code) setReveal({ name: w.name, code });
+      else toast.error('This code was revoked. Issue a new one to use it again.');
+    } catch (err) {
+      toast.error(describeError(err, 'The code could not be shown'));
+    } finally {
+      setShowing(null);
+    }
+  };
+
+  if (isLoading) return <LoadingState message="Loading access codes" />;
   if (isError) {
     const e = error as { message?: string; status?: number } | null;
     return <ErrorState message={e?.message} status={e?.status} onRetry={() => refetch()} />;
@@ -270,18 +320,18 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
 
   const addButton = canManage && (
     <Button onClick={() => setAdding(true)}>
-      <Plus className="h-4 w-4" aria-hidden /> Add field worker
+      <Plus className="h-4 w-4" aria-hidden /> New access code
     </Button>
   );
 
   return (
     <div>
-      {workers.length === 0 ? (
+      {codes.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-background-elevated/60">
           <EmptyState
             icon={<UsersRound />}
-            title={projectId ? 'Nobody is assigned to this project yet' : 'No field workers yet'}
-            description="Add the people who will collect interviews. Each gets an access code for the field app, and can work on one project, several, or all of them."
+            title={projectId ? 'No access code opens this project yet' : 'No access codes yet'}
+            description="Create a code for the projects your enumerators work on and share it with them. Any number of people can use the same code; each interview records who conducted it."
             action={addButton}
           />
         </div>
@@ -289,19 +339,16 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
         <>
           {!projectId && <div className="mb-4 flex justify-end">{addButton}</div>}
           <ul className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-background-elevated shadow-soft">
-            {workers.map((w) => (
+            {codes.map((w) => (
               <li key={w.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-6">
                 <div className="min-w-0 flex-1">
                   <p className="text-[15px] font-semibold text-foreground">
-                    {w.firstName} {w.lastName}
+                    {w.name}
                     {!w.isActive && <span className="ml-2 text-[13px] font-normal text-foreground-tertiary">(deactivated)</span>}
-                  </p>
-                  <p className="mt-0.5 text-[13px] text-foreground-secondary">
-                    {[w.phone, w.email].filter(Boolean).join(' · ') || 'No contact details'}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {w.projects.length === 0 ? (
-                      <span className="text-[13px] text-foreground-warning">No projects — they can&apos;t start interviews</span>
+                      <span className="text-[13px] text-foreground-warning">No projects: interviews can&apos;t be started with this code</span>
                     ) : (
                       w.projects.map((p) => (
                         <span key={p.id} className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[12px] font-medium text-primary-700">
@@ -310,6 +357,20 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
                       ))
                     )}
                   </div>
+                  <p className="mt-2 text-[13px] text-foreground-secondary">
+                    {w.enumerators.length === 0 ? (
+                      <span className="text-foreground-tertiary">No interviews with a named interviewer yet</span>
+                    ) : (
+                      <>
+                        Used by{' '}
+                        {w.enumerators
+                          .slice(0, 6)
+                          .map((e) => `${e.name} (${e.interviews})`)
+                          .join(', ')}
+                        {w.enumerators.length > 6 && ` and ${w.enumerators.length - 6} more`}
+                      </>
+                    )}
+                  </p>
                 </div>
                 <dl className="flex shrink-0 gap-6 text-[13px]">
                   <div>
@@ -320,30 +381,41 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-foreground-tertiary">Access</dt>
-                    <dd className={cn('font-semibold', w.accessCodeIssuedAt ? 'text-success' : 'text-foreground-secondary')}>
-                      {w.accessCodeIssuedAt ? `Code since ${formatDate(w.accessCodeIssuedAt)}` : 'No code'}
+                    <dt className="text-foreground-tertiary">Code</dt>
+                    <dd>
+                      {w.accessCodeIssuedAt ? (
+                        canReadCodes ? (
+                          <Button variant="secondary" size="xs" loading={showing === w.id} onClick={() => void showCode(w)}>
+                            <Eye className="h-3.5 w-3.5" aria-hidden /> Show code
+                          </Button>
+                        ) : (
+                          <span className="font-semibold text-success">Since {formatDate(w.accessCodeIssuedAt)}</span>
+                        )
+                      ) : (
+                        <span className="font-semibold text-foreground-secondary">Revoked</span>
+                      )}
                     </dd>
                   </div>
                 </dl>
                 {canManage && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${w.firstName} ${w.lastName}`}>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${w.name}`}>
                         <MoreHorizontal className="h-4 w-4" aria-hidden />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" className="w-60">
                       <DropdownMenuItem onSelect={() => setEditing(w)}>Change projects</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setRenaming(w)}>Rename</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setConfirm({ kind: 'reissue', worker: w })}>
                         <KeyRound className="mr-2 h-4 w-4" aria-hidden />
-                        {w.accessCodeIssuedAt ? 'Issue a new code' : 'Issue access code'}
+                        {w.accessCodeIssuedAt ? 'Replace with a new code' : 'Issue a code'}
                       </DropdownMenuItem>
                       {w.accessCodeIssuedAt && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-error" onSelect={() => setConfirm({ kind: 'revoke', worker: w })}>
-                            Revoke access
+                            Revoke code
                           </DropdownMenuItem>
                         </>
                       )}
@@ -356,20 +428,21 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
         </>
       )}
 
-      <AddWorkerDialog open={adding} onOpenChange={setAdding} onCreated={(name, code) => setReveal({ name, code })} />
+      <CreateCodeDialog open={adding} onOpenChange={setAdding} onCreated={(name, code) => setReveal({ name, code, fresh: true })} />
       {editing && <EditProjectsDialog worker={editing} onClose={() => setEditing(null)} />}
-      {reveal && <CodeReveal name={reveal.name} code={reveal.code} onClose={() => setReveal(null)} />}
+      {renaming && <RenameDialog worker={renaming} onClose={() => setRenaming(null)} />}
+      {reveal && <CodeReveal name={reveal.name} code={reveal.code} fresh={reveal.fresh} onClose={() => setReveal(null)} />}
       {confirm && (
         <ConfirmDialog
           open
           onOpenChange={(o) => !o && setConfirm(null)}
-          title={confirm.kind === 'revoke' ? `Revoke access for ${confirm.worker.firstName}?` : `Issue a new code for ${confirm.worker.firstName}?`}
+          title={confirm.kind === 'revoke' ? `Revoke the code for ${confirm.worker.name}?` : `Replace the code for ${confirm.worker.name}?`}
           description={
             confirm.kind === 'revoke'
-              ? 'Their code stops working immediately. Recordings already on their phone stay there until they sign in again with a new code.'
-              : 'Any previous code stops working. You will see the new code once.'
+              ? 'The code stops working and every phone using it is signed out. Recordings already on those phones stay there until someone signs in again with a new code.'
+              : 'The current code stops working and every phone using it is signed out. Give the enumerators the new code. Recordings on their phones are kept and upload after they sign in again.'
           }
-          confirmLabel={confirm.kind === 'revoke' ? 'Revoke access' : 'Issue new code'}
+          confirmLabel={confirm.kind === 'revoke' ? 'Revoke code' : 'Replace code'}
           variant={confirm.kind === 'revoke' ? 'danger' : 'default'}
           loading={issue.isPending || revoke.isPending}
           onConfirm={async () => {
@@ -378,7 +451,7 @@ export function FieldTeamPanel({ projectId }: { projectId?: string }) {
               await revoke.mutateAsync(w.id).catch(() => undefined);
             } else {
               const res = await issue.mutateAsync(w.id).catch(() => null);
-              if (res) setReveal({ name: `${w.firstName} ${w.lastName}`, code: res.code });
+              if (res) setReveal({ name: w.name, code: res.code, fresh: true });
             }
             setConfirm(null);
           }}

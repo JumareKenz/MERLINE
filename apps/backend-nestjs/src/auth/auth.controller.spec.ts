@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { FieldLoginLimiter } from './field-login-limiter';
 import type { AuthenticatedUser } from '../common/interfaces';
 
 /**
@@ -48,6 +49,7 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: mockAuthService,
         },
+        FieldLoginLimiter,
       ],
     }).compile();
 

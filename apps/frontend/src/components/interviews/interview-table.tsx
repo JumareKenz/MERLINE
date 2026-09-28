@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { interviewerLabel } from '@/lib/interviewer';
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { AudioLines, ShieldCheck, ShieldOff } from 'lucide-react';
@@ -74,7 +75,7 @@ export function InterviewTable({
       : [
           {
             id: 'interviewer',
-            accessorFn: (row: Interview) => (row.interviewer ? `${row.interviewer.firstName} ${row.interviewer.lastName}` : ''),
+            accessorFn: (row: Interview) => interviewerLabel(row),
             header: 'Interviewer',
             cell: ({ getValue }: { getValue: () => unknown }) => <CellMuted>{(getValue() as string) || '—'}</CellMuted>,
           } satisfies ColumnDef<Interview>,

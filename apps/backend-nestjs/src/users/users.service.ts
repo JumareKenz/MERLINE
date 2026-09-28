@@ -15,12 +15,20 @@ import { softDeleteUser } from './delete-user';
 /** Excludes 0/O/1/I/L — characters that are easy to mis-type or mis-read aloud. */
 const FIELD_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
+/**
+ * Access codes are 4 characters (31^4 ≈ 920,000 combinations): short
+ * enough to read out to a team and type on a phone outdoors. That is only
+ * safe because sign-in with a code is tightly rate limited per IP (see
+ * FieldLoginLimiter and the throttle on POST /auth/field-login), and a
+ * code can be reissued or revoked at any time.
+ */
+export const FIELD_CODE_LENGTH = 4;
+
 function generateFieldCode(): string {
-  const raw = Array.from(
-    { length: 10 },
+  return Array.from(
+    { length: FIELD_CODE_LENGTH },
     () => FIELD_CODE_ALPHABET[randomInt(FIELD_CODE_ALPHABET.length)],
   ).join('');
-  return `${raw.slice(0, 5)}-${raw.slice(5)}`;
 }
 
 @Injectable()
@@ -303,16 +311,21 @@ export class UsersService extends BaseService {
       throw new NotFoundException(`User with id "${id}" not found`);
     }
 
-    // Collision odds on a 10-char, 32-symbol alphabet are astronomically
-    // low, but @unique means a collision fails loudly rather than silently
-    // overwriting someone else's code — retry a handful of times rather
-    // than surface that as a 500.
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // Codes are unique across all organizations (sign-in looks a code up
+    // on its own). With 4 characters a collision is rare but real once many
+    // codes exist, so retry rather than surface it as a 500.
+    for (let attempt = 0; attempt < 20; attempt++) {
       const code = generateFieldCode();
       try {
         await this.prisma.user.update({
           where: { id },
-          data: { fieldAccessCode: code, fieldAccessCodeIssuedAt: new Date() },
+          data: {
+            fieldAccessCode: code,
+            fieldAccessCodeIssuedAt: new Date(),
+            // A replaced code must stop working everywhere at once,
+            // including on phones already signed in with it.
+            ...(user.fieldAccessCode && { tokenVersion: { increment: 1 } }),
+          },
         });
         return { code, issuedAt: new Date() };
       } catch (err) {
@@ -320,7 +333,7 @@ export class UsersService extends BaseService {
           typeof err === 'object' &&
           err !== null &&
           (err as { code?: string }).code === 'P2002';
-        if (!isUniqueViolation || attempt === 4) throw err;
+        if (!isUniqueViolation || attempt === 19) throw err;
       }
     }
     throw new ConflictException(
@@ -338,7 +351,12 @@ export class UsersService extends BaseService {
 
     await this.prisma.user.update({
       where: { id },
-      data: { fieldAccessCode: null, fieldAccessCodeIssuedAt: null },
+      // Revoking also signs out every phone using the code.
+      data: {
+        fieldAccessCode: null,
+        fieldAccessCodeIssuedAt: null,
+        tokenVersion: { increment: 1 },
+      },
     });
 
     return { revoked: true };

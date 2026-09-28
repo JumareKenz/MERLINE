@@ -14,10 +14,12 @@ import { INTERVIEW_LANGUAGES } from '@/lib/languages';
 import { cn } from '@/lib/utils';
 
 const LAST_LANGUAGE_KEY = 'merline.field.lastLanguage';
+/** The interviewer's own name, remembered on this phone as a starting point. */
+const LAST_ENUMERATOR_KEY = 'merline.field.lastEnumerator';
 
-function lastLanguage(): string {
+function stored(key: string): string {
   try {
-    return localStorage.getItem(LAST_LANGUAGE_KEY) ?? '';
+    return localStorage.getItem(key) ?? '';
   } catch {
     return '';
   }
@@ -41,13 +43,20 @@ function StartInterview() {
 
   const [step, setStep] = useState<Step>('who');
   const [projectId, setProjectId] = useState(params.get('project') ?? '');
+  // Who is conducting this interview. An access code may be shared by a
+  // whole team, so every interview asks; the last name used on this phone
+  // is filled in to save typing.
+  const [enumerator, setEnumerator] = useState('');
   const [name, setName] = useState('');
   const [ref, setRef] = useState('');
   const [location, setLocation] = useState('');
   // '' = not sure; the server then lets the transcription model detect it.
   const [language, setLanguage] = useState('');
   // After mount: the page is prerendered, so storage is read on the client.
-  useEffect(() => setLanguage(lastLanguage()), []);
+  useEffect(() => {
+    setLanguage(stored(LAST_LANGUAGE_KEY));
+    setEnumerator(stored(LAST_ENUMERATOR_KEY));
+  }, []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -56,6 +65,7 @@ function StartInterview() {
   const toConsent = (e: FormEvent) => {
     e.preventDefault();
     const next: Record<string, string> = {};
+    if (!enumerator.trim()) next.enumerator = 'Enter your name, so the team knows who conducted this interview.';
     if (!chosenProject) next.project = 'Choose the project this interview belongs to.';
     if (!name.trim()) next.name = 'Enter a name, pseudonym or code.';
     setErrors(next);
@@ -119,6 +129,31 @@ function StartInterview() {
 
       {step === 'who' ? (
         <form onSubmit={toConsent} noValidate className="space-y-6">
+          <div>
+            <label htmlFor="enumerator" className="mb-1.5 block text-[16px] font-semibold text-foreground">
+              Your name (interviewer)
+            </label>
+            <Input
+              id="enumerator"
+              value={enumerator}
+              onChange={(e) => setEnumerator(e.target.value)}
+              className="h-control-lg"
+              autoComplete="name"
+              error={!!errors.enumerator}
+              aria-describedby={errors.enumerator ? 'enumerator-error' : 'enumerator-hint'}
+              maxLength={120}
+            />
+            {errors.enumerator ? (
+              <p id="enumerator-error" className="mt-1.5 text-[14px] text-foreground-error">
+                {errors.enumerator}
+              </p>
+            ) : (
+              <p id="enumerator-hint" className="mt-1.5 text-[14px] text-foreground-secondary">
+                Check it is you: this phone’s code may be shared by your team.
+              </p>
+            )}
+          </div>
+
           {projects.length > 1 && (
             <fieldset aria-describedby={errors.project ? 'project-error' : undefined}>
               <legend className="mb-2 text-[16px] font-semibold text-foreground">Project</legend>
@@ -239,6 +274,7 @@ function StartInterview() {
             setSaving(true);
             try {
               localStorage.setItem(LAST_LANGUAGE_KEY, language);
+              localStorage.setItem(LAST_ENUMERATOR_KEY, enumerator.trim());
             } catch {
               // Private mode or storage blocked: only the default is lost.
             }
@@ -262,6 +298,7 @@ function StartInterview() {
                 capturedAt: new Date().toISOString(),
               },
               location: location.trim() || undefined,
+              enumeratorName: enumerator.trim(),
               language: language || undefined,
               // The guide shown on this phone; kept even if a newer one is approved later.
               questionSetId: chosenProject.guide?.id,

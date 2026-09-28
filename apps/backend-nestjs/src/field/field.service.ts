@@ -263,6 +263,7 @@ export class FieldService extends BaseService {
           status: 'IN_PROGRESS',
           startedAt: grantedAt,
           location: dto.location?.trim() || undefined,
+          enumeratorName: dto.enumeratorName?.trim() || undefined,
           language: dto.language,
           type,
           questionSetId: await resolveQuestionSet(

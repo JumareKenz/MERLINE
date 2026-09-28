@@ -62,6 +62,8 @@ export interface CachedInterview {
   notes?: string | null;
   participantId: string;
   participantName?: string;
+  /** Who conducted it (a team may share one access code). */
+  enumeratorName?: string | null;
   projectId?: string | null;
   createdAt?: string | null;
   startedAt?: string | null;
@@ -135,6 +137,8 @@ export interface PendingInterview {
     capturedAt: string;
   };
   location?: string;
+  /** Who is conducting it, as typed on the phone (codes may be shared). */
+  enumeratorName?: string;
   /** The guide version shown on the phone when the interview began. */
   questionSetId?: string;
   /** Language spoken (e.g. "ha"): the transcription hint. */

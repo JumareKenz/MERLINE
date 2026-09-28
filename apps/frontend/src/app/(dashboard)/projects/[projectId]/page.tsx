@@ -85,7 +85,7 @@ export default function ProjectOverviewPage() {
   // Setup: each step is derived from real data, and links to where it's done.
   const steps = [
     { label: 'Interview method chosen', done: !!p.settings?.method, href: `/projects/${projectId}/settings` },
-    { label: 'Field team assigned', done: teamOnProject.length > 0, href: '/assignments' },
+    { label: 'Access code created', done: teamOnProject.length > 0, href: '/assignments' },
     { label: 'Interviews collected', done: interviewList.length > 0, href: '/interviews' },
     { label: 'Audio uploaded', done: recorded > 0, href: '/interviews' },
     { label: 'Findings drafted', done: findingList.length > 0, href: '/transcripts' },
@@ -111,7 +111,7 @@ export default function ProjectOverviewPage() {
             {session.can('create.interviews') && (
               <Button asChild>
                 <Link href="/assignments">
-                  <ClipboardList className="h-4 w-4" aria-hidden /> Field team
+                  <ClipboardList className="h-4 w-4" aria-hidden /> Access codes
                 </Link>
               </Button>
             )}
@@ -171,7 +171,7 @@ export default function ProjectOverviewPage() {
                   ['ask', 'Ask AI'],
                 ]
               : []),
-            ['team', `Field team · ${teamOnProject.length}`],
+            ['team', `Access codes · ${teamOnProject.length}`],
             ['participants', `Participants · ${participantList.length}`],
             ...(session.can('view.findings') ? [['findings', `Findings · ${findingList.length}`]] : []),
           ] as [Tab, string][]

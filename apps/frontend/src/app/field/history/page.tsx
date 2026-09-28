@@ -148,7 +148,9 @@ function History() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[16px] font-semibold text-foreground">{item.interview.participantName ?? 'Participant'}</span>
                   <span className="block truncate text-[14px] text-foreground-secondary">
-                    {[item.projectName, item.date ? formatDateTime(item.date) : null].filter(Boolean).join(' · ')}
+                    {[item.projectName, item.interview.enumeratorName && `by ${item.interview.enumeratorName}`, item.date ? formatDateTime(item.date) : null]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                   <span className="mt-1 block">
                     <StateLabel item={item} />

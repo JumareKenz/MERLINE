@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { interviewerLabel } from '@/lib/interviewer';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { AudioLines, CalendarClock, MapPin, UserRound, Languages, Tag, Trash2 } from 'lucide-react';
@@ -211,7 +212,8 @@ export default function InterviewDetailPage() {
                   ) : (
                     interview.interviewer && (
                       <span className="block text-[13px] text-foreground-secondary">
-                        Interviewer: {interview.interviewer.firstName} {interview.interviewer.lastName}
+                        Interviewer: {interviewerLabel(interview)}
+                        {interview.enumeratorName && ` · access code “${`${interview.interviewer.firstName} ${interview.interviewer.lastName}`.trim()}”`}
                       </span>
                     )
                   )}

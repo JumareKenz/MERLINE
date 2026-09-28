@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { interviewerLabel } from '@/lib/interviewer';
 import Link from 'next/link';
 import { ArrowUpRight, FileText, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -162,7 +163,7 @@ export function ProjectInterviewsFolder({ interviews, isLoading, transcripts, re
                           {formatDate(iv.startedAt ?? iv.scheduledAt ?? iv.createdAt)}
                         </td>
                         <td className="px-4 py-3 text-[13px] text-foreground-secondary">
-                          {iv.interviewer ? `${iv.interviewer.firstName} ${iv.interviewer.lastName}` : '—'}
+                          {interviewerLabel(iv) || '—'}
                         </td>
                         {showAnalysis && (
                           <td className="px-4 py-3">

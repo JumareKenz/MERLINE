@@ -363,8 +363,11 @@ describeDb('Phase 1 platform safety (application)', () => {
       // The interceptor writes after the response is emitted.
       await new Promise((resolve) => setTimeout(resolve, 400));
 
+      // Ordered: without it Postgres may return an earlier test's DELETE
+      // row last, which made this test fail intermittently.
       const rows = await prisma.auditLog.findMany({
         where: { organizationId: orgA, auditableType: 'Project' },
+        orderBy: { createdAt: 'asc' },
       });
 
       expect(rows.length).toBeGreaterThan(0);
@@ -392,6 +395,7 @@ describeDb('Phase 1 platform safety (application)', () => {
 
       const rows = await prisma.auditLog.findMany({
         where: { organizationId: orgA, auditableType: 'Media' },
+        orderBy: { createdAt: 'asc' },
       });
 
       expect(rows.length).toBeGreaterThan(0);

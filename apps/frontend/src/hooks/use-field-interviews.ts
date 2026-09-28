@@ -17,6 +17,7 @@ function toCached(i: Interview): CachedInterview {
     notes: i.notes,
     participantId: i.participantId,
     participantName: i.participant?.displayName,
+    enumeratorName: i.enumeratorName,
     projectId: i.projectId,
     questionSetId: i.questionSetId,
     language: i.language,

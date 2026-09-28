@@ -1,9 +1,11 @@
 /**
  * Field teams and on-site interviews (database).
  *
- *   - An admin creates a field worker with projects in one step; the access
- *     code is returned once; workers without email get a reserved address
- *     that is never shown.
+ *   - An admin creates a named access code for one or more projects in one
+ *     step; the account behind it gets a reserved address that is never
+ *     shown, and the code can be read back and the name changed.
+ *   - Several enumerators can use one code; each interview records who
+ *     conducted it, and the code's list shows them.
  *   - A field worker sees and starts interviews only in assigned projects.
  *   - POST /field/interviews creates participant + consent + interview
  *     together, idempotently, with the device's consent time (bounded).
@@ -114,17 +116,13 @@ describeDb('field team and on-site interviews (database)', () => {
     await prisma.$disconnect();
   });
 
-  it('creates a field worker with projects and a one-time code; hides the reserved email', async () => {
+  it('creates a named 4-character access code for projects; hides the reserved email', async () => {
     const created = await team.create(
-      {
-        firstName: 'Amina',
-        lastName: 'Okafor',
-        phone: '+2348000000',
-        projectIds: [projectA],
-      },
+      { name: 'Kano team A', projectIds: [projectA, projectB] },
       orgId,
     );
-    expect(created.code).toMatch(/^[A-Z0-9]{5}-?[A-Z0-9]{5}$/);
+    expect(created.code).toMatch(/^[A-HJKMNP-Z2-9]{4}$/);
+    expect(created.name).toBe('Kano team A');
 
     const row = await prisma.user.findUniqueOrThrow({
       where: { id: created.id },
@@ -133,20 +131,29 @@ describeDb('field team and on-site interviews (database)', () => {
 
     const listed = (await team.list(orgId)).find((w) => w.id === created.id)!;
     expect(listed.email).toBeNull();
-    expect(listed.projects.map((p) => p.id)).toEqual([projectA]);
+    expect(listed.name).toBe('Kano team A');
+    expect(listed.projects.map((p) => p.id).sort()).toEqual(
+      [projectA, projectB].sort(),
+    );
     expect(listed.accessCodeIssuedAt).toBeTruthy();
+    expect(listed).not.toHaveProperty('code');
+
+    // Managers can read the code back and rename it.
+    expect((await team.code(created.id, orgId)).code).toBe(created.code);
+    await expect(team.code(created.id, otherOrgId)).rejects.toThrow(
+      /not found/i,
+    );
+    const renamed = await team.rename(created.id, 'Kano team B', orgId);
+    expect(renamed?.name).toBe('Kano team B');
 
     await expect(
-      team.create(
-        { firstName: 'X', lastName: 'Y', projectIds: [foreignProject] },
-        orgId,
-      ),
+      team.create({ name: 'X', projectIds: [foreignProject] }, orgId),
     ).rejects.toThrow(/projects were not found/i);
   });
 
   it('scopes projects and on-site interviews to the worker’s assignments', async () => {
     const worker = await team.create(
-      { firstName: 'B', lastName: 'W', projectIds: [projectA] },
+      { name: 'B team', projectIds: [projectA] },
       orgId,
     );
 
@@ -233,6 +240,49 @@ describeDb('field team and on-site interviews (database)', () => {
     expect((await field.myProjects(worker.id, orgId)).map((p) => p.id)).toEqual(
       [projectB],
     );
+  });
+
+  it('lets several enumerators share one code and records who conducted each interview', async () => {
+    const shared = await team.create(
+      { name: 'Shared team', projectIds: [projectA] },
+      orgId,
+    );
+    const start = (enumeratorName?: string) =>
+      field.createFieldInterview(
+        {
+          interviewId: randomUUID(),
+          participantId: randomUUID(),
+          consentId: randomUUID(),
+          projectId: projectA,
+          participant: { displayName: `P-${randomUUID().slice(0, 4)}` },
+          consent: consent(),
+          ...(enumeratorName !== undefined && { enumeratorName }),
+        },
+        shared.id,
+        orgId,
+      );
+    const a = await start('  Musa Bello ');
+    await start('Musa Bello');
+    await start('Hauwa Sani');
+    // An interview queued offline by an older app version has no name.
+    const legacy = await start();
+
+    const stored = await prisma.interview.findUniqueOrThrow({
+      where: { id: a.id },
+    });
+    expect(stored.enumeratorName).toBe('Musa Bello');
+    expect(stored.interviewerId).toBe(shared.id);
+    expect(
+      (await prisma.interview.findUniqueOrThrow({ where: { id: legacy.id } }))
+        .enumeratorName,
+    ).toBeNull();
+
+    const listed = (await team.list(orgId)).find((w) => w.id === shared.id)!;
+    expect(listed.interviews.total).toBe(4);
+    expect(listed.enumerators).toEqual([
+      { name: 'Musa Bello', interviews: 2 },
+      { name: 'Hauwa Sani', interviews: 1 },
+    ]);
   });
 
   it('keeps project teams inside the tenant', async () => {

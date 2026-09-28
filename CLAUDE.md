@@ -100,9 +100,19 @@ explicit permission and tenant scoping in the service.
 `AppModule` and fails on any route without `@Permissions` that is not in its
 explicit open-by-design list.
 
-**11. Field work model.** Admins assign field workers to *projects*
-(ProjectTeam, role "field") from Assignments → Field team; one access code
-per person, any number of projects. Field workers meet participants on site
+**11. Field work model.** Admins create **access codes** (Assignments →
+Access codes): each is a field account (a User with the field-interviewer
+role, named for a team, place or person) assigned to one or more
+*projects* (ProjectTeam, role "field"). A code is **4 characters** (older
+10-character codes still sign in) and may be **shared by any number of
+enumerators**; every new interview asks the interviewer's name first and
+stores it in `Interview.enumeratorName` (shown in Results, reports and the
+code's "Used by" list). Because codes are short, `POST /auth/field-login`
+is throttled (10/min) and `FieldLoginLimiter` blocks an address after 8
+wrong codes in 15 minutes, doubling up to 24 h. Logging out of a code
+account does **not** bump `tokenVersion` (it would sign out the whole
+team); reissuing or revoking a code does. `configure-app.ts` sets
+`trust proxy` to loopback so rate limits are per client, not per nginx. Field workers meet participants on site
 and create participant + consent + interview in one idempotent call
 (`POST /field/interviews`, device-generated ids) — offline-capable. Scoping
 is server-side: a user whose only role is `field-interviewer` sees only their
@@ -245,7 +255,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **388 passing, 29 suites** (as of 2026-09-28; the transcription
+Expect **398 passing, 30 suites** (as of 2026-09-28; the transcription
 pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.

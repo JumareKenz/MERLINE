@@ -7,7 +7,12 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  HttpException,
+  Ip,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { FieldLoginLimiter } from './field-login-limiter';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -25,7 +30,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly fieldLoginLimiter: FieldLoginLimiter,
+  ) {}
 
   @Post('register')
   @Public()
@@ -41,11 +49,33 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  /**
+   * Access codes are short, so guessing is what must be prevented: at most
+   * 10 attempts a minute per address, and FieldLoginLimiter blocks an
+   * address after repeated wrong codes (doubling each time).
+   */
   @Post('field-login')
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
-  async fieldLogin(@Body() dto: FieldLoginDto) {
-    return this.authService.fieldLogin(dto);
+  async fieldLogin(@Body() dto: FieldLoginDto, @Ip() ip: string) {
+    const wait = this.fieldLoginLimiter.retryAfterMs(ip);
+    if (wait > 0) {
+      const minutes = Math.ceil(wait / 60_000);
+      throw new HttpException(
+        `Too many wrong codes from this network. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    try {
+      const result = await this.authService.fieldLogin(dto);
+      this.fieldLoginLimiter.recordSuccess(ip);
+      return result;
+    } catch (err) {
+      if (err instanceof UnauthorizedException)
+        this.fieldLoginLimiter.recordFailure(ip);
+      throw err;
+    }
   }
 
   @Post('logout')

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { API } from '@/lib/api-client';
 import { describeError } from '@/lib/errors';
-import type { CreateFieldWorkerInput } from '@/types/field';
+import type { CreateAccessCodeInput } from '@/types/field';
 
 export function useFieldTeam() {
   return useQuery({
@@ -13,13 +13,30 @@ export function useFieldTeam() {
   });
 }
 
-export function useCreateFieldWorker() {
+export function useCreateAccessCode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: CreateFieldWorkerInput) => (await API.fieldTeam.create(data)).data.data,
+    mutationFn: async (data: CreateAccessCodeInput) => (await API.fieldTeam.create(data)).data.data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['field-team'] }),
-    onError: (err) => toast.error(describeError(err, 'The field worker could not be added')),
+    onError: (err) => toast.error(describeError(err, 'The access code could not be created')),
   });
+}
+
+export function useRenameAccessCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, name }: { userId: string; name: string }) => (await API.fieldTeam.rename(userId, name)).data.data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['field-team'] });
+      toast.success('Name updated');
+    },
+    onError: (err) => toast.error(describeError(err, 'The name could not be changed')),
+  });
+}
+
+/** Reads a code back for an administrator to pass on. */
+export async function fetchAccessCode(userId: string): Promise<string | null> {
+  return (await API.fieldTeam.code(userId)).data.data.code;
 }
 
 export function useSetFieldWorkerProjects() {
@@ -50,7 +67,7 @@ export function useRevokeAccessCode() {
     mutationFn: (userId: string) => API.users.revokeFieldAccessCode(userId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['field-team'] });
-      toast.success('Access revoked. The code no longer works.');
+      toast.success('Code revoked. It no longer works, and phones using it are signed out.');
     },
     onError: (err) => toast.error(describeError(err, 'Access could not be revoked')),
   });

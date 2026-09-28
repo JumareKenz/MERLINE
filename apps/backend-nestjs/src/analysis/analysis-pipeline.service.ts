@@ -43,6 +43,21 @@ const INTERVIEW_INCLUDE = {
   consent: true,
 } satisfies Prisma.InterviewInclude;
 
+/**
+ * Who conducted an interview, for reports: the name typed on the field app
+ * (one access code may be shared by a team), "Self-administered" for a
+ * respondent who answered through a link, else the account's name.
+ */
+export function interviewerLabel(iv: {
+  enumeratorName: string | null;
+  respondentLinkId: string | null;
+  interviewer: { firstName: string; lastName: string };
+}): string {
+  if (iv.enumeratorName?.trim()) return iv.enumeratorName.trim();
+  if (iv.respondentLinkId) return 'Self-administered';
+  return `${iv.interviewer.firstName} ${iv.interviewer.lastName}`.trim();
+}
+
 type InterviewRow = Prisma.InterviewGetPayload<{
   include: typeof INTERVIEW_INCLUDE;
 }>;
@@ -262,8 +277,7 @@ export class AnalysisPipelineService {
         { label: 'Location', value: interview.location || 'Not recorded' },
         {
           label: 'Interviewer',
-          value:
-            `${interview.interviewer.firstName} ${interview.interviewer.lastName}`.trim(),
+          value: interviewerLabel(interview),
         },
         { label: 'Participant', value: interview.participant.displayName },
         { label: 'Language', value: languageName(transcript.language) },
@@ -545,7 +559,7 @@ export class AnalysisPipelineService {
             iv.interview.type ?? '—',
             fmtDate(iv.interview.startedAt ?? iv.interview.createdAt),
             iv.interview.location || '—',
-            `${iv.interview.interviewer.firstName} ${iv.interview.interviewer.lastName}`.trim(),
+            interviewerLabel(iv.interview),
             iv.durationMs ? formatTimestamp(iv.durationMs) : '—',
           ]),
         },

@@ -29,6 +29,7 @@ function fromPending(p: PendingInterview): CachedInterview {
     status: 'IN_PROGRESS',
     participantId: p.participantId,
     participantName: p.participant.displayName,
+    enumeratorName: p.enumeratorName,
     projectId: p.projectId,
     location: p.location,
     createdAt: p.createdAt,

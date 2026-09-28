@@ -34,13 +34,13 @@ function AssignmentsView() {
     <div>
       <PageHeader
         title="Assignments"
-        description="Who collects interviews, and for which projects. Field workers sign in to the field app with their access code, meet participants on site, record consent and interview them — offline if they need to."
+        description="Access codes for the field app, and the projects each one opens. Share a code with as many enumerators as you like; each interview records who conducted it. They meet participants on site, record consent and interview them — offline if they need to."
       />
 
       <div role="tablist" aria-label="Assignments" className="mb-6 flex gap-6 border-b border-border-subtle">
         {(
           [
-            ['team', 'Field team'],
+            ['team', 'Access codes'],
             ['booked', `Booked interviews${booked.length ? ` · ${booked.length}` : ''}`],
           ] as [Tab, string][]
         ).map(([key, label]) => (

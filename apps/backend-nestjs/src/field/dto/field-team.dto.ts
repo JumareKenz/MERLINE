@@ -1,7 +1,6 @@
 import {
   ArrayMaxSize,
   IsArray,
-  IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -9,31 +8,28 @@ import {
   MaxLength,
 } from 'class-validator';
 
-export class CreateFieldWorkerDto {
+/**
+ * An access code: a name for it (a team, a place, or a person) and the
+ * projects it opens. Any number of enumerators can sign in with it; each
+ * interview records who conducted it.
+ */
+export class CreateAccessCodeDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  firstName: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  lastName: string;
-
-  /** Optional: many field workers have no work email. */
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(40)
-  phone?: string;
+  name: string;
 
   @IsArray()
   @ArrayMaxSize(200)
   @IsUUID('all', { each: true })
   projectIds: string[];
+}
+
+export class RenameAccessCodeDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  name: string;
 }
 
 export class SetFieldWorkerProjectsDto {

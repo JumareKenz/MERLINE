@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { jwtSignOptions } from './jwt.constants';
 import { PermissionCatalogueSync } from './permission-catalogue.sync';
+import { FieldLoginLimiter } from './field-login-limiter';
 
 @Module({
   imports: [
@@ -24,7 +25,12 @@ import { PermissionCatalogueSync } from './permission-catalogue.sync';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PermissionCatalogueSync],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    PermissionCatalogueSync,
+    FieldLoginLimiter,
+  ],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

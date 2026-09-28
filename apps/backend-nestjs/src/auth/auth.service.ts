@@ -177,15 +177,16 @@ export class AuthService {
    * Field-worker sign-in: exchange an admin-issued access code for a normal
    * session. Same token shape as email/password login — the field app is
    * still just a normal authenticated client afterward, subject to the same
-   * tenancy and permission guards as everyone else. Codes are generated as
-   * XXXXX-XXXXX; this accepts the code with or without the dash and
-   * whitespace, uppercased, so a field worker typing it on a phone doesn't
-   * get tripped up by formatting.
+   * tenancy and permission guards as everyone else. Codes are 4 characters
+   * (older ones XXXXX-XXXXX, still accepted); spaces, dashes and case are
+   * ignored, so a field worker typing it on a phone isn't tripped up by
+   * formatting. One code may be shared by a whole team; each interview
+   * records who conducted it (enumeratorName).
    */
   async fieldLogin(dto: FieldLoginDto) {
-    const normalized = dto.code.trim().toUpperCase().replace(/\s+/g, '');
+    const normalized = dto.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const code =
-      !normalized.includes('-') && normalized.length === 10
+      normalized.length === 10
         ? `${normalized.slice(0, 5)}-${normalized.slice(5)}`
         : normalized;
 
@@ -224,6 +225,17 @@ export class AuthService {
   }
 
   async logout(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { fieldAccessCode: true },
+    });
+    // An access code may be shared by a whole team on many phones. Ending
+    // every session on logout would sign all of them out because one
+    // person tapped "Log out"; that phone just discards its token. An
+    // administrator ends every session by reissuing or revoking the code.
+    if (user?.fieldAccessCode) {
+      return { message: 'Logged out successfully' };
+    }
     await this.prisma.user.update({
       where: { id: userId },
       data: { tokenVersion: { increment: 1 } },

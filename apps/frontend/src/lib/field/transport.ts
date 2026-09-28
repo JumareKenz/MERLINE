@@ -49,6 +49,7 @@ export const apiPendingTransport: PendingInterviewTransport = {
         participant: p.participant,
         consent: p.consent,
         location: p.location,
+        enumeratorName: p.enumeratorName,
         language: p.language,
         questionSetId: p.questionSetId,
       });

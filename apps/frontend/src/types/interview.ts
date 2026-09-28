@@ -14,6 +14,8 @@ export interface Interview {
   type?: string | null;
   /** The interview guide version it uses. */
   questionSetId?: string | null;
+  /** Who conducted it, as typed on the field app (codes may be shared). */
+  enumeratorName?: string | null;
   /** Set when the respondent answered on their own through a shared link. */
   respondentLinkId?: string | null;
   organizationId: string;
