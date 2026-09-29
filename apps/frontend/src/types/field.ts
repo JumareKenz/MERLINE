@@ -22,10 +22,8 @@ export interface FieldGuide {
     order: number;
     section?: string | null;
     text: Record<string, string>;
-    type: 'OPEN' | 'SINGLE' | 'MULTIPLE' | 'SCALE';
-    options: Record<string, string>[];
-    scaleMin?: number | null;
-    scaleMax?: number | null;
+    /** Always open: every question is asked out loud. (A guide cached on a phone before that rule may still carry options; they are ignored.) */
+    type: 'OPEN';
     probes: Record<string, string>;
     required: boolean;
   }[];

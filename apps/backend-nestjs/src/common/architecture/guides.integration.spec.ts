@@ -47,9 +47,8 @@ describeDb('interview guides (database)', () => {
         required: true,
       },
       {
-        text: { en: 'Main water source?' },
-        type: 'SINGLE',
-        options: [{ en: 'Borehole' }, { en: 'River' }],
+        text: { en: 'How does your household get water?' },
+        type: 'OPEN',
       },
     ],
     ...extra,
@@ -282,11 +281,127 @@ describeDb('interview guides (database)', () => {
     ).rejects.toThrow(/not in this interview's guide/);
   });
 
+  it('allows only open questions: choices, options and scales are refused, and never stored', async () => {
+    const q = (extra: Record<string, unknown>) => ({
+      text: { en: 'Tell me about water.' },
+      ...extra,
+    });
+    for (const bad of [
+      q({ type: 'SINGLE' }),
+      q({ type: 'MULTIPLE' }),
+      q({ type: 'SCALE' }),
+      q({ type: 'OPEN', options: [{ en: 'A' }, { en: 'B' }] }),
+      q({ scaleMin: 1, scaleMax: 5 }),
+    ]) {
+      await expect(
+        guides.create(guide('Bad', { questions: [bad] }), userId, orgId),
+      ).rejects.toThrow(/Merline guides are open-ended/);
+    }
+
+    // A question needs no type; whatever is stored is open, with no options.
+    const ok = await guides.create(
+      guide('Open only', { questions: [q({}), q({ type: 'OPEN' })] }),
+      userId,
+      orgId,
+    );
+    expect(
+      ok.questions.map((x) => [x.type, x.options, x.scaleMin, x.scaleMax]),
+    ).toEqual([
+      ['OPEN', [], null, null],
+      ['OPEN', [], null, null],
+    ]);
+  });
+
+  it('never sends options to a device, and turns an older choice guide into open questions when it is edited', async () => {
+    // A guide written before the rule, with choices and a scale.
+    const ownProject = await prisma.project.create({
+      data: {
+        name: 'Older-guide project',
+        settings: { method: 'KII' },
+        organizationId: orgId,
+        createdById: userId,
+      },
+    });
+    const old = await guides.create(
+      guide('Older guide', { projectId: ownProject.id }),
+      userId,
+      orgId,
+    );
+    await prisma.guideQuestion.updateMany({
+      where: { questionSetId: old.id, order: 2 },
+      data: {
+        type: 'SINGLE',
+        options: [{ en: 'Borehole' }, { en: 'River' }],
+      },
+    });
+    await prisma.guideQuestion.create({
+      data: {
+        questionSetId: old.id,
+        order: 3,
+        text: { en: 'How satisfied are you?' },
+        type: 'SCALE',
+        scaleMin: 1,
+        scaleMax: 5,
+      },
+    });
+    await guides.approve(old.id, userId, orgId);
+
+    // History is untouched...
+    const stored = await prisma.guideQuestion.findMany({
+      where: { questionSetId: old.id },
+      orderBy: { order: 'asc' },
+    });
+    expect(stored.map((x) => x.type)).toEqual(['OPEN', 'SINGLE', 'SCALE']);
+
+    // ...but a device is only ever given open questions.
+    const projects = await field.myProjects(userId, orgId);
+    const sent = projects.find((p) => p.id === ownProject.id)?.guide;
+    expect(sent?.id).toBe(old.id);
+    expect(sent?.questions.map((x) => x.type)).toEqual([
+      'OPEN',
+      'OPEN',
+      'OPEN',
+    ]);
+    for (const x of sent?.questions ?? []) {
+      expect(x).not.toHaveProperty('options');
+      expect(x).not.toHaveProperty('scaleMin');
+    }
+
+    // Saving the guide as it was (choices included) is refused; saving it
+    // as open questions makes the next version.
+    const asStored = (await guides.findById(old.id, orgId)).questions.map(
+      (x: any) => ({ text: x.text, type: x.type, options: x.options }),
+    );
+    await expect(
+      guides.save(
+        old.id,
+        guide('Older guide', {
+          projectId: ownProject.id,
+          questions: asStored,
+        }),
+        userId,
+        orgId,
+      ),
+    ).rejects.toThrow(/open-ended/);
+    const v2 = await guides.save(
+      old.id,
+      guide('Older guide', {
+        projectId: ownProject.id,
+        questions: asStored.map((x: any) => ({ text: x.text })),
+      }),
+      userId,
+      orgId,
+    );
+    expect(v2.version).toBe(2);
+    expect(v2.questions.map((x) => x.type)).toEqual(['OPEN', 'OPEN', 'OPEN']);
+  });
+
   it('refuses an upload with problems, listing each, and imports nothing', async () => {
     const before = await prisma.questionSet.count({
       where: { organizationId: orgId },
     });
-    const csv = 'question_en,type,options_en\nPick one,single,Only\n,open,\n';
+    const csv =
+      'question_en,type,options_en\nPick one,single,Only\nAlso,open,A | B\n,open,\n';
     await expect(
       guides.import(
         { buffer: Buffer.from(csv), originalname: 'g.csv' } as any,
@@ -294,7 +409,9 @@ describeDb('interview guides (database)', () => {
         userId,
         orgId,
       ),
-    ).rejects.toMatchObject({ response: { errors: [{ row: 2 }, { row: 3 }] } });
+    ).rejects.toMatchObject({
+      response: { errors: [{ row: 2 }, { row: 3 }, { row: 4 }] },
+    });
     expect(
       await prisma.questionSet.count({ where: { organizationId: orgId } }),
     ).toBe(before);

@@ -1,17 +1,25 @@
 import ExcelJS from 'exceljs';
 
-export const QUESTION_TYPES = ['OPEN', 'SINGLE', 'MULTIPLE', 'SCALE'] as const;
+/**
+ * Merline is a qualitative platform: every question is answered out loud,
+ * in the respondent's own words. Guides have no multiple-choice, checkbox
+ * or rating-scale questions, and none may be created or uploaded.
+ * (Guides made before this rule may still hold such questions in the
+ * database; they are kept as history but always shown and asked as open
+ * questions, and editing one turns them into open questions.)
+ */
+export const QUESTION_TYPES = ['OPEN'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
-/** One question as stored: text, options and probes keyed by language. */
+export const OPEN_ONLY_MESSAGE =
+  'Merline guides are open-ended: questions are answered out loud, in the respondent’s own words. Multiple-choice, checkbox and rating questions are not supported';
+
+/** One question as stored: text and probes keyed by language. */
 export interface ParsedQuestion {
   order: number;
   section?: string;
   text: Record<string, string>;
   type: QuestionType;
-  options: Record<string, string>[];
-  scaleMin?: number;
-  scaleMax?: number;
   probes: Record<string, string>;
   required: boolean;
 }
@@ -23,23 +31,22 @@ export interface ImportResult {
   errors: { row: number; message: string }[];
 }
 
-const TYPE_ALIASES: Record<string, QuestionType> = {
-  open: 'OPEN',
-  'open-ended': 'OPEN',
-  'open ended': 'OPEN',
-  text: 'OPEN',
-  single: 'SINGLE',
-  'single choice': 'SINGLE',
-  'single-choice': 'SINGLE',
-  radio: 'SINGLE',
-  multiple: 'MULTIPLE',
-  'multiple choice': 'MULTIPLE',
-  'multiple-choice': 'MULTIPLE',
-  checkbox: 'MULTIPLE',
-  scale: 'SCALE',
-  rating: 'SCALE',
-  likert: 'SCALE',
-};
+/** What a `type` cell may say. Blank means open. */
+const OPEN_TYPES = new Set(['open', 'open-ended', 'open ended', 'text']);
+/** Types an older template offered: refused, with a message that says why. */
+const CLOSED_TYPES = new Set([
+  'single',
+  'single choice',
+  'single-choice',
+  'radio',
+  'multiple',
+  'multiple choice',
+  'multiple-choice',
+  'checkbox',
+  'scale',
+  'rating',
+  'likert',
+]);
 
 /** Columns of the template, in order. `_xx` columns repeat per language. */
 export const TEMPLATE_COLUMNS = [
@@ -47,11 +54,6 @@ export const TEMPLATE_COLUMNS = [
   'section',
   'question_en',
   'question_ha',
-  'type',
-  'options_en',
-  'options_ha',
-  'scale_min',
-  'scale_max',
   'probes_en',
   'probes_ha',
   'required',
@@ -63,11 +65,6 @@ const EXAMPLE_ROWS = [
     'Introduction',
     'Please tell me about your role in the community.',
     'Don Allah ka gaya mani matsayinka a cikin al’umma.',
-    'open',
-    '',
-    '',
-    '',
-    '',
     'Ask how long they have held the role.',
     'Tambayi tsawon lokacin da ya riƙe matsayin.',
     'yes',
@@ -75,28 +72,18 @@ const EXAMPLE_ROWS = [
   [
     '2',
     'Water access',
-    'What is the main source of drinking water for your household?',
-    'Mene ne babban tushen ruwan sha na gidanku?',
-    'single',
-    'Borehole | River | Vendor | Other',
-    'Rijiyar burtsatse | Kogi | Mai sayar da ruwa | Wani',
-    '',
-    '',
-    '',
-    '',
+    'How does your household get its drinking water, and how has that changed over the years?',
+    'Yaya gidanku ke samun ruwan sha, kuma yaya hakan ya canza cikin shekaru?',
+    'Ask about the source, the distance and who fetches it.',
+    'Tambayi tushen ruwan, nisan wurin da wanda ke ɗebo shi.',
     'yes',
   ],
   [
     '3',
     'Water access',
-    'How satisfied are you with the water supply?',
-    'Yaya gamsuwarka da samar da ruwa?',
-    'scale',
+    'What would you change about the water supply, and why?',
+    'Me za ka canza game da samar da ruwa, kuma me ya sa?',
     '',
-    '',
-    '1',
-    '5',
-    '1 = very dissatisfied, 5 = very satisfied',
     '',
     'no',
   ],
@@ -200,11 +187,6 @@ const truthy = (v: string) =>
   ['yes', 'y', 'true', '1', 'required', 'x'].includes(v.trim().toLowerCase());
 const falsy = (v: string) =>
   ['', 'no', 'n', 'false', '0', 'optional'].includes(v.trim().toLowerCase());
-const splitOptions = (v: string) =>
-  v
-    .split(/\s*[|\n]\s*/)
-    .map((o) => o.trim())
-    .filter(Boolean);
 
 /**
  * Turns uploaded rows into questions, collecting every problem (with the
@@ -257,71 +239,35 @@ export function rowsToQuestions(rows: string[][]): ImportResult {
       return;
     }
 
+    // Older templates had type, options and scale columns. A file that
+    // still fills them in is refused (with the row), never quietly turned
+    // into something the author did not write.
     const rawType = get(col('type')).toLowerCase();
-    const type = rawType
-      ? (TYPE_ALIASES[rawType] ??
-        (QUESTION_TYPES.includes(rawType.toUpperCase() as QuestionType)
-          ? (rawType.toUpperCase() as QuestionType)
-          : undefined))
-      : 'OPEN';
-    if (!type) {
+    if (rawType && !OPEN_TYPES.has(rawType)) {
       errors.push({
         row: rowNo,
-        message: `Unknown type "${get(col('type'))}" (use open, single, multiple or scale)`,
+        message: CLOSED_TYPES.has(rawType)
+          ? `${OPEN_ONLY_MESSAGE}. Ask "${text.en.slice(0, 60)}${text.en.length > 60 ? '…' : ''}" as an open question: set the type to open (or delete the type column) and leave the options empty`
+          : `Unknown type "${get(col('type'))}". Only open questions are supported: use open, or delete the type column`,
       });
       return;
     }
-
-    const optionsBy: Record<string, string[]> = {};
-    for (const lang of languages) {
-      const v = get(langCol('options', lang));
-      if (v) optionsBy[lang] = splitOptions(v);
+    const hasOptions = header.some(
+      (h, i) => (h === 'options' || /^options_[a-z]{2}$/.test(h)) && get(i),
+    );
+    if (hasOptions) {
+      errors.push({
+        row: rowNo,
+        message: `${OPEN_ONLY_MESSAGE}. Remove the answer options from this row (the options_ columns must be empty)`,
+      });
+      return;
     }
-    let options: Record<string, string>[] = [];
-    if (type === 'SINGLE' || type === 'MULTIPLE') {
-      const en = optionsBy.en ?? [];
-      if (en.length < 2) {
-        errors.push({
-          row: rowNo,
-          message:
-            'Choice questions need at least two options in options_en, separated by |',
-        });
-        return;
-      }
-      for (const [lang, list] of Object.entries(optionsBy)) {
-        if (lang !== 'en' && list.length !== en.length) {
-          errors.push({
-            row: rowNo,
-            message: `options_${lang} has ${list.length} options but options_en has ${en.length}`,
-          });
-          return;
-        }
-      }
-      options = en.map((_, i) =>
-        Object.fromEntries(
-          Object.entries(optionsBy).map(([lang, list]) => [lang, list[i]]),
-        ),
-      );
-    }
-
-    let scaleMin: number | undefined;
-    let scaleMax: number | undefined;
-    if (type === 'SCALE') {
-      scaleMin =
-        get(col('scale_min')) === '' ? 1 : Number(get(col('scale_min')));
-      scaleMax =
-        get(col('scale_max')) === '' ? 5 : Number(get(col('scale_max')));
-      if (
-        !Number.isInteger(scaleMin) ||
-        !Number.isInteger(scaleMax) ||
-        scaleMin >= scaleMax
-      ) {
-        errors.push({
-          row: rowNo,
-          message: 'Scale needs whole numbers with scale_min below scale_max',
-        });
-        return;
-      }
+    if (get(col('scale_min')) || get(col('scale_max'))) {
+      errors.push({
+        row: rowNo,
+        message: `${OPEN_ONLY_MESSAGE}. Remove the scale values from this row (scale_min and scale_max must be empty)`,
+      });
+      return;
     }
 
     const req = get(col('required'));
@@ -353,10 +299,7 @@ export function rowsToQuestions(rows: string[][]): ImportResult {
       order,
       section: get(col('section')) || undefined,
       text,
-      type,
-      options,
-      scaleMin,
-      scaleMax,
+      type: 'OPEN',
       probes,
       required: truthy(req),
     });
@@ -414,11 +357,7 @@ export async function templateXlsx(): Promise<Buffer> {
   });
   ws.columns = TEMPLATE_COLUMNS.map((c) => ({
     header: c,
-    width: c.startsWith('question')
-      ? 48
-      : c.startsWith('options') || c.startsWith('probes')
-        ? 36
-        : 12,
+    width: c.startsWith('question') ? 48 : c.startsWith('probes') ? 36 : 12,
   }));
   ws.getRow(1).eachCell((cell) => {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -432,14 +371,6 @@ export async function templateXlsx(): Promise<Buffer> {
     ws.addRow(r).eachCell(
       (c) => (c.alignment = { wrapText: true, vertical: 'top' }),
     );
-  ws.getColumn(5).eachCell((c, n) => {
-    if (n > 1)
-      c.dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: ['"open,single,multiple,scale"'],
-      };
-  });
   const help = wb.addWorksheet('How to fill this in');
   help.columns = [{ width: 16 }, { width: 90 }];
   [
@@ -448,18 +379,14 @@ export async function templateXlsx(): Promise<Buffer> {
       'Position of the question (1, 2, 3…). Leave empty to keep row order.',
     ],
     ['section', 'Optional heading that groups questions, e.g. "Water access".'],
-    ['question_en', 'Required. The question in English.'],
+    [
+      'question_en',
+      'Required. The question in English. Merline interviews are open-ended: write each question so it is answered out loud, in the respondent’s own words (no multiple choice, options or rating scales).',
+    ],
     [
       'question_ha',
       'The question in Hausa. Add question_xx columns for other languages (two-letter code).',
     ],
-    ['type', 'open, single (one answer), multiple (several answers) or scale.'],
-    [
-      'options_en',
-      'For single/multiple: answers separated by |, e.g. Yes | No | Not sure.',
-    ],
-    ['options_ha', 'The same answers in Hausa, in the same order and number.'],
-    ['scale_min / scale_max', 'For scale questions, e.g. 1 and 5 (defaults).'],
     [
       'probes_en / probes_ha',
       'Optional notes for the interviewer: follow-up prompts.',

@@ -9,7 +9,9 @@
  *     no recording without permission, and a withdrawal stops uploads.
  *   - Upload parts are isolated per session; completion attributes the
  *     recording to the link's creator and queues transcription.
- *   - Closed-question answers are validated against the guide.
+ *   - Every question is open: a respondent is never shown answer options,
+ *     even for a guide that once held choices; a stale page's choices are
+ *     accepted but not stored.
  *   - Closing, expiry, response limits and a regenerated URL are honoured.
  *   - Everything admin-side is tenant-scoped.
  *
@@ -46,8 +48,8 @@ describeDb('self-interview links (database)', () => {
   let otherProjectId: string;
   let approvedGuideId: string;
   let openQuestionId: string;
-  let singleQuestionId: string;
-  let scaleQuestionId: string;
+  let secondQuestionId: string;
+  let thirdQuestionId: string;
 
   const secret = () => randomBytes(24).toString('base64url');
   const consent = (over: Record<string, boolean> = {}) => ({
@@ -72,7 +74,10 @@ describeDb('self-interview links (database)', () => {
     );
   }
 
-  async function startSession(token: string, over: Record<string, unknown> = {}) {
+  async function startSession(
+    token: string,
+    over: Record<string, unknown> = {},
+  ) {
     const s = { sessionId: randomUUID(), secret: secret() };
     const res = await respond.start(
       token,
@@ -175,12 +180,8 @@ describeDb('self-interview links (database)', () => {
             type: 'OPEN',
             probes: { en: 'Ask about years in post' },
           },
-          {
-            text: { en: 'Main water source?' },
-            type: 'SINGLE',
-            options: [{ en: 'Borehole' }, { en: 'River' }],
-          },
-          { text: { en: 'How satisfied are you?' }, type: 'SCALE', scaleMin: 1, scaleMax: 5 },
+          { text: { en: 'How does your household get water?' } },
+          { text: { en: 'What would you change about it?' }, type: 'OPEN' },
         ],
       } as any,
       userId,
@@ -188,7 +189,7 @@ describeDb('self-interview links (database)', () => {
     );
     await guides.approve(g.id, userId, orgId);
     approvedGuideId = g.id;
-    [openQuestionId, singleQuestionId, scaleQuestionId] = g.questions.map(
+    [openQuestionId, secondQuestionId, thirdQuestionId] = g.questions.map(
       (q) => q.id,
     );
   }, 60_000);
@@ -234,12 +235,16 @@ describeDb('self-interview links (database)', () => {
       userId,
       orgId,
     );
-    await expect(
-      newLink({ questionSetId: draft.id }),
-    ).rejects.toThrow(/Approve the guide/);
+    await expect(newLink({ questionSetId: draft.id })).rejects.toThrow(
+      /Approve the guide/,
+    );
     await expect(
       links.create(
-        { projectId: otherProjectId, questionSetId: approvedGuideId, title: 'x' } as any,
+        {
+          projectId: otherProjectId,
+          questionSetId: approvedGuideId,
+          title: 'x',
+        } as any,
         userId,
         orgId,
       ),
@@ -330,12 +335,12 @@ describeDb('self-interview links (database)', () => {
     const link = await newLink();
     const other = await newLink();
     const s = await startSession(link.token);
-    await expect(respond.state(link.token, s.sessionId, secret())).rejects.toThrow(
-      /not valid/,
-    );
-    await expect(respond.state(other.token, s.sessionId, s.secret)).rejects.toThrow(
-      /not valid/,
-    );
+    await expect(
+      respond.state(link.token, s.sessionId, secret()),
+    ).rejects.toThrow(/not valid/);
+    await expect(
+      respond.state(other.token, s.sessionId, s.secret),
+    ).rejects.toThrow(/not valid/);
     await expect(respond.state(link.token, s.sessionId, '')).rejects.toThrow();
     await expect(
       respond.state(link.token, s.sessionId, s.secret),
@@ -347,7 +352,9 @@ describeDb('self-interview links (database)', () => {
     const s = await startSession(link.token);
     const { uploadId, media } = await uploadRecording(link.token, s);
 
-    const stored = await prisma.media.findUniqueOrThrow({ where: { id: media.id } });
+    const stored = await prisma.media.findUniqueOrThrow({
+      where: { id: media.id },
+    });
     expect(stored.uploadedById).toBe(userId);
     expect(stored.size).toBe(1700);
     expect(stored.mimeType).toBe('audio/webm');
@@ -386,7 +393,12 @@ describeDb('self-interview links (database)', () => {
     const link = await newLink();
     const s = await startSession(link.token);
     for (let i = 0; i < 5; i++)
-      await respond.uploadStatus(link.token, s.sessionId, s.secret, randomUUID());
+      await respond.uploadStatus(
+        link.token,
+        s.sessionId,
+        s.secret,
+        randomUUID(),
+      );
     await expect(
       respond.uploadStatus(link.token, s.sessionId, s.secret, randomUUID()),
     ).rejects.toThrow(/Too many recordings/);
@@ -396,7 +408,14 @@ describeDb('self-interview links (database)', () => {
     const link = await newLink();
     const s = await startSession(link.token);
     const uploadId = randomUUID();
-    await respond.putPart(link.token, s.sessionId, s.secret, uploadId, 0, randomBytes(10));
+    await respond.putPart(
+      link.token,
+      s.sessionId,
+      s.secret,
+      uploadId,
+      0,
+      randomBytes(10),
+    );
     const session = await prisma.respondentSession.findUniqueOrThrow({
       where: { id: s.sessionId },
       include: { interview: true },
@@ -406,11 +425,18 @@ describeDb('self-interview links (database)', () => {
       data: { withdrawnAt: new Date() },
     });
     await expect(
-      respond.putPart(link.token, s.sessionId, s.secret, uploadId, 1, randomBytes(10)),
+      respond.putPart(
+        link.token,
+        s.sessionId,
+        s.secret,
+        uploadId,
+        1,
+        randomBytes(10),
+      ),
     ).rejects.toThrow(/withdrawn/);
   });
 
-  it('validates closed-question answers and keeps the latest mark', async () => {
+  it('keeps the latest mark per question and stores no chosen answers', async () => {
     const link = await newLink();
     const s = await startSession(link.token);
     const t = (ms: number) => new Date(Date.now() + ms).toISOString();
@@ -420,25 +446,37 @@ describeDb('self-interview links (database)', () => {
         { questionId: randomUUID(), status: 'ASKED', markedAt: t(0) },
       ] as any),
     ).rejects.toThrow(/not part of this interview/);
-    await expect(
-      respond.saveAnswers(link.token, s.sessionId, s.secret, [
-        { questionId: singleQuestionId, status: 'ASKED', selected: [5], markedAt: t(0) },
-      ] as any),
-    ).rejects.toThrow(/not one of the options/);
-    await expect(
-      respond.saveAnswers(link.token, s.sessionId, s.secret, [
-        { questionId: scaleQuestionId, status: 'ASKED', value: 9, markedAt: t(0) },
-      ] as any),
-    ).rejects.toThrow(/from 1 to 5/);
 
     await respond.saveAnswers(link.token, s.sessionId, s.secret, [
       { questionId: openQuestionId, status: 'ASKED', atMs: 0, markedAt: t(0) },
-      { questionId: singleQuestionId, status: 'ASKED', atMs: 30_000, selected: [1], markedAt: t(1) },
-      { questionId: scaleQuestionId, status: 'SKIPPED', markedAt: t(2) },
+      {
+        questionId: secondQuestionId,
+        status: 'ASKED',
+        atMs: 30_000,
+        markedAt: t(1),
+      },
+      { questionId: thirdQuestionId, status: 'SKIPPED', markedAt: t(2) },
     ] as any);
     // An older mark arriving late does not undo a newer one.
     await respond.saveAnswers(link.token, s.sessionId, s.secret, [
-      { questionId: singleQuestionId, status: 'ASKED', selected: [0], markedAt: t(-60_000) },
+      {
+        questionId: secondQuestionId,
+        status: 'ASKED',
+        atMs: 5_000,
+        markedAt: t(-60_000),
+      },
+    ] as any);
+    // A page opened before choices were removed may still send them: the
+    // batch is accepted, and the choice is not stored.
+    await respond.saveAnswers(link.token, s.sessionId, s.secret, [
+      {
+        questionId: openQuestionId,
+        status: 'ASKED',
+        atMs: 0,
+        selected: [1],
+        value: 3,
+        markedAt: t(3),
+      },
     ] as any);
 
     const session = await prisma.respondentSession.findUniqueOrThrow({
@@ -447,19 +485,67 @@ describeDb('self-interview links (database)', () => {
     const log = await prisma.interviewQuestionLog.findMany({
       where: { interviewId: session.interviewId },
     });
-    const single = log.find((l) => l.questionId === singleQuestionId)!;
-    expect(single.answer).toEqual({ selected: [1], labels: ['River'] });
-    expect(single.atMs).toBe(30_000);
-    expect(log.find((l) => l.questionId === scaleQuestionId)!.status).toBe('SKIPPED');
+    expect(log.find((l) => l.questionId === secondQuestionId)!.atMs).toBe(
+      30_000,
+    );
+    expect(log.find((l) => l.questionId === thirdQuestionId)!.status).toBe(
+      'SKIPPED',
+    );
     expect(log).toHaveLength(3);
+    expect(log.every((l) => l.answer === null)).toBe(true);
+  });
+
+  it('shows a respondent open questions only, even for a guide that once had choices', async () => {
+    // A guide written before the rule: a choice and a scale in the database.
+    const old = await guides.create(
+      {
+        title: 'Older KII guide',
+        interviewType: 'KII',
+        projectId,
+        languages: ['en'],
+        linkOnly: true,
+        questions: [
+          { text: { en: 'Your role?' } },
+          { text: { en: 'Source?' } },
+        ],
+      } as any,
+      userId,
+      orgId,
+    );
+    await prisma.guideQuestion.updateMany({
+      where: { questionSetId: old.id, order: 2 },
+      data: { type: 'SINGLE', options: [{ en: 'Borehole' }, { en: 'River' }] },
+    });
+    await prisma.guideQuestion.create({
+      data: {
+        questionSetId: old.id,
+        order: 3,
+        text: { en: 'How satisfied?' },
+        type: 'SCALE',
+        scaleMin: 1,
+        scaleMax: 5,
+      },
+    });
+    await guides.approve(old.id, userId, orgId);
+    const link = await newLink({ questionSetId: old.id });
+
+    const view = await respond.getLink(link.token);
+    expect(view.guide.questions).toHaveLength(3);
+    for (const q of view.guide.questions) {
+      expect(q.type).toBe('OPEN');
+      expect(q).not.toHaveProperty('options');
+      expect(q).not.toHaveProperty('scaleMin');
+      expect(q).not.toHaveProperty('scaleMax');
+    }
+    expect(JSON.stringify(view)).not.toMatch(/Borehole|River/);
   });
 
   it('finishes only with a stored recording, then accepts nothing more', async () => {
     const link = await newLink();
     const s = await startSession(link.token);
-    await expect(respond.finish(link.token, s.sessionId, s.secret)).rejects.toThrow(
-      /not finished uploading/,
-    );
+    await expect(
+      respond.finish(link.token, s.sessionId, s.secret),
+    ).rejects.toThrow(/not finished uploading/);
     await uploadRecording(link.token, s);
     await respond.finish(link.token, s.sessionId, s.secret);
     await respond.finish(link.token, s.sessionId, s.secret); // idempotent
@@ -471,7 +557,14 @@ describeDb('self-interview links (database)', () => {
     expect(session.finishedAt).not.toBeNull();
     expect(session.interview.status).toBe('COMPLETED');
     await expect(
-      respond.putPart(link.token, s.sessionId, s.secret, randomUUID(), 0, randomBytes(5)),
+      respond.putPart(
+        link.token,
+        s.sessionId,
+        s.secret,
+        randomUUID(),
+        0,
+        randomBytes(5),
+      ),
     ).rejects.toThrow(/already submitted/);
     expect((await links.findById(link.id, orgId)).responses).toEqual({
       started: 1,
@@ -480,13 +573,20 @@ describeDb('self-interview links (database)', () => {
   });
 
   it('honours a one-response limit, closing, expiry and a regenerated URL', async () => {
-    const single = await newLink({ maxResponses: 1, respondentName: 'Dr Musa' });
-    expect((await respond.getLink(single.token)).respondentName).toBe('Dr Musa');
+    const single = await newLink({
+      maxResponses: 1,
+      respondentName: 'Dr Musa',
+    });
+    expect((await respond.getLink(single.token)).respondentName).toBe(
+      'Dr Musa',
+    );
     const s = await startSession(single.token);
     await uploadRecording(single.token, s);
     await respond.finish(single.token, s.sessionId, s.secret);
     expect((await respond.getLink(single.token)).state).toBe('full');
-    await expect(startSession(single.token)).rejects.toThrow(/already been used/);
+    await expect(startSession(single.token)).rejects.toThrow(
+      /already been used/,
+    );
 
     const link = await newLink();
     const inProgress = await startSession(link.token);
@@ -537,7 +637,14 @@ describeDb('self-interview links (database)', () => {
     expect(await status(field.id)).toBe('APPROVED');
     expect(await status(forLink.id)).toBe('APPROVED');
     expect(
-      (await GuidesService.approvedFor(prisma as any, orgId, otherProjectId, 'KII'))?.id,
+      (
+        await GuidesService.approvedFor(
+          prisma as any,
+          orgId,
+          otherProjectId,
+          'KII',
+        )
+      )?.id,
     ).toBe(field.id);
 
     // And a new field guide does not displace the link's questions.
@@ -575,8 +682,12 @@ describeDb('self-interview links (database)', () => {
 
   it('keeps links and their responses inside the organization', async () => {
     const link = await newLink();
-    await expect(links.findById(link.id, otherOrgId)).rejects.toThrow(/not found/);
-    await expect(links.responses(link.id, otherOrgId)).rejects.toThrow(/not found/);
+    await expect(links.findById(link.id, otherOrgId)).rejects.toThrow(
+      /not found/,
+    );
+    await expect(links.responses(link.id, otherOrgId)).rejects.toThrow(
+      /not found/,
+    );
     await expect(links.close(link.id, otherOrgId)).rejects.toThrow(/not found/);
     expect(
       (await links.list(otherOrgId, {})).some((l) => l.id === link.id),

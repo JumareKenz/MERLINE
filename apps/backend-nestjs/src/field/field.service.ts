@@ -118,10 +118,10 @@ export class FieldService extends BaseService {
               order: q.order,
               section: q.section,
               text: q.text,
-              type: q.type,
-              options: q.options,
-              scaleMin: q.scaleMin,
-              scaleMax: q.scaleMax,
+              // Every question is asked out loud. A guide written before
+              // that rule may still hold options in the database; they
+              // are never sent to a device.
+              type: 'OPEN' as const,
               probes: q.probes,
               required: q.required,
             })),

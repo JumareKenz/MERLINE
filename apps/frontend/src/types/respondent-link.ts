@@ -71,10 +71,8 @@ export interface PublicQuestion {
   order: number;
   section?: string | null;
   text: Localized;
+  /** Always open: questions are answered out loud, never picked from a list. */
   type: QuestionType;
-  options: Localized[];
-  scaleMin?: number | null;
-  scaleMax?: number | null;
   required: boolean;
 }
 

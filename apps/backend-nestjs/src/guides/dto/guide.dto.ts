@@ -4,19 +4,18 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEmpty,
   IsIn,
-  IsInt,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
-  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
 import { INTERVIEW_TYPES } from '../../common/research/interview-type';
-import { QUESTION_TYPES } from '../guide-import';
+import { OPEN_ONLY_MESSAGE, QUESTION_TYPES } from '../guide-import';
 
 export class GuideQuestionDto {
   @IsOptional()
@@ -28,21 +27,25 @@ export class GuideQuestionDto {
   @IsObject()
   text: Record<string, string>;
 
-  @IsIn(QUESTION_TYPES)
-  type: string;
+  /** Only open questions exist. Optional so a plain question needs no type. */
+  @IsOptional()
+  @IsIn(QUESTION_TYPES, { message: OPEN_ONLY_MESSAGE })
+  type?: string;
 
+  // The three below are rejected rather than dropped: a client that still
+  // sends them (an old browser tab, a script) is told why, instead of
+  // having its choices silently discarded.
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(0, { message: OPEN_ONLY_MESSAGE })
   options?: Record<string, string>[];
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
+  @IsEmpty({ message: OPEN_ONLY_MESSAGE })
   scaleMin?: number;
 
   @IsOptional()
-  @IsInt()
+  @IsEmpty({ message: OPEN_ONLY_MESSAGE })
   scaleMax?: number;
 
   @IsOptional()

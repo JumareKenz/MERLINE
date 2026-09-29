@@ -1,20 +1,39 @@
-export type QuestionType = 'OPEN' | 'SINGLE' | 'MULTIPLE' | 'SCALE';
+/**
+ * Merline is qualitative: every question is answered out loud, in the
+ * respondent's own words. There are no choice, checkbox or rating questions.
+ */
+export type QuestionType = 'OPEN';
+/**
+ * What the API may still return for a guide written before that rule. Such
+ * a question is kept as history but is always asked (and shown) as an open
+ * question, and editing the guide turns it into one.
+ */
+export type StoredQuestionType = QuestionType | 'SINGLE' | 'MULTIPLE' | 'SCALE';
 export type GuideStatus = 'DRAFT' | 'APPROVED' | 'ARCHIVED';
 /** Text by language code, e.g. { en: '…', ha: '…' }. */
 export type Localized = Record<string, string>;
 
-export interface GuideQuestion {
-  id?: string;
-  order?: number;
+/** A question as the editor sends it: text, probes and whether it is required. */
+export interface GuideQuestionInput {
   section?: string | null;
   text: Localized;
-  type: QuestionType;
-  options: Localized[];
-  scaleMin?: number | null;
-  scaleMax?: number | null;
   probes: Localized;
   required: boolean;
 }
+
+/** A question as the API returns it. */
+export interface GuideQuestion extends GuideQuestionInput {
+  id?: string;
+  order?: number;
+  type: StoredQuestionType;
+  /** Only on a guide written before choices were removed. */
+  options?: Localized[];
+  scaleMin?: number | null;
+  scaleMax?: number | null;
+}
+
+/** True for a stored question that once had choices or a scale. */
+export const wasClosedQuestion = (q: Pick<GuideQuestion, 'type'>): boolean => q.type !== 'OPEN';
 
 export interface Guide {
   id: string;
@@ -47,7 +66,7 @@ export interface SaveGuideInput {
   interviewType: string;
   languages: string[];
   projectId?: string | null;
-  questions: GuideQuestion[];
+  questions: GuideQuestionInput[];
 }
 
 export interface QuestionLogEntry {
@@ -72,13 +91,6 @@ export interface ImportProblem {
   row: number;
   message: string;
 }
-
-export const QUESTION_TYPES: { value: QuestionType; label: string }[] = [
-  { value: 'OPEN', label: 'Open-ended' },
-  { value: 'SINGLE', label: 'Single choice' },
-  { value: 'MULTIPLE', label: 'Multiple choice' },
-  { value: 'SCALE', label: 'Scale' },
-];
 
 /** The text in `lang`, falling back to English. */
 export function localized(value: Localized | undefined | null, lang: string): string {

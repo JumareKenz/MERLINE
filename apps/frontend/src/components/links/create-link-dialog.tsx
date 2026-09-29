@@ -239,7 +239,7 @@ export function CreateLinkDialog({
                   </button>
                 </p>
                 <p className="text-[13px] text-foreground-tertiary">
-                  Saved under Guides for this link only. Field teams’ guides are not changed.
+                  Open-ended questions only (answered out loud, no multiple choice or rating scales). Saved under Guides for this link only; field teams’ guides are not changed.
                 </p>
               </div>
             ) : (

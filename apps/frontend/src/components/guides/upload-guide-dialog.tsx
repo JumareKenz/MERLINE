@@ -64,7 +64,7 @@ export function UploadGuideDialog({ open, onOpenChange }: { open: boolean; onOpe
         <DialogHeader>
           <DialogTitle>Upload a guide</DialogTitle>
           <DialogDescription>
-            A CSV or Excel file with one question per row. It becomes a draft you can check and edit before approving.
+            A CSV or Excel file with one question per row. It becomes a draft you can check and edit before approving. Questions must be open-ended, answered out loud: no multiple choice, options or rating scales.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">

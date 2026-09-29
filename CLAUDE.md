@@ -193,6 +193,17 @@ in the IndexedDB snapshot; asked/skipped marks go to the `questionLog` store
 `markedAt` wins). `atMs` is the live recording position; `recordingRef` is
 the local recording id, which is the stored media's `metadata.uploadId`.
 CSV/XLSX import: `guide-import.ts` (template at `GET /guides/template`).
+**Guides are open-ended only** — Merline is qualitative, every question is
+answered out loud; there are no choice, checkbox or rating questions. The
+template has no type/options/scale columns; an uploaded file that still
+fills them in is refused row by row (`OPEN_ONLY_MESSAGE`); the DTO and
+`GuidesService` refuse them on create/save; `writeQuestions` always stores
+`OPEN`. Older guides may still hold `SINGLE`/`MULTIPLE`/`SCALE` rows in the
+database (kept as history, untouched): the field app payload
+(`FieldService.myProjects`) and the respondent link (`getLink`) send every
+question as `OPEN` with no options, the editor turns them into open
+questions on save (with a notice), and `interview_question_logs.answer`
+keeps only what earlier guides recorded (nothing new is written).
 
 **16. Self-interview links (self-administered KII).** `src/respondent-links`
 (tables `respondent_links`, `respondent_sessions`). Admin page: Self-interviews
@@ -205,7 +216,7 @@ participant + DIGITAL consent (the exact consent text is kept in its
 metadata) + interview with `respondentLinkId`; interviewer, consent actor and
 uploader are the link's creator. One continuous recording per respondent
 (reports read one transcript per interview); question start times go to the
-question log, closed answers to `interview_question_logs.answer`. Upload
+question log (asked/skipped only; no chosen answers). Upload
 parts are keyed `respondent-<sessionId>` so sessions cannot touch each
 other's uploads. The respondent page uses its own fetch client
 (`lib/respond/api.ts`), never `apiClient` (which signs users out on 401).
@@ -265,7 +276,7 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **411 passing, 31 suites** (as of 2026-09-29; the transcription
+Expect **417 passing, 31 suites** (as of 2026-09-30; the transcription
 pipeline suite also needs `ffmpeg`). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.

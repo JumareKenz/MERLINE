@@ -89,8 +89,6 @@ export interface AnswerEntry {
   status: 'ASKED' | 'SKIPPED';
   atMs?: number;
   recordingRef?: string;
-  selected?: number[];
-  value?: number;
   markedAt: string;
 }
 

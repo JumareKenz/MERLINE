@@ -86,14 +86,18 @@ export class RespondentAnswerEntryDto {
   @IsUUID()
   recordingRef?: string;
 
-  /** SINGLE/MULTIPLE: indexes of the chosen options. */
+  /**
+   * Ignored. Questions are answered out loud; nothing is chosen from a
+   * list. Still accepted so a page opened before that rule (an old tab)
+   * does not have its whole batch of marks rejected.
+   */
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
   @IsInt({ each: true })
   selected?: number[];
 
-  /** SCALE: the value chosen. */
+  /** Ignored, like `selected`. */
   @IsOptional()
   @IsInt()
   value?: number;

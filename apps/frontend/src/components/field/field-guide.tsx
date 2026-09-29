@@ -106,20 +106,6 @@ export function FieldGuide({ interviewId, guide, language, live, readOnly }: Pro
           {t(q.text, lang)}
           {q.required && <span className="ml-1.5 align-middle text-[12px] font-semibold text-error" aria-label="required">*</span>}
         </p>
-        {(q.type === 'SINGLE' || q.type === 'MULTIPLE') && q.options.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5" aria-label={q.type === 'SINGLE' ? 'Possible answers (one)' : 'Possible answers (several)'}>
-            {q.options.map((o, j) => (
-              <li key={j} className="rounded-full bg-field-card px-3 py-1 text-[14px] text-foreground-secondary ring-1 ring-field-line">
-                {t(o, lang)}
-              </li>
-            ))}
-          </ul>
-        )}
-        {q.type === 'SCALE' && (
-          <p className="text-[14px] text-foreground-secondary">
-            Scale {q.scaleMin ?? 1} to {q.scaleMax ?? 5}
-          </p>
-        )}
         {t(q.probes, lang) && (
           <details className="rounded-xl bg-lemon-50 px-3.5 py-2.5 text-[15px] text-foreground dark:bg-lemon-900/20" open={big}>
             <summary className="cursor-pointer text-[13px] font-semibold uppercase tracking-[0.06em] text-lemon-800 dark:text-lemon-300">Probe</summary>

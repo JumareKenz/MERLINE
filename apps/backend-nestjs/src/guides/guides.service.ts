@@ -7,7 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { ImportGuideDto, SaveGuideDto } from './dto/guide.dto';
-import { parseGuideFile } from './guide-import';
+import { OPEN_ONLY_MESSAGE, parseGuideFile } from './guide-import';
 
 const QUESTIONS = { orderBy: { order: 'asc' } } as const;
 
@@ -306,21 +306,15 @@ export class GuidesService {
       const n = i + 1;
       if (!q.text?.en?.trim())
         throw new BadRequestException(`Question ${n} needs English text`);
+      // The DTO refuses these too; this is the rule for any caller that
+      // reaches the service directly.
       if (
-        (q.type === 'SINGLE' || q.type === 'MULTIPLE') &&
-        (q.options?.filter((o) => o?.en?.trim()).length ?? 0) < 2
+        (q.type && q.type !== 'OPEN') ||
+        (q.options?.length ?? 0) > 0 ||
+        q.scaleMin != null ||
+        q.scaleMax != null
       ) {
-        throw new BadRequestException(
-          `Question ${n} needs at least two options`,
-        );
-      }
-      if (q.type === 'SCALE') {
-        const min = q.scaleMin ?? 1;
-        const max = q.scaleMax ?? 5;
-        if (min >= max)
-          throw new BadRequestException(
-            `Question ${n}: the scale minimum must be below the maximum`,
-          );
+        throw new BadRequestException(`Question ${n}: ${OPEN_ONLY_MESSAGE}`);
       }
     });
   }
@@ -354,13 +348,10 @@ export class GuidesService {
         order: i + 1,
         section: q.section?.trim() || null,
         text: clean(q.text),
-        type: q.type,
-        options:
-          q.type === 'SINGLE' || q.type === 'MULTIPLE'
-            ? (q.options ?? []).map(clean).filter((o) => o.en)
-            : [],
-        scaleMin: q.type === 'SCALE' ? (q.scaleMin ?? 1) : null,
-        scaleMax: q.type === 'SCALE' ? (q.scaleMax ?? 5) : null,
+        type: 'OPEN',
+        options: [],
+        scaleMin: null,
+        scaleMax: null,
         probes: clean(q.probes),
         required: !!q.required,
       })),

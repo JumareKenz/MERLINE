@@ -97,10 +97,11 @@ export class RespondService {
           order: q.order,
           section: q.section,
           text: q.text,
-          type: q.type,
-          options: q.options,
-          scaleMin: q.scaleMin,
-          scaleMax: q.scaleMax,
+          // Every question is answered out loud, in the respondent's own
+          // words. A guide written before that rule may still hold answer
+          // options in the database (kept as history); a respondent never
+          // sees them.
+          type: 'OPEN' as const,
           required: q.required,
         })),
       },
@@ -120,7 +121,10 @@ export class RespondService {
       where: { id: dto.sessionId },
     });
     if (existing) {
-      if (existing.linkId !== link.id || !sameHash(existing.secretHash, secretHash))
+      if (
+        existing.linkId !== link.id ||
+        !sameHash(existing.secretHash, secretHash)
+      )
         throw new ConflictException('This session id is already in use');
       return this.state(token, dto.sessionId, dto.secret);
     }
@@ -145,7 +149,9 @@ export class RespondService {
             metadata: jsonObject({
               selfEnrolled: true,
               respondentLinkId: link.id,
-              ...(dto.respondent.role?.trim() && { role: dto.respondent.role.trim() }),
+              ...(dto.respondent.role?.trim() && {
+                role: dto.respondent.role.trim(),
+              }),
               ...(dto.respondent.organisation?.trim() && {
                 organisation: dto.respondent.organisation.trim(),
               }),
@@ -364,7 +370,9 @@ export class RespondService {
     const latest = new Map<string, RespondentAnswerEntryDto>();
     for (const e of entries) {
       if (!byId.has(e.questionId))
-        throw new BadRequestException('A question is not part of this interview');
+        throw new BadRequestException(
+          'A question is not part of this interview',
+        );
       const prev = latest.get(e.questionId);
       if (!prev || Date.parse(e.markedAt) >= Date.parse(prev.markedAt))
         latest.set(e.questionId, e);
@@ -372,8 +380,6 @@ export class RespondService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const e of latest.values()) {
-        const q = byId.get(e.questionId)!;
-        const answer = e.status === 'ASKED' ? this.answerFor(q, e) : null;
         const markedAt = new Date(e.markedAt);
         const existing = await tx.interviewQuestionLog.findUnique({
           where: {
@@ -388,7 +394,9 @@ export class RespondService {
           status: e.status,
           atMs: e.atMs ?? null,
           recordingRef: e.recordingRef ?? null,
-          answer: answer ?? Prisma.DbNull,
+          // Answers are spoken and recorded. Nothing is picked from a
+          // list, so there is no separate answer to store (the column
+          // keeps what earlier, choice-based guides recorded).
           markedAt,
           recordedById: session.link.createdById,
         };
@@ -458,7 +466,11 @@ export class RespondService {
 
   private completedCount(linkId: string) {
     return this.prisma.respondentSession.count({
-      where: { linkId, finishedAt: { not: null }, interview: { deletedAt: null } },
+      where: {
+        linkId,
+        finishedAt: { not: null },
+        interview: { deletedAt: null },
+      },
     });
   }
 
@@ -489,7 +501,9 @@ export class RespondService {
     )
       throw new UnauthorizedException('This session is not valid');
     if (session.interview.deletedAt)
-      throw new GoneException('This interview was removed by the research team.');
+      throw new GoneException(
+        'This interview was removed by the research team.',
+      );
     return session;
   }
 
@@ -499,7 +513,10 @@ export class RespondService {
   }
 
   private assertRecordingAllowed(session: SessionRow) {
-    const reason = consentBlockReason(session.interview.consent, 'allowRecording');
+    const reason = consentBlockReason(
+      session.interview.consent,
+      'allowRecording',
+    );
     if (reason) throw new ForbiddenException(reason);
   }
 
@@ -519,41 +536,5 @@ export class RespondService {
       data: { uploadIds: { push: uploadId } },
     });
     session.uploadIds.push(uploadId);
-  }
-
-  /** A closed question's answer, checked against the question. */
-  private answerFor(
-    q: {
-      type: string;
-      options: Prisma.JsonValue;
-      scaleMin: number | null;
-      scaleMax: number | null;
-    },
-    e: RespondentAnswerEntryDto,
-  ): Prisma.InputJsonObject | null {
-    if (q.type === 'SINGLE' || q.type === 'MULTIPLE') {
-      if (!e.selected?.length) return null;
-      const options = (Array.isArray(q.options) ? q.options : []) as {
-        en?: string;
-      }[];
-      const selected = [...new Set(e.selected)];
-      if (q.type === 'SINGLE' && selected.length > 1)
-        throw new BadRequestException('Choose one answer only');
-      if (selected.some((i) => i < 0 || i >= options.length))
-        throw new BadRequestException('That answer is not one of the options');
-      return {
-        selected,
-        labels: selected.map((i) => options[i]?.en ?? ''),
-      };
-    }
-    if (q.type === 'SCALE') {
-      if (e.value === undefined) return null;
-      const min = q.scaleMin ?? 1;
-      const max = q.scaleMax ?? 5;
-      if (e.value < min || e.value > max)
-        throw new BadRequestException(`Choose a value from ${min} to ${max}`);
-      return { value: e.value };
-    }
-    return null;
   }
 }

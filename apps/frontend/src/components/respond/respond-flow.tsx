@@ -13,7 +13,7 @@ import { StreamUploader, type UploadProgress } from '@/lib/respond/uploader';
 import { languageLabel } from '@/lib/languages';
 import { cn, formatDuration } from '@/lib/utils';
 import type { PublicLink, PublicQuestion } from '@/types/respondent-link';
-import { QuestionView, isAnswered, localized, type ClosedAnswer } from './question-view';
+import { QuestionView, localized } from './question-view';
 
 type Stage =
   | 'loading'
@@ -337,25 +337,6 @@ export function RespondFlow({ token }: { token: string }) {
     },
     [questions, remember],
   );
-
-  const setClosedAnswer = (question: PublicQuestion, a: ClosedAnswer) => {
-    setAnswers((prev) => {
-      const cur = prev[question.id];
-      const next = {
-        ...prev,
-        [question.id]: {
-          questionId: question.id,
-          status: 'ASKED' as const,
-          atMs: cur?.atMs,
-          recordingRef: cur?.recordingRef,
-          ...a,
-          markedAt: new Date().toISOString(),
-        },
-      };
-      remember({ answers: next });
-      return next;
-    });
-  };
 
   const syncAnswers = useCallback(() => {
     const s = saved.current;
@@ -725,8 +706,6 @@ export function RespondFlow({ token }: { token: string }) {
 
   if (stage === 'interview' && q) {
     const last = index === questions.length - 1;
-    const answer = answers[q.id] as ClosedAnswer | undefined;
-    const needsAnswer = q.required && q.type !== 'OPEN' && !isAnswered(q, answer);
     const recording = rec.phase === 'recording';
     return (
       <Shell link={link} wide>
@@ -740,7 +719,7 @@ export function RespondFlow({ token }: { token: string }) {
         </div>
 
         <Card>
-          <QuestionView q={q} lang={lang} answer={answer} onAnswer={(a) => setClosedAnswer(q, a)} />
+          <QuestionView q={q} lang={lang} />
         </Card>
 
         <div className={cn('mt-4 flex items-center gap-4 rounded-2xl px-5 py-4 text-white transition-colors', recording ? 'bg-navy-deep' : 'bg-navy')}>
@@ -790,16 +769,15 @@ export function RespondFlow({ token }: { token: string }) {
             </Button>
           )}
           {last ? (
-            <Button size="lg" className="flex-1" disabled={needsAnswer} onClick={() => void submit()}>
+            <Button size="lg" className="flex-1" onClick={() => void submit()}>
               Finish and send <CheckCircle2 className="h-5 w-5" aria-hidden />
             </Button>
           ) : (
-            <Button size="lg" className="flex-1" disabled={needsAnswer} onClick={() => go(index + 1)}>
+            <Button size="lg" className="flex-1" onClick={() => go(index + 1)}>
               Next question <ArrowRight className="h-5 w-5" aria-hidden />
             </Button>
           )}
         </div>
-        {needsAnswer && <p className="mt-2 text-[13px] text-foreground-tertiary">Choose an answer to continue.</p>}
         {rec.phase === 'stopped' && (
           <div className="mt-4">
             <Notice>
@@ -851,13 +829,7 @@ export function RespondFlow({ token }: { token: string }) {
               <li key={question.id} className="flex gap-3">
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[13px] font-semibold text-primary-700">{i + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <QuestionView
-                    compact
-                    q={question}
-                    lang={lang}
-                    answer={answers[question.id] as ClosedAnswer | undefined}
-                    onAnswer={(a) => setClosedAnswer(question, a)}
-                  />
+                  <QuestionView compact q={question} lang={lang} />
                 </div>
               </li>
             ))}

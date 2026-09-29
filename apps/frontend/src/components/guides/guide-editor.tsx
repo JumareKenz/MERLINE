@@ -18,11 +18,11 @@ import { useResearchProjects } from '@/hooks/use-research-projects';
 import { useSession } from '@/hooks/use-session';
 import { INTERVIEW_LANGUAGES } from '@/lib/languages';
 import { formatDate } from '@/lib/utils';
-import type { Guide, GuideQuestion, SaveGuideInput } from '@/types/guide';
+import { wasClosedQuestion, type Guide, type GuideQuestionInput, type SaveGuideInput } from '@/types/guide';
 import { INTERVIEW_TYPE_LABELS } from '@/types/research-project';
 import { toast } from 'sonner';
 
-const blankQuestion = (): GuideQuestion => ({ text: { en: '' }, type: 'OPEN', options: [], probes: {}, required: false });
+const blankQuestion = (): GuideQuestionInput => ({ text: { en: '' }, probes: {}, required: false });
 
 function toInput(g?: Guide): SaveGuideInput {
   return {
@@ -31,7 +31,9 @@ function toInput(g?: Guide): SaveGuideInput {
     interviewType: g?.interviewType ?? 'KII',
     languages: g?.languages ?? ['en', 'ha'],
     projectId: g?.projectId ?? null,
-    questions: g?.questions?.map((q) => ({ ...q, options: q.options ?? [], probes: q.probes ?? {} })) ?? [blankQuestion()],
+    // Only the words are carried over. A question that had choices or a
+    // scale in an older guide becomes an open question here.
+    questions: g?.questions?.map((q) => ({ section: q.section ?? null, text: q.text, probes: q.probes ?? {}, required: q.required })) ?? [blankQuestion()],
   };
 }
 
@@ -69,7 +71,9 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
     [form],
   );
 
-  const setQuestion = (i: number, q: GuideQuestion) => setForm((f) => ({ ...f, questions: f.questions.map((x, j) => (j === i ? q : x)) }));
+  // Questions of an older guide that had answer options or a rating scale.
+  const legacyCount = useMemo(() => guide?.questions?.filter(wasClosedQuestion).length ?? 0, [guide]);
+  const setQuestion = (i: number, q: GuideQuestionInput) => setForm((f) => ({ ...f, questions: f.questions.map((x, j) => (j === i ? q : x)) }));
   const move = (i: number, d: -1 | 1) =>
     setForm((f) => {
       const qs = [...f.questions];
@@ -200,10 +204,18 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
               </h2>
               {missing > 0 && !readOnly && <p className="text-[13px] text-warning">{missing} translation{missing === 1 ? '' : 's'} missing</p>}
             </div>
+            {legacyCount > 0 && (
+              <p className="mb-4 rounded-lg bg-warning-bg px-4 py-3 text-[14px] leading-relaxed text-foreground" role="status">
+                {legacyCount} question{legacyCount === 1 ? '' : 's'} in this guide had answer options or a rating scale. Merline interviews are open-ended, so{' '}
+                {legacyCount === 1 ? 'it is' : 'they are'} asked as open questions, and{' '}
+                {readOnly ? 'editing the guide removes the options' : 'the options are removed when you save'}. Check the wording still works as an open question.
+              </p>
+            )}
             <ol className="space-y-4">
               {form.questions.map((q, i) => (
                 <QuestionCard
                   key={i}
+                  wasChoice={!!guide?.questions?.[i] && wasClosedQuestion(guide.questions[i])}
                   index={i}
                   total={form.questions.length}
                   question={q}

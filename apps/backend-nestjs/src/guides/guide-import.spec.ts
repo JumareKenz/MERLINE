@@ -1,6 +1,8 @@
 import {
+  TEMPLATE_COLUMNS,
   parseCsv,
   parseGuideFile,
+  parseXlsx,
   rowsToQuestions,
   templateCsv,
   templateXlsx,
@@ -32,6 +34,15 @@ describe('guide import', () => {
       'section',
       'question_en',
       'question_ha',
+      'probes_en',
+      'required',
+    ];
+    /** The columns an older template had: files made from it still arrive. */
+    const legacyHeader = [
+      'order',
+      'section',
+      'question_en',
+      'question_ha',
       'type',
       'options_en',
       'options_ha',
@@ -41,63 +52,90 @@ describe('guide import', () => {
       'required',
     ];
 
-    it('builds questions with languages, options, scales, probes and order', () => {
+    it('builds open questions with languages, probes and order', () => {
       const result = rowsToQuestions([
         header,
-        [
-          '2',
-          'Water',
-          'Main source?',
-          'Babban tushe?',
-          'single',
-          'Borehole | River',
-          'Burtsatse | Kogi',
-          '',
-          '',
-          '',
-          'yes',
-        ],
-        ['1', '', 'Your role?', '', '', '', '', '', '', 'Ask how long', 'no'],
-        ['3', '', 'Satisfaction?', '', 'Likert', '', '', '0', '10', '', ''],
+        ['2', 'Water', 'Main source?', 'Babban tushe?', '', 'yes'],
+        ['1', '', 'Your role?', '', 'Ask how long', 'no'],
       ]);
       expect(result.errors).toEqual([]);
       expect(result.languages).toEqual(['en', 'ha']);
       expect(result.questions.map((q) => [q.order, q.text.en, q.type])).toEqual(
         [
           [1, 'Your role?', 'OPEN'],
-          [2, 'Main source?', 'SINGLE'],
-          [3, 'Satisfaction?', 'SCALE'],
+          [2, 'Main source?', 'OPEN'],
         ],
       );
-      expect(result.questions[1].options).toEqual([
-        { en: 'Borehole', ha: 'Burtsatse' },
-        { en: 'River', ha: 'Kogi' },
-      ]);
       expect(result.questions[1].required).toBe(true);
       expect(result.questions[0].probes).toEqual({ en: 'Ask how long' });
-      expect([
-        result.questions[2].scaleMin,
-        result.questions[2].scaleMax,
-      ]).toEqual([0, 10]);
+      // Nothing about choices or scales exists on a parsed question.
+      expect(Object.keys(result.questions[0]).sort()).toEqual(
+        ['order', 'probes', 'required', 'section', 'text', 'type'].sort(),
+      );
     });
 
-    it('reports every problem with the row number the author sees', () => {
+    it('accepts an older-template file whose type says open and whose options are empty', () => {
       const result = rowsToQuestions([
-        header,
-        ['1', '', '', 'Tambaya', 'open', '', '', '', '', '', ''],
-        ['2', '', 'Pick one', '', 'single', 'Only one', '', '', '', '', ''],
-        ['3', '', 'Pick', '', 'single', 'A | B', 'A', '', '', '', ''],
-        ['4', '', 'Rate', '', 'scale', '', '', '5', '1', '', ''],
-        ['5', '', 'Why', '', 'essay', '', '', '', '', '', ''],
-        ['6', '', 'Ok', '', 'open', '', '', '', '', '', 'maybe'],
+        legacyHeader,
+        ['1', '', 'Your role?', '', 'open', '', '', '', '', '', 'no'],
+        ['2', '', 'Why?', '', '', '', '', '', '', '', 'no'],
+        ['3', '', 'How?', '', 'Text', '', '', '', '', '', 'no'],
+      ]);
+      expect(result.errors).toEqual([]);
+      expect(result.questions.map((q) => q.type)).toEqual([
+        'OPEN',
+        'OPEN',
+        'OPEN',
+      ]);
+    });
+
+    it('refuses choice, checkbox and rating questions, with the row and what to do', () => {
+      const result = rowsToQuestions([
+        legacyHeader,
+        ['1', '', 'Fine', '', 'open', '', '', '', '', '', 'no'],
+        ['2', '', 'Main source?', '', 'single', 'A | B', '', '', '', '', ''],
+        ['3', '', 'Which?', '', 'Multiple choice', '', '', '', '', '', ''],
+        ['4', '', 'Rate it', '', 'scale', '', '', '1', '5', '', ''],
+        ['5', '', 'Rate it', '', 'Likert', '', '', '', '', '', ''],
+        ['6', '', 'Why', '', 'essay', '', '', '', '', '', ''],
+      ]);
+      // The valid row parses; the import as a whole is refused because
+      // errors exist (see GuidesService.import), so nothing is saved.
+      expect(result.questions.map((q) => q.text.en)).toEqual(['Fine']);
+      expect(result.errors.map((e) => e.row)).toEqual([3, 4, 5, 6, 7]);
+      for (const e of result.errors.slice(0, 4)) {
+        expect(e.message).toMatch(/Merline guides are open-ended/);
+        expect(e.message).toMatch(/set the type to open/);
+      }
+      expect(result.errors[0].message).toMatch(/"Main source\?"/);
+      expect(result.errors[4].message).toMatch(/Unknown type "essay"/);
+    });
+
+    it('refuses answer options and scale values even when the type says open', () => {
+      const result = rowsToQuestions([
+        legacyHeader,
+        ['1', '', 'Why?', '', 'open', 'Yes | No', '', '', '', '', ''],
+        ['2', '', 'Why?', '', 'open', '', 'Eh | A’a', '', '', '', ''],
+        ['3', '', 'Why?', '', '', '', '', '1', '5', '', ''],
       ]);
       expect(result.questions).toHaveLength(0);
-      expect(result.errors.map((e) => e.row)).toEqual([2, 3, 4, 5, 6, 7]);
-      expect(result.errors[1].message).toMatch(/at least two options/);
-      expect(result.errors[2].message).toMatch(
-        /options_ha has 1 options but options_en has 2/,
+      expect(result.errors).toHaveLength(3);
+      expect(result.errors[0].message).toMatch(
+        /options_ columns must be empty/,
       );
-      expect(result.errors[4].message).toMatch(/Unknown type "essay"/);
+      expect(result.errors[2].message).toMatch(/scale_min and scale_max/);
+    });
+
+    it('still reports the other problems by row', () => {
+      const result = rowsToQuestions([
+        header,
+        ['1', '', '', 'Tambaya', '', ''],
+        ['2', '', 'Ok', '', '', 'maybe'],
+        ['x', '', 'Ok', '', '', ''],
+      ]);
+      expect(result.errors.map((e) => e.row)).toEqual([2, 3, 4]);
+      expect(result.errors[0].message).toMatch(/question_en/);
+      expect(result.errors[1].message).toMatch(/required must be yes or no/);
     });
 
     it('requires English question text', () => {
@@ -106,7 +144,7 @@ describe('guide import', () => {
     });
   });
 
-  it('parses its own CSV and Excel templates without errors', async () => {
+  it('parses its own CSV and Excel templates without errors, and they hold only open questions', async () => {
     for (const [buf, name] of [
       [Buffer.from(templateCsv()), 'template.csv'],
       [await templateXlsx(), 'template.xlsx'],
@@ -114,11 +152,22 @@ describe('guide import', () => {
       const result = await parseGuideFile(buf, name);
       expect(result.errors).toEqual([]);
       expect(result.questions).toHaveLength(3);
-      expect(result.questions[1].options[0]).toEqual({
-        en: 'Borehole',
-        ha: 'Rijiyar burtsatse',
-      });
+      expect(result.questions.every((q) => q.type === 'OPEN')).toBe(true);
     }
+    const csv = templateCsv().toLowerCase();
+    for (const word of [
+      'single',
+      'multiple',
+      'scale',
+      'options_',
+      'borehole |',
+    ]) {
+      expect(csv).not.toContain(word);
+    }
+    const xlsx = await templateXlsx();
+    const rows = await parseXlsx(xlsx);
+    expect(rows[0]).toEqual(TEMPLATE_COLUMNS);
+    expect(TEMPLATE_COLUMNS.join(',')).not.toMatch(/type|options|scale/);
   });
 
   it('refuses other file types', async () => {
