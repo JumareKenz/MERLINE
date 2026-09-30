@@ -1,10 +1,5 @@
-'use client';
-
-import { useState } from 'react';
-import { ExecutiveDashboard } from '@/components/dashboard/executive-dashboard';
+import { ReviewDashboard } from '@/components/dashboard/review-dashboard';
 
 export default function DashboardPage() {
-  const [dateRange, setDateRange] = useState('last_30d');
-
-  return <ExecutiveDashboard dateRange={dateRange} onDateRangeChange={setDateRange} />;
+  return <ReviewDashboard />;
 }

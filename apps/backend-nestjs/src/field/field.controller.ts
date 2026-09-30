@@ -1,23 +1,9 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import type { AuthenticatedUser } from '../common/interfaces';
 import { CreateFieldInterviewDto } from './dto/field-interview.dto';
-import {
-  CreateAccessCodeDto,
-  RenameAccessCodeDto,
-  SetFieldWorkerProjectsDto,
-} from './dto/field-team.dto';
 import { FieldService } from './field.service';
-import { FieldTeamService } from './field-team.service';
 
 @Controller('field')
 export class FieldController {
@@ -40,60 +26,6 @@ export class FieldController {
     return this.fieldService.createFieldInterview(
       dto,
       user.id,
-      user.organizationId,
-    );
-  }
-}
-
-@Controller('field-team')
-export class FieldTeamController {
-  constructor(private readonly fieldTeamService: FieldTeamService) {}
-
-  @Get()
-  @Permissions('view.users')
-  list(@CurrentUser() user: AuthenticatedUser) {
-    return this.fieldTeamService.list(user.organizationId);
-  }
-
-  @Post()
-  @Permissions('create.users')
-  create(
-    @Body() dto: CreateAccessCodeDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.fieldTeamService.create(dto, user.organizationId);
-  }
-
-  /** Reads a code back (managers only; the list never includes codes). */
-  @Get(':userId/code')
-  @Permissions('edit.users')
-  code(
-    @Param('userId', ParseUUIDPipe) userId: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.fieldTeamService.code(userId, user.organizationId);
-  }
-
-  @Put(':userId/name')
-  @Permissions('edit.users')
-  rename(
-    @Param('userId', ParseUUIDPipe) userId: string,
-    @Body() dto: RenameAccessCodeDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.fieldTeamService.rename(userId, dto.name, user.organizationId);
-  }
-
-  @Put(':userId/projects')
-  @Permissions('edit.users')
-  setProjects(
-    @Param('userId', ParseUUIDPipe) userId: string,
-    @Body() dto: SetFieldWorkerProjectsDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.fieldTeamService.setProjects(
-      userId,
-      dto.projectIds,
       user.organizationId,
     );
   }

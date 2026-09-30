@@ -1,3 +1,4 @@
+import { EVIDENCE_TRANSCRIPT_WHERE } from '../transcripts/review-status';
 import {
   BadRequestException,
   Injectable,
@@ -56,14 +57,14 @@ export class AnalysisReportsService {
       const transcript = await this.prisma.transcript.findFirst({
         where: {
           interviewId: interview.id,
-          status: 'COMPLETED',
+          ...EVIDENCE_TRANSCRIPT_WHERE,
           media: { deletedAt: null },
           segments: { some: {} },
         },
       });
       if (!transcript) {
         throw new BadRequestException(
-          'This interview has no completed transcript with speech yet',
+          'This interview has no approved transcript yet. Reports use only transcripts an administrator has approved.',
         );
       }
       return this.createAndQueue(
@@ -91,7 +92,7 @@ export class AnalysisReportsService {
         consent: { allowAiAnalysis: true, withdrawnAt: null },
         transcripts: {
           some: {
-            status: 'COMPLETED',
+            ...EVIDENCE_TRANSCRIPT_WHERE,
             media: { deletedAt: null },
             segments: { some: {} },
           },
@@ -100,7 +101,7 @@ export class AnalysisReportsService {
     });
     if (eligible === 0) {
       throw new BadRequestException(
-        'No interview in this project has a completed transcript with consent to AI analysis yet',
+        'No interview in this project has an approved transcript with consent to AI analysis yet. Reports use only approved transcripts.',
       );
     }
     return this.createAndQueue(

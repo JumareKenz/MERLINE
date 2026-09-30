@@ -17,6 +17,16 @@ export function useAnalysisReports(params: { projectId?: string; interviewId?: s
   });
 }
 
+/** Every report in the organization (the Reports page). */
+export function useAllAnalysisReports(enabled = true) {
+  return useQuery({
+    queryKey: ['analysis-reports', 'all'],
+    queryFn: async () => (await API.analysisReports.list({})).data.data,
+    enabled,
+    refetchInterval: (q) => ((q.state.data ?? []).some(busy) ? POLL_MS : false),
+  });
+}
+
 export function useAnalysisReport(id: string) {
   return useQuery({
     queryKey: ['analysis-reports', 'detail', id],

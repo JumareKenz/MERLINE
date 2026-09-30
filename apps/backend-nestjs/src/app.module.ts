@@ -23,6 +23,8 @@ import { InterviewsModule } from './interviews/interviews.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { FindingsModule } from './findings/findings.module';
 import { FieldModule } from './field/field.module';
+import { EnumeratorsModule } from './enumerators/enumerators.module';
+import { InterviewTypesModule } from './interview-types/interview-types.module';
 import { JobsModule } from './jobs/jobs.module';
 import { TrashModule } from './trash/trash.module';
 import { AnalysisModule } from './analysis/analysis.module';
@@ -67,6 +69,8 @@ import { RespondentLinksModule } from './respondent-links/respondent-links.modul
     TranscriptsModule,
     FindingsModule,
     FieldModule,
+    EnumeratorsModule,
+    InterviewTypesModule,
     JobsModule,
     TrashModule,
     AnalysisModule,

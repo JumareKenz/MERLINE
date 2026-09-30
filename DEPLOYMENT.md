@@ -46,6 +46,7 @@ Names only. Set these in the Vercel dashboard or with `vercel env add`.
 |---|---|
 | `DATABASE_URL` | **Pooled** connection string. Serverless opens a connection per container; a direct connection exhausts Postgres quickly. Use Neon's pooled endpoint or PgBouncer. |
 | `JWT_SECRET` | Long random value. Rotating it invalidates every session. |
+| `ACCESS_CODE_PEPPER` | Optional. Secret key for hashing field-app access codes (falls back to `JWT_SECRET`). **Changing it invalidates every personal access code**; set it once before issuing codes. |
 | `NODE_ENV` | `production` |
 
 **Required for the app to be usable:**

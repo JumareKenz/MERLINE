@@ -15,7 +15,7 @@ import {
 import { ConsentsService } from '../consents/consents.service';
 import { MediaService } from '../media/media.service';
 import { queueTranscriptionForRecording } from '../transcripts/transcription-queue';
-import { defaultInterviewType } from '../common/research/interview-type';
+import { resolveInterviewType } from '../common/research/interview-type';
 import { resolveQuestionSet } from '../guides/resolve-question-set';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import type { QuestionLogEntryDto } from './dto/question-log.dto';
@@ -354,7 +354,13 @@ export class InterviewsService extends BaseService {
         );
       }
 
-      const type = dto.type ?? (await defaultInterviewType(tx, dto.projectId));
+      const { type, metadata: typeMetadata } = await resolveInterviewType(
+        tx,
+        organizationId,
+        dto.projectId,
+        dto.type,
+        dto.typeMetadata,
+      );
       return tx.interview.create({
         data: {
           participantId: dto.participantId,
@@ -366,6 +372,7 @@ export class InterviewsService extends BaseService {
           notes: dto.notes,
           language: dto.language,
           type,
+          typeMetadata,
           questionSetId: await resolveQuestionSet(
             tx,
             organizationId,

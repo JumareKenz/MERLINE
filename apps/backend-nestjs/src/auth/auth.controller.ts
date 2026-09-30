@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   HttpException,
+  Headers,
   Ip,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -58,7 +59,11 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
-  async fieldLogin(@Body() dto: FieldLoginDto, @Ip() ip: string) {
+  async fieldLogin(
+    @Body() dto: FieldLoginDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent?: string,
+  ) {
     const wait = this.fieldLoginLimiter.retryAfterMs(ip);
     if (wait > 0) {
       const minutes = Math.ceil(wait / 60_000);
@@ -68,7 +73,7 @@ export class AuthController {
       );
     }
     try {
-      const result = await this.authService.fieldLogin(dto);
+      const result = await this.authService.fieldLogin(dto, { ip, userAgent });
       this.fieldLoginLimiter.recordSuccess(ip);
       return result;
     } catch (err) {

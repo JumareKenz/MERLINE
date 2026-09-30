@@ -206,6 +206,8 @@ describeDb('self-interview links (database)', () => {
       },
     });
     await prisma.job.deleteMany({ where: orgs });
+    await prisma.transcriptReviewEvent.deleteMany({ where: orgs });
+    await prisma.transcriptRevision.deleteMany({ where: orgs });
     await prisma.transcript.deleteMany({ where: orgs });
     await prisma.respondentSession.deleteMany({ where: orgs });
     await prisma.interviewQuestionLog.deleteMany({ where: orgs });

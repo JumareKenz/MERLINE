@@ -69,6 +69,7 @@ export class TranscriptionPipelineService {
       where: { id: transcript.id },
       data: {
         status: 'PROCESSING',
+        reviewStatus: 'TRANSCRIPTION_PROCESSING',
         attempts: attempt,
         errorMessage: null,
         nextAttemptAt: null,
@@ -309,6 +310,8 @@ export class TranscriptionPipelineService {
         where: { id: transcriptId },
         data: {
           status: 'COMPLETED',
+          // Machine work is done; the enumerator can now review it.
+          reviewStatus: 'AVAILABLE_FOR_REVIEW',
           provider: result.provider,
           model: result.model,
           language: result.language,
@@ -318,6 +321,36 @@ export class TranscriptionPipelineService {
           completedAt: new Date(),
           errorMessage: null,
           nextAttemptAt: null,
+        },
+      });
+      // Revision 1: the machine transcript exactly as produced, kept for good.
+      await tx.transcriptRevision.create({
+        data: {
+          organizationId,
+          transcriptId,
+          number: 1,
+          kind: 'MACHINE',
+          note: 'Machine transcript',
+          segments: result.segments.map((s, index) => ({
+            index,
+            startMs: s.startMs,
+            endMs: s.endMs,
+            speaker: s.speakerLabel ?? null,
+            text: s.text,
+            confidence: s.confidence ?? null,
+            flagged: false,
+            flagReason: null,
+            note: null,
+          })),
+        },
+      });
+      await tx.transcriptReviewEvent.create({
+        data: {
+          organizationId,
+          transcriptId,
+          action: 'transcript_available',
+          fromStatus: 'TRANSCRIPTION_PROCESSING',
+          toStatus: 'AVAILABLE_FOR_REVIEW',
         },
       });
     });

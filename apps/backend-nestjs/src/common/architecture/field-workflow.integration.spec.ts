@@ -149,6 +149,8 @@ describeDb('field workflow (database)', () => {
   afterAll(async () => {
     const orgs = { organizationId: { in: [orgAId, orgBId] } };
     await prisma.transcriptSegment.deleteMany({ where: orgs });
+    await prisma.transcriptReviewEvent.deleteMany({ where: orgs });
+    await prisma.transcriptRevision.deleteMany({ where: orgs });
     await prisma.transcript.deleteMany({ where: orgs });
     await prisma.mediaChunk.deleteMany({
       where: { uploadedById: { in: [leadId, fieldId, field2Id, userBId] } },
@@ -700,6 +702,7 @@ describeDb('field workflow (database)', () => {
       return prisma.transcript.create({
         data: {
           status: 'COMPLETED',
+          reviewStatus: 'APPROVED',
           organizationId: orgAId,
           interviewId: interview.id,
           mediaId: m.id,

@@ -109,18 +109,23 @@ model Organization {
   studies     Study[]
 
   // PHASE 2 — qualitative interview product
-  participants          Participant[]
-  consents              Consent[]
-  interviews            Interview[]
-  transcripts           Transcript[]
-  transcriptSegments    TranscriptSegment[]
-  jobs                  Job[]
-  analysisReports       AnalysisReport[]
-  questionSets          QuestionSet[]
-  respondentLinks       RespondentLink[]
-  interviewQuestionLogs InterviewQuestionLog[]
-  findings              Finding[]
-  quotations            Quotation[]
+  participants           Participant[]
+  consents               Consent[]
+  interviews             Interview[]
+  transcripts            Transcript[]
+  enumeratorProfiles     EnumeratorProfile[]
+  fieldAccessCodes       FieldAccessCode[]
+  projectInterviewTypes  ProjectInterviewType[]
+  transcriptRevisions    TranscriptRevision[]
+  transcriptReviewEvents TranscriptReviewEvent[]
+  transcriptSegments     TranscriptSegment[]
+  jobs                   Job[]
+  analysisReports        AnalysisReport[]
+  questionSets           QuestionSet[]
+  respondentLinks        RespondentLink[]
+  interviewQuestionLogs  InterviewQuestionLog[]
+  findings               Finding[]
+  quotations             Quotation[]
 
   @@map("organizations")
 }
@@ -182,6 +187,14 @@ model User {
   findingsCreated          Finding[]              @relation("FindingCreator")
   findingsReviewed         Finding[]              @relation("FindingReviewer")
   quotationsCreated        Quotation[]            @relation("QuotationCreator")
+
+  // Enumerator management and transcript review
+  enumeratorProfile      EnumeratorProfile?
+  fieldAccessCodes       FieldAccessCode[]       @relation("AccessCodeOwner")
+  accessCodesIssued      FieldAccessCode[]       @relation("AccessCodeIssuer")
+  accessCodesRevoked     FieldAccessCode[]       @relation("AccessCodeRevoker")
+  transcriptRevisions    TranscriptRevision[]    @relation("RevisionAuthor")
+  transcriptReviewEvents TranscriptReviewEvent[] @relation("ReviewEventActor")
 
   @@map("users")
 }
@@ -284,6 +297,7 @@ model Project {
   // PHASE 2 — qualitative interview product
   participants    Participant[]
   interviews      Interview[]
+  interviewTypes  ProjectInterviewType[]
   findings        Finding[]
   reports         AnalysisReport[]
   questionSets    QuestionSet[]
@@ -1080,6 +1094,9 @@ model Interview {
   /// share one access code (one field account), so the account alone does
   /// not say who it was.
   enumeratorName   String?         @map("enumerator_name")
+  /// Answers to the interview type's own metadata fields (ProjectInterviewType.fields),
+  /// e.g. group size for an FGD.
+  typeMetadata     Json?           @map("type_metadata")
   organizationId   String          @map("organization_id")
   projectId        String?         @map("project_id")
   participantId    String          @map("participant_id")
@@ -1121,67 +1138,90 @@ enum TranscriptStatus {
 }
 
 model Transcript {
-  id                  String            @id @default(uuid())
-  status              TranscriptStatus  @default(PENDING)
+  id                  String                 @id @default(uuid())
+  status              TranscriptStatus       @default(PENDING)
   provider            String?
   language            String?
-  errorMessage        String?           @map("error_message")
-  requestedAt         DateTime          @default(now()) @map("requested_at")
-  completedAt         DateTime?         @map("completed_at")
+  errorMessage        String?                @map("error_message")
+  requestedAt         DateTime               @default(now()) @map("requested_at")
+  completedAt         DateTime?              @map("completed_at")
   // Groq transcription pipeline. `language` is what the recording was
   // transcribed as; `requestedLanguage` is the hint given (if any), kept
   // separately because with a hint the provider just echoes it back.
-  requestedLanguage   String?           @map("requested_language")
+  requestedLanguage   String?                @map("requested_language")
   model               String?
   /// Full machine transcript, as returned (segments hold the timing).
   text                String?
-  durationMs          Int?              @map("duration_ms")
-  processingMs        Int?              @map("processing_ms")
-  attempts            Int               @default(0)
-  nextAttemptAt       DateTime?         @map("next_attempt_at")
+  durationMs          Int?                   @map("duration_ms")
+  processingMs        Int?                   @map("processing_ms")
+  attempts            Int                    @default(0)
+  nextAttemptAt       DateTime?              @map("next_attempt_at")
   // Optional machine translation, stored per segment alongside the original.
-  translationLanguage String?           @map("translation_language")
-  translationStatus   TranscriptStatus? @map("translation_status")
-  translationModel    String?           @map("translation_model")
-  translationError    String?           @map("translation_error")
-  translatedAt        DateTime?         @map("translated_at")
-  organizationId      String            @map("organization_id")
-  interviewId         String            @map("interview_id")
-  mediaId             String            @map("media_id")
-  requestedById       String            @map("requested_by_id")
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime          @updatedAt @map("updated_at")
+  translationLanguage String?                @map("translation_language")
+  translationStatus   TranscriptStatus?      @map("translation_status")
+  translationModel    String?                @map("translation_model")
+  translationError    String?                @map("translation_error")
+  translatedAt        DateTime?              @map("translated_at")
+  organizationId      String                 @map("organization_id")
+  interviewId         String                 @map("interview_id")
+  mediaId             String                 @map("media_id")
+  requestedById       String                 @map("requested_by_id")
+  /// Human-review lifecycle, separate from `status` (which is machine
+  /// processing). Only APPROVED / LOCKED transcripts feed analysis.
+  reviewStatus        TranscriptReviewStatus @default(RECORDING_SUBMITTED) @map("review_status")
+  /// Latest feedback from the administrator when a transcript is returned.
+  reviewNote          String?                @map("review_note")
+  reviewSubmittedAt   DateTime?              @map("review_submitted_at")
+  reviewSubmittedById String?                @map("review_submitted_by_id")
+  approvedAt          DateTime?              @map("approved_at")
+  approvedById        String?                @map("approved_by_id")
+  /// The exact revision that was approved: the authoritative text.
+  approvedRevisionId  String?                @map("approved_revision_id")
+  lockedAt            DateTime?              @map("locked_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
 
-  organization Organization        @relation(fields: [organizationId], references: [id])
-  interview    Interview           @relation(fields: [interviewId], references: [id])
-  media        Media               @relation(fields: [mediaId], references: [id])
-  requestedBy  User                @relation("TranscriptRequester", fields: [requestedById], references: [id])
-  segments     TranscriptSegment[]
-  reports      AnalysisReport[]
+  organization  Organization            @relation(fields: [organizationId], references: [id])
+  interview     Interview               @relation(fields: [interviewId], references: [id])
+  media         Media                   @relation(fields: [mediaId], references: [id])
+  requestedBy   User                    @relation("TranscriptRequester", fields: [requestedById], references: [id])
+  segments      TranscriptSegment[]
+  reports       AnalysisReport[]
+  revisions     TranscriptRevision[]
+  reviewEvents  TranscriptReviewEvent[]
+  reportSources ReportSource[]
 
   @@index([organizationId])
   @@index([interviewId])
+  @@index([organizationId, reviewStatus])
   @@map("transcripts")
 }
 
 model TranscriptSegment {
-  id             String    @id @default(uuid())
-  index          Int
-  startMs        Int       @map("start_ms")
-  endMs          Int       @map("end_ms")
-  speakerLabel   String?   @map("speaker_label")
+  id                 String    @id @default(uuid())
+  index              Int
+  startMs            Int       @map("start_ms")
+  endMs              Int       @map("end_ms")
+  speakerLabel       String?   @map("speaker_label")
   /// The machine transcript. Never overwritten: corrections go to editedText.
-  text           String
+  text               String
   /// 0–1, from the model's average log-probability. Low values mark
   /// segments worth checking by ear.
-  confidence     Float?
-  editedText     String?   @map("edited_text")
-  editedById     String?   @map("edited_by_id")
-  editedAt       DateTime? @map("edited_at")
-  translatedText String?   @map("translated_text")
-  organizationId String    @map("organization_id")
-  transcriptId   String    @map("transcript_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  confidence         Float?
+  editedText         String?   @map("edited_text")
+  editedById         String?   @map("edited_by_id")
+  editedAt           DateTime? @map("edited_at")
+  /// A corrected speaker label. `speakerLabel` stays as the machine wrote it.
+  editedSpeakerLabel String?   @map("edited_speaker_label")
+  /// A reviewer marked this passage uncertain or inaudible.
+  flagged            Boolean   @default(false)
+  flagReason         String?   @map("flag_reason")
+  /// A reviewer's note on this passage.
+  reviewNote         String?   @map("review_note")
+  translatedText     String?   @map("translated_text")
+  organizationId     String    @map("organization_id")
+  transcriptId       String    @map("transcript_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id])
   transcript   Transcript   @relation(fields: [transcriptId], references: [id])
@@ -1331,11 +1371,12 @@ model AnalysisReport {
   updatedAt      DateTime            @updatedAt @map("updated_at")
   deletedAt      DateTime?           @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  project      Project?     @relation(fields: [projectId], references: [id])
-  interview    Interview?   @relation(fields: [interviewId], references: [id])
-  transcript   Transcript?  @relation(fields: [transcriptId], references: [id])
-  requestedBy  User         @relation("AnalysisReportRequester", fields: [requestedById], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  project      Project?       @relation(fields: [projectId], references: [id])
+  interview    Interview?     @relation(fields: [interviewId], references: [id])
+  transcript   Transcript?    @relation(fields: [transcriptId], references: [id])
+  requestedBy  User           @relation("AnalysisReportRequester", fields: [requestedById], references: [id])
+  sources      ReportSource[]
 
   @@index([organizationId])
   @@index([projectId])
@@ -1514,4 +1555,165 @@ model RespondentSession {
   @@index([linkId])
   @@index([organizationId])
   @@map("respondent_sessions")
+}
+
+// ─── Enumerators, access codes and transcript review ─────────────────────
+
+/// The field-worker details that do not belong on every User.
+model EnumeratorProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  organizationId String   @map("organization_id")
+  /// Human-readable unique identifier, e.g. ENU-7K2M4Q.
+  uniqueId       String   @map("unique_id")
+  state          String?
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, uniqueId])
+  @@index([organizationId])
+  @@map("enumerator_profiles")
+}
+
+enum AccessCodeStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// A field-app access code for exactly one enumerator. Only a keyed hash is
+/// stored; the code is shown once, when issued. At most one ACTIVE code per
+/// user (partial unique index in the migration). "Expired" and "unused" are
+/// derived from expiresAt and lastUsedAt.
+model FieldAccessCode {
+  id             String           @id @default(uuid())
+  organizationId String           @map("organization_id")
+  userId         String           @map("user_id")
+  codeHash       String           @unique @map("code_hash")
+  status         AccessCodeStatus @default(ACTIVE)
+  issuedAt       DateTime         @default(now()) @map("issued_at")
+  issuedById     String?          @map("issued_by_id")
+  expiresAt      DateTime?        @map("expires_at")
+  lastUsedAt     DateTime?        @map("last_used_at")
+  useCount       Int              @default(0) @map("use_count")
+  revokedAt      DateTime?        @map("revoked_at")
+  revokedById    String?          @map("revoked_by_id")
+  revokedReason  String?          @map("revoked_reason")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation("AccessCodeOwner", fields: [userId], references: [id])
+  issuedBy     User?        @relation("AccessCodeIssuer", fields: [issuedById], references: [id])
+  revokedBy    User?        @relation("AccessCodeRevoker", fields: [revokedById], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("field_access_codes")
+}
+
+/// Interview types a project collects. A project may hold several at once.
+/// Projects with no rows use the built-in types.
+model ProjectInterviewType {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  projectId      String   @map("project_id")
+  /// Stored on Interview.type, e.g. "FGD", or a slug for a custom type.
+  key            String
+  label          String
+  description    String?
+  /// Extra fields captured for this type: [{key,label,kind,required}].
+  fields         Json     @default("[]")
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, key])
+  @@index([organizationId])
+  @@map("project_interview_types")
+}
+
+enum TranscriptReviewStatus {
+  RECORDING_SUBMITTED
+  TRANSCRIPTION_PROCESSING
+  AVAILABLE_FOR_REVIEW
+  ENUMERATOR_EDITING
+  SUBMITTED_FOR_ADMIN_REVIEW
+  RETURNED_FOR_CORRECTION
+  APPROVED
+  LOCKED
+}
+
+enum RevisionKind {
+  MACHINE
+  ENUMERATOR
+  ADMIN
+  APPROVED
+}
+
+/// An immutable snapshot of a transcript's segments at a review milestone.
+/// Never updated or deleted, so the history cannot be silently rewritten.
+model TranscriptRevision {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  transcriptId   String       @map("transcript_id")
+  number         Int
+  kind           RevisionKind
+  authorId       String?      @map("author_id")
+  note           String?
+  /// [{index,startMs,endMs,speaker,text,confidence,flagged,flagReason,note}]
+  segments       Json
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  transcript   Transcript   @relation(fields: [transcriptId], references: [id])
+  author       User?        @relation("RevisionAuthor", fields: [authorId], references: [id])
+
+  @@unique([transcriptId, number])
+  @@index([organizationId])
+  @@map("transcript_revisions")
+}
+
+/// Who moved a transcript between review states, and what they said.
+model TranscriptReviewEvent {
+  id             String                  @id @default(uuid())
+  organizationId String                  @map("organization_id")
+  transcriptId   String                  @map("transcript_id")
+  action         String
+  fromStatus     TranscriptReviewStatus? @map("from_status")
+  toStatus       TranscriptReviewStatus  @map("to_status")
+  actorId        String?                 @map("actor_id")
+  note           String?
+  createdAt      DateTime                @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  transcript   Transcript   @relation(fields: [transcriptId], references: [id])
+  actor        User?        @relation("ReviewEventActor", fields: [actorId], references: [id])
+
+  @@index([organizationId])
+  @@index([transcriptId])
+  @@map("transcript_review_events")
+}
+
+/// The approved transcripts a report was written from.
+model ReportSource {
+  id            String   @id @default(uuid())
+  reportId      String   @map("report_id")
+  transcriptId  String   @map("transcript_id")
+  revisionId    String?  @map("revision_id")
+  interviewId   String   @map("interview_id")
+  interviewType String?  @map("interview_type")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  report     AnalysisReport @relation(fields: [reportId], references: [id])
+  transcript Transcript     @relation(fields: [transcriptId], references: [id])
+
+  @@unique([reportId, transcriptId])
+  @@index([transcriptId])
+  @@map("report_sources")
 }

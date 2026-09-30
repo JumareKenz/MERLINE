@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Quote, Sparkles, UserRound } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
+import { ReportsTabs } from '@/components/analysis/reports-tabs';
 import { CellMuted, DataTable } from '@/components/shared/data-table';
 import { FilterChips } from '@/components/shared/filter-chips';
 import { StatusBadge } from '@/components/shared/status-badge';
@@ -69,9 +70,10 @@ function ReportsView() {
   return (
     <div>
       <PageHeader
-        title="Reports"
-        description="Findings are the building blocks of a report. Each one must be backed by verbatim quotations from real transcript segments before it can be approved or published."
+        title="Findings"
+        description="Findings are the building blocks of a report. Each one must be backed by verbatim quotations from segments of approved transcripts before it can be approved or published."
       />
+      <ReportsTabs />
       <DataTable
         label="Findings"
         columns={columns}
@@ -84,7 +86,7 @@ function ReportsView() {
         searchPlaceholder="Search findings"
         emptyIcon={<Quote />}
         emptyTitle={filter === 'ALL' ? 'No findings yet' : 'Nothing in this state'}
-        emptyDescription="Open a completed transcript and quote a segment to start a finding, or draft one with AI from the interview page."
+        emptyDescription="Open an approved transcript and quote a segment to start a finding, or draft one with AI from the interview page."
         emptyAction={
           filter === 'ALL' && (
             <Link href="/transcripts" className="text-[14px] font-medium text-foreground-link hover:underline">

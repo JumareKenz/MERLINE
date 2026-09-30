@@ -14,6 +14,12 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   roles?: string[];
+  /**
+   * Field-app sign-in only. `sharedCode` is true for an older 4-character
+   * code that several people use; the field app then still asks who is
+   * conducting each interview. A personal code identifies the enumerator.
+   */
+  enumerator?: { uniqueId: string | null; sharedCode: boolean };
   /** Only present on the richer `/auth/me` response, not the login/register/field-login token responses. */
   organization?: { id: string; name: string; slug: string };
 }

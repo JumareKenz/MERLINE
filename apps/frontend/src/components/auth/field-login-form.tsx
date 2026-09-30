@@ -7,7 +7,10 @@ import { useAuth } from '@/providers/auth-provider';
 import { describeError } from '@/lib/errors';
 import { cn } from '@/lib/utils';
 
-/** Access codes are 4 characters; older ones were 10 (XXXXX-XXXXX) and still work. */
+/**
+ * A personal access code is 10 characters (XXXXX-XXXXX). Older team codes were
+ * 4 characters and still work until an administrator issues a personal one.
+ */
 const LENGTH = 4;
 const LEGACY_LENGTH = 10;
 
@@ -16,9 +19,9 @@ function sanitize(value: string) {
 }
 
 /**
- * Access-code sign-in. One large field: 4 characters are quick to type
- * outdoors and easy to read out to a team. A whole team can share a code;
- * each interview asks who is conducting it.
+ * Access-code sign-in. One large field. A personal code identifies the
+ * enumerator; an older shared team code still works and each interview then
+ * asks who is conducting it.
  */
 export function FieldLoginForm() {
   const { fieldLogin } = useAuth();
@@ -66,7 +69,7 @@ export function FieldLoginForm() {
           Access code
         </label>
         <p id="code-hint" className="mt-1 text-[15px] text-foreground-secondary">
-          4 letters and numbers, e.g. <span className="whitespace-nowrap font-mono">K7Q2</span>
+          Your personal code, e.g. <span className="whitespace-nowrap font-mono">K7Q2X-M4R9T</span>. Older team codes have 4 characters.
         </p>
       </div>
 
@@ -99,9 +102,11 @@ export function FieldLoginForm() {
         inputMode="text"
         enterKeyHint="go"
         maxLength={11}
-        placeholder="••••"
+        placeholder="•••••-•••••"
         className={cn(
-          'h-20 w-full rounded-2xl border bg-background-elevated text-center font-mono text-[36px] font-semibold uppercase tracking-[0.4em] text-foreground placeholder:text-foreground-tertiary/50',
+          'h-20 w-full rounded-2xl border bg-background-elevated text-center font-mono font-semibold uppercase text-foreground placeholder:text-foreground-tertiary/50',
+          // Ten characters (with the dash) must fit a 360px phone.
+          'text-[28px] tracking-[0.16em]',
           'focus-visible:border-navy focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-navy/15',
           error ? 'border-error' : 'border-field-line',
         )}

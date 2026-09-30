@@ -128,6 +128,12 @@ describeDb('consent enforcement (database)', () => {
     await prisma.job.deleteMany({
       where: { organizationId: { in: [orgAId, orgBId] } },
     });
+    await prisma.transcriptReviewEvent.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
+    await prisma.transcriptRevision.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
     await prisma.transcript.deleteMany({
       where: { organizationId: { in: [orgAId, orgBId] } },
     });

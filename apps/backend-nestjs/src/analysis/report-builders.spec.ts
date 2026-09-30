@@ -151,6 +151,15 @@ describe('report builders', () => {
         limitations: ['Not representative'],
         interviewSummaries: [],
         refLabels: { I1: 'Interview 1' },
+        interviews: [
+          {
+            ref: 'I1',
+            type: 'KII',
+            typeLabel: 'Key informant interview',
+            location: null,
+          },
+        ],
+        sources: [],
       },
       evidence.pool,
     );

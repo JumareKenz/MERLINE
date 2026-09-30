@@ -16,10 +16,42 @@ export interface ReportQuote {
   /** e.g. "Interview 2 · KII · Amina (P-014)". */
   source: string;
   speaker?: string | null;
+  /** Interview type key (KII, FGD, …) of the interview this came from. */
+  interviewType?: string | null;
+  location?: string | null;
+  /** The approved transcript revision the wording was checked against. */
+  revisionId?: string | null;
 }
 
+/** The approved transcript a report was written from, for traceability. */
+export interface ReportSourceRef {
+  /** The reference used in the text: "I3", or "Interview" for a single-interview report. */
+  ref: string;
+  label: string;
+  interviewId: string;
+  transcriptId: string;
+  revisionId: string | null;
+  interviewType: string | null;
+  location: string | null;
+  language: string | null;
+}
+
+/**
+ * What kind of statement a section (or paragraph) is. Quotations are
+ * always direct participant words; everything else is the analyst's or the
+ * model's own writing and is labelled so a reader never mistakes an
+ * interpretation for something a participant said.
+ */
+export type ClaimType =
+  | 'summary'
+  | 'interpretation'
+  | 'theme'
+  | 'recommendation'
+  | 'evidence'
+  | 'limitation';
+
 export type ReportBlock =
-  | { type: 'paragraph'; text: string }
+  | { type: 'paragraph'; text: string; label?: string }
   | { type: 'bullets'; items: string[] }
   | { type: 'numbered'; items: string[] }
   | { type: 'quote'; quoteId: string; note?: string }
@@ -32,6 +64,7 @@ export interface ReportSection {
   heading: string;
   /** True when the prose was written by the model (quotes never are). */
   aiGenerated: boolean;
+  claimType?: ClaimType;
   blocks: ReportBlock[];
 }
 
@@ -43,6 +76,8 @@ export interface ReportDocument {
   meta: { label: string; value: string }[];
   sections: ReportSection[];
   quotes: Record<string, ReportQuote>;
+  /** The approved transcripts (and revisions) the report drew on. Absent on older reports. */
+  sources?: ReportSourceRef[];
   disclosure: string;
   generatedAt: string;
 }
@@ -56,9 +91,10 @@ export function formatTimestamp(ms: number): string {
 }
 
 export const AI_DISCLOSURE =
-  'Sections marked "AI analysis" were written by an AI model from the interview transcripts and must be reviewed by a researcher before use. ' +
-  "Quotations are verbatim transcript text, each checked word for word against the recording's transcript and shown with its timestamp. " +
-  'Machine transcription of some languages (notably Hausa) is approximate unless it has been corrected.';
+  'This report uses only transcripts that were reviewed by the enumerator and approved by an administrator. ' +
+  "Quotations are the participants' own words, checked word for word against the approved transcript and shown with interview, speaker and timestamp. " +
+  'Sections marked "AI analysis" were written by an AI model: summaries restate what participants said, interpretations and themes are the analysis\' own reading, and recommendations are proposals. All of them must be reviewed by a researcher before use. ' +
+  'How many interviews mention something shows how widely it was raised, not that it is true or validated.';
 
 /** Every quote a document refers to, in order of first use. */
 export function quotesInOrder(doc: ReportDocument): ReportQuote[] {

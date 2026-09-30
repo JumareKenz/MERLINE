@@ -16,7 +16,12 @@ function AiPill() {
 function Block({ block, doc }: { block: ReportBlock; doc: ReportDocument }) {
   switch (block.type) {
     case 'paragraph':
-      return <p className="text-[15px] leading-[1.75] text-foreground">{block.text}</p>;
+      return (
+        <p className="text-[15px] leading-[1.75] text-foreground">
+          {block.label && <span className="mr-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-primary">{block.label}</span>}
+          {block.text}
+        </p>
+      );
     case 'bullets':
     case 'numbered': {
       const List = block.type === 'bullets' ? 'ul' : 'ol';
@@ -89,6 +94,12 @@ function Block({ block, doc }: { block: ReportBlock; doc: ReportDocument }) {
           <figcaption className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-foreground-tertiary">
             <span className="font-semibold uppercase tracking-[0.08em] text-lemon-800 dark:text-lemon-300">Verbatim</span>
             <span>{q.source}</span>
+            {q.speaker && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{q.speaker}</span>
+              </>
+            )}
             <span aria-hidden>·</span>
             <Link
               href={`/transcripts/${q.transcriptId}?segment=${q.segmentId}`}
@@ -145,6 +156,28 @@ export function ReportView({ doc }: { doc: ReportDocument }) {
             </div>
           </section>
         ))}
+        {doc.sources && doc.sources.length > 0 && (
+          <section aria-labelledby="report-sources-h" className="scroll-mt-24">
+            <h2 id="report-sources-h" className="mb-2 text-[15px] font-semibold text-foreground">
+              Sources
+            </h2>
+            <p className="mb-3 text-[13px] text-foreground-secondary">
+              Every transcript this report draws on was approved before use. Open one to read it against the recording.
+            </p>
+            <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle text-[13.5px]">
+              {doc.sources.map((s) => (
+                <li key={s.transcriptId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                  <span className="font-semibold tabular-nums text-foreground">{s.ref}</span>
+                  <Link href={`/transcripts/${s.transcriptId}`} className="font-medium text-foreground-link hover:underline">
+                    {s.label}
+                  </Link>
+                  {s.interviewType && <span className="rounded bg-background-surface px-1.5 py-0.5 text-[12px] text-foreground-secondary">{s.interviewType}</span>}
+                  {s.location && <span className="text-foreground-tertiary">{s.location}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <p className="rounded-xl bg-background-surface px-4 py-3 text-[13px] leading-relaxed text-foreground-secondary">{doc.disclosure}</p>
       </article>
     </div>

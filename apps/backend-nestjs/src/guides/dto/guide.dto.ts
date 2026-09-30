@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsEmpty,
   IsIn,
+  Matches,
   IsObject,
   IsOptional,
   IsString,
@@ -14,7 +15,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { INTERVIEW_TYPES } from '../../common/research/interview-type';
+import { INTERVIEW_TYPE_KEY } from '../../common/research/interview-type';
 import { OPEN_ONLY_MESSAGE, QUESTION_TYPES } from '../guide-import';
 
 export class GuideQuestionDto {
@@ -68,7 +69,7 @@ export class SaveGuideDto {
   @MaxLength(4000)
   description?: string;
 
-  @IsIn(INTERVIEW_TYPES)
+  @Matches(INTERVIEW_TYPE_KEY, { message: 'Invalid interview type' })
   interviewType: string;
 
   @IsArray()
@@ -100,7 +101,7 @@ export class ImportGuideDto {
   @MaxLength(200)
   title: string;
 
-  @IsIn(INTERVIEW_TYPES)
+  @Matches(INTERVIEW_TYPE_KEY, { message: 'Invalid interview type' })
   interviewType: string;
 
   @IsOptional()

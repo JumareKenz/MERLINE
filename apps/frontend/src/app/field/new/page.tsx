@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldConsentForm } from '@/components/field/field-consent-form';
 import { useFieldInterviews } from '@/hooks/use-field-interviews';
+import { defaultType, typesForProject, validateTypeMetadata } from '@/lib/field/interview-types';
 import { useAuthStore } from '@/stores/auth-store';
 import { useFieldOutbox } from '@/stores/field-outbox-store';
 import { INTERVIEW_LANGUAGES } from '@/lib/languages';
@@ -37,6 +38,10 @@ function StartInterview() {
   const router = useRouter();
   const params = useSearchParams();
   const userId = useAuthStore((s) => s.user?.id);
+  const account = useAuthStore((s) => s.user);
+  // A personal access code is one enumerator; only an older shared code asks who is conducting.
+  const personal = account?.enumerator?.sharedCode === false;
+  const accountName = account ? `${account.firstName} ${account.lastName}`.trim() : '';
   const online = useFieldOutbox((s) => s.online);
   const addPending = useFieldOutbox((s) => s.addPending);
   const { projects, projectsLoading } = useFieldInterviews();
@@ -48,6 +53,8 @@ function StartInterview() {
   // is filled in to save typing.
   const [enumerator, setEnumerator] = useState('');
   const [name, setName] = useState('');
+  const [typeKey, setTypeKey] = useState('');
+  const [typeAnswers, setTypeAnswers] = useState<Record<string, string>>({});
   const [ref, setRef] = useState('');
   const [location, setLocation] = useState('');
   // '' = not sure; the server then lets the transcription model detect it.
@@ -61,12 +68,16 @@ function StartInterview() {
   const [saving, setSaving] = useState(false);
 
   const chosenProject = projects.find((p) => p.id === projectId) ?? (projects.length === 1 ? projects[0] : undefined);
+  const types = typesForProject(chosenProject?.interviewTypes);
+  const chosenType = types.find((t) => t.key === (typeKey || defaultType(types, chosenProject?.method)));
 
   const toConsent = (e: FormEvent) => {
     e.preventDefault();
     const next: Record<string, string> = {};
-    if (!enumerator.trim()) next.enumerator = 'Enter your name, so the team knows who conducted this interview.';
+    if (!personal && !enumerator.trim()) next.enumerator = 'Enter your name, so the team knows who conducted this interview.';
     if (!chosenProject) next.project = 'Choose the project this interview belongs to.';
+    if (chosenProject && !chosenType) next.type = 'Choose what kind of interview this is.';
+    Object.assign(next, validateTypeMetadata(chosenType, typeAnswers).errors);
     if (!name.trim()) next.name = 'Enter a name, pseudonym or code.';
     setErrors(next);
     if (Object.keys(next).length === 0) setStep('consent');
@@ -129,30 +140,36 @@ function StartInterview() {
 
       {step === 'who' ? (
         <form onSubmit={toConsent} noValidate className="space-y-6">
-          <div>
-            <label htmlFor="enumerator" className="mb-1.5 block text-[16px] font-semibold text-foreground">
-              Your name (interviewer)
-            </label>
-            <Input
-              id="enumerator"
-              value={enumerator}
-              onChange={(e) => setEnumerator(e.target.value)}
-              className="h-control-lg"
-              autoComplete="name"
-              error={!!errors.enumerator}
-              aria-describedby={errors.enumerator ? 'enumerator-error' : 'enumerator-hint'}
-              maxLength={120}
-            />
-            {errors.enumerator ? (
-              <p id="enumerator-error" className="mt-1.5 text-[14px] text-foreground-error">
-                {errors.enumerator}
-              </p>
-            ) : (
-              <p id="enumerator-hint" className="mt-1.5 text-[14px] text-foreground-secondary">
-                Check it is you: this phone’s code may be shared by your team.
-              </p>
-            )}
-          </div>
+          {personal ? (
+            <p className="rounded-2xl bg-field-card px-4 py-3 text-[15px] text-foreground-secondary ring-1 ring-field-line">
+              Interviewer: <span className="font-semibold text-foreground">{accountName}</span>
+            </p>
+          ) : (
+            <div>
+              <label htmlFor="enumerator" className="mb-1.5 block text-[16px] font-semibold text-foreground">
+                Your name (interviewer)
+              </label>
+              <Input
+                id="enumerator"
+                value={enumerator}
+                onChange={(e) => setEnumerator(e.target.value)}
+                className="h-control-lg"
+                autoComplete="name"
+                error={!!errors.enumerator}
+                aria-describedby={errors.enumerator ? 'enumerator-error' : 'enumerator-hint'}
+                maxLength={120}
+              />
+              {errors.enumerator ? (
+                <p id="enumerator-error" className="mt-1.5 text-[14px] text-foreground-error">
+                  {errors.enumerator}
+                </p>
+              ) : (
+                <p id="enumerator-hint" className="mt-1.5 text-[14px] text-foreground-secondary">
+                  Check it is you: this phone’s code may be shared by your team.
+                </p>
+              )}
+            </div>
+          )}
 
           {projects.length > 1 && (
             <fieldset aria-describedby={errors.project ? 'project-error' : undefined}>
@@ -192,6 +209,89 @@ function StartInterview() {
             <p className="rounded-2xl bg-field-card px-4 py-3 text-[15px] text-foreground-secondary ring-1 ring-field-line">
               Project: <span className="font-semibold text-foreground">{projects[0].name}</span>
             </p>
+          )}
+
+          {chosenProject && (
+            <fieldset aria-describedby={errors.type ? 'type-error' : undefined}>
+              <legend className="mb-2 text-[16px] font-semibold text-foreground">Type of interview</legend>
+              <div className="space-y-2" role="radiogroup">
+                {types.map((t) => {
+                  const selected = chosenType?.key === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        setTypeKey(t.key);
+                        setTypeAnswers({});
+                      }}
+                      className={cn(
+                        'flex min-h-control-field w-full items-center justify-between gap-3 rounded-xl px-4 py-2 text-left ring-1 transition-colors',
+                        selected ? 'bg-navy text-white ring-navy' : 'bg-field-card text-foreground ring-field-line',
+                      )}
+                    >
+                      <span>
+                        <span className="block text-[16px] font-semibold">{t.label}</span>
+                        {t.description && <span className={cn('block text-[13px] font-normal', selected ? 'text-white/80' : 'text-foreground-secondary')}>{t.description}</span>}
+                      </span>
+                      {selected && <Check className="h-5 w-5 shrink-0 text-lemon" aria-hidden />}
+                    </button>
+                  );
+                })}
+              </div>
+              {errors.type && (
+                <p id="type-error" className="mt-1.5 text-[14px] text-foreground-error">
+                  {errors.type}
+                </p>
+              )}
+            </fieldset>
+          )}
+
+          {chosenType && chosenType.fields.length > 0 && (
+            <div className="space-y-4 rounded-2xl bg-field-card p-4 ring-1 ring-field-line">
+              <p className="text-[15px] font-semibold text-foreground">{chosenType.label}: details</p>
+              {chosenType.fields.map((f) => (
+                <div key={f.key}>
+                  <label htmlFor={`tf-${f.key}`} className="mb-1.5 block text-[15px] font-semibold text-foreground">
+                    {f.label} {!f.required && <span className="font-normal text-foreground-tertiary">(optional)</span>}
+                  </label>
+                  {f.kind === 'select' ? (
+                    <select
+                      id={`tf-${f.key}`}
+                      value={typeAnswers[f.key] ?? ''}
+                      onChange={(e) => setTypeAnswers((a) => ({ ...a, [f.key]: e.target.value }))}
+                      className="h-control-lg w-full rounded-xl bg-field-card px-3 text-[16px] ring-1 ring-field-line"
+                      aria-describedby={errors[f.key] ? `tf-${f.key}-error` : undefined}
+                    >
+                      <option value="">Choose…</option>
+                      {(f.options ?? []).map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      id={`tf-${f.key}`}
+                      type={f.kind === 'number' ? 'number' : 'text'}
+                      inputMode={f.kind === 'number' ? 'numeric' : undefined}
+                      value={typeAnswers[f.key] ?? ''}
+                      onChange={(e) => setTypeAnswers((a) => ({ ...a, [f.key]: e.target.value }))}
+                      className="h-control-lg"
+                      error={!!errors[f.key]}
+                      aria-describedby={errors[f.key] ? `tf-${f.key}-error` : undefined}
+                    />
+                  )}
+                  {errors[f.key] && (
+                    <p id={`tf-${f.key}-error`} className="mt-1.5 text-[14px] text-foreground-error">
+                      {errors[f.key]}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
 
           <div>
@@ -274,7 +374,7 @@ function StartInterview() {
             setSaving(true);
             try {
               localStorage.setItem(LAST_LANGUAGE_KEY, language);
-              localStorage.setItem(LAST_ENUMERATOR_KEY, enumerator.trim());
+              if (!personal) localStorage.setItem(LAST_ENUMERATOR_KEY, enumerator.trim());
             } catch {
               // Private mode or storage blocked: only the default is lost.
             }
@@ -298,7 +398,9 @@ function StartInterview() {
                 capturedAt: new Date().toISOString(),
               },
               location: location.trim() || undefined,
-              enumeratorName: enumerator.trim(),
+              enumeratorName: personal ? undefined : enumerator.trim(),
+              type: chosenType?.key,
+              typeMetadata: chosenType && chosenType.fields.length > 0 ? validateTypeMetadata(chosenType, typeAnswers).values : undefined,
               language: language || undefined,
               // The guide shown on this phone; kept even if a newer one is approved later.
               questionSetId: chosenProject.guide?.id,

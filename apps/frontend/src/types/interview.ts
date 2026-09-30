@@ -10,7 +10,7 @@ export interface Interview {
   notes?: string | null;
   /** Language spoken, if known: the transcription hint. */
   language?: string | null;
-  /** KII, FGD, IDI or OTHER. */
+  /** KII, FGD, IDI, HOUSEHOLD, OBSERVATION, OTHER, or a project's own type key. */
   type?: string | null;
   /** The interview guide version it uses. */
   questionSetId?: string | null;

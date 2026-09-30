@@ -91,7 +91,10 @@ function blocks(b: ReportBlock, doc: ReportDocument): (Paragraph | Table)[] {
       return [
         new Paragraph({
           spacing: { after: 140, line: 312 },
-          children: [run(b.text, { size: 21 })],
+          children: [
+            ...(b.label ? [run(`${b.label}: `, { size: 21, bold: true })] : []),
+            run(b.text, { size: 21 }),
+          ],
         }),
       ];
     case 'bullets':

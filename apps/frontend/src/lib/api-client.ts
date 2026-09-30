@@ -14,6 +14,8 @@ import type * as AssignmentTypes from '@/types/assignment';
 import type * as AuthTypes from '@/types/auth';
 import type * as ConsentTypes from '@/types/consent';
 import type * as DashboardTypes from '@/types/dashboard';
+import type * as EnumeratorTypes from '@/types/enumerator';
+import type * as ReviewTypes from '@/types/review';
 import type * as FieldTypes from '@/types/field';
 import type * as FindingTypes from '@/types/finding';
 import type * as IndicatorTypes from '@/types/indicator';
@@ -266,25 +268,49 @@ export const API = {
     createInterview: (data: FieldTypes.CreateFieldInterviewInput) =>
       apiClient.post<ApiTypes.Envelope<InterviewTypes.Interview>>('/field/interviews', data, { timeout: 60_000 }),
   },
-  /** Admin: field access codes, their projects and who used them. */
-  fieldTeam: {
-    list: () => apiClient.get<ApiTypes.Envelope<FieldTypes.FieldWorker[]>>('/field-team'),
-    create: (data: FieldTypes.CreateAccessCodeInput) =>
-      apiClient.post<ApiTypes.Envelope<{ id: string; name: string; code: string }>>('/field-team', data),
-    code: (userId: string) =>
-      apiClient.get<ApiTypes.Envelope<{ code: string | null; issuedAt: string | null }>>(`/field-team/${userId}/code`),
-    rename: (userId: string, name: string) =>
-      apiClient.put<ApiTypes.Envelope<FieldTypes.FieldWorker>>(`/field-team/${userId}/name`, { name }),
-    setProjects: (userId: string, projectIds: string[]) =>
-      apiClient.put<ApiTypes.Envelope<FieldTypes.FieldWorker>>(`/field-team/${userId}/projects`, { projectIds }),
+  /** Admin: enumerators, their projects and personal field-app access codes. */
+  enumerators: {
+    list: (params?: EnumeratorTypes.EnumeratorFilters) =>
+      apiClient.get<ApiTypes.Envelope<EnumeratorTypes.Enumerator[]>>('/enumerators', { params }),
+    get: (id: string) => apiClient.get<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}`),
+    submissions: (id: string, params?: { type?: string; projectId?: string }) =>
+      apiClient.get<ApiTypes.Envelope<EnumeratorTypes.EnumeratorSubmission[]>>(`/enumerators/${id}/submissions`, { params }),
+    create: (data: EnumeratorTypes.CreateEnumeratorInput) =>
+      apiClient.post<ApiTypes.Envelope<EnumeratorTypes.CreatedEnumerator>>('/enumerators', data),
+    update: (id: string, data: EnumeratorTypes.UpdateEnumeratorInput) =>
+      apiClient.patch<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}`, data),
+    setActive: (id: string, isActive: boolean) =>
+      apiClient.put<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}/active`, { isActive }),
+    setProjects: (id: string, projectIds: string[]) =>
+      apiClient.put<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}/projects`, { projectIds }),
+    assignProject: (id: string, projectId: string) =>
+      apiClient.put<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}/projects/${projectId}`),
+    removeProject: (id: string, projectId: string) =>
+      apiClient.delete<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}/projects/${projectId}`),
+    issueCode: (id: string, validDays?: number) =>
+      apiClient.post<ApiTypes.Envelope<EnumeratorTypes.IssuedAccessCode>>(`/enumerators/${id}/access-code`, validDays ? { validDays } : {}),
+    revokeCode: (id: string, reason?: string) =>
+      apiClient.delete<ApiTypes.Envelope<EnumeratorTypes.EnumeratorDetail>>(`/enumerators/${id}/access-code`, { data: reason ? { reason } : {} }),
   },
-  users: {
-    generateFieldAccessCode: (id: string) =>
-      apiClient.post<ApiTypes.Envelope<{ code: string; issuedAt: string }>>(
-        `/users/${id}/field-access-code`,
-      ),
-    revokeFieldAccessCode: (id: string) =>
-      apiClient.delete<ApiTypes.Envelope<{ revoked: boolean }>>(`/users/${id}/field-access-code`),
+  /** The enumerator's own transcript review. */
+  fieldTranscripts: {
+    list: () => apiClient.get<ApiTypes.Envelope<ReviewTypes.FieldReviewListItem[]>>('/field/transcripts'),
+    get: (id: string) => apiClient.get<ApiTypes.Envelope<ReviewTypes.FieldReviewDetail>>(`/field/transcripts/${id}`),
+    audio: (id: string) =>
+      apiClient.get<ApiTypes.Envelope<{ url: string; expiresIn: number; mimeType: string }>>(`/field/transcripts/${id}/audio`),
+    editSegment: (id: string, segmentId: string, patch: ReviewTypes.ReviewSegmentPatch) =>
+      apiClient.patch<ApiTypes.Envelope<ReviewTypes.ReviewSegment>>(`/field/transcripts/${id}/segments/${segmentId}`, patch),
+    renameSpeaker: (id: string, from: string, to: string) =>
+      apiClient.post<ApiTypes.Envelope<{ renamed: number }>>(`/field/transcripts/${id}/speakers/rename`, { from, to }),
+    submit: (id: string, note?: string) =>
+      apiClient.post<ApiTypes.Envelope<ReviewTypes.FieldReviewDetail>>(`/field/transcripts/${id}/submit`, note ? { note } : {}),
+  },
+  /** Interview types a project collects. */
+  interviewTypes: {
+    list: (projectId: string) =>
+      apiClient.get<ApiTypes.Envelope<ReviewTypes.ProjectInterviewTypes>>(`/projects/${projectId}/interview-types`),
+    replace: (projectId: string, types: { key: string; label: string; description?: string; fields?: ReviewTypes.TypeField[] }[]) =>
+      apiClient.put<ApiTypes.Envelope<ReviewTypes.ProjectInterviewTypes>>(`/projects/${projectId}/interview-types`, { types }),
   },
   roles: {
     list: () => apiClient.get<{ data: RoleTypes.Role[] }>('/roles'),
@@ -702,8 +728,22 @@ export const API = {
       ),
   },
   transcripts: {
-    listAll: () =>
-      apiClient.get<ApiTypes.Envelope<TranscriptTypes.TranscriptSummaryList>>('/transcripts'),
+    listAll: (params?: { type?: string; reviewStatus?: string; projectId?: string }) =>
+      apiClient.get<ApiTypes.Envelope<TranscriptTypes.TranscriptSummaryList>>('/transcripts', { params }),
+    reviewSummary: (projectId?: string) =>
+      apiClient.get<ApiTypes.Envelope<ReviewTypes.ReviewSummary>>('/transcripts/review-summary', { params: projectId ? { projectId } : undefined }),
+    review: (id: string) => apiClient.get<ApiTypes.Envelope<ReviewTypes.AdminReviewDetail>>(`/transcripts/${id}/review`),
+    compare: (id: string, from?: number, to?: number) =>
+      apiClient.get<ApiTypes.Envelope<ReviewTypes.RevisionComparison>>(`/transcripts/${id}/revisions/compare`, { params: { from, to } }),
+    reviewEdit: (id: string, segmentId: string, patch: ReviewTypes.ReviewSegmentPatch) =>
+      apiClient.patch<ApiTypes.Envelope<ReviewTypes.ReviewSegment>>(`/transcripts/${id}/segments/${segmentId}`, patch),
+    approve: (id: string, data: { note?: string; acknowledgeFlags?: boolean; skipEnumeratorReview?: boolean }) =>
+      apiClient.post<ApiTypes.Envelope<ReviewTypes.AdminReviewDetail>>(`/transcripts/${id}/approve`, data),
+    returnForCorrection: (id: string, note: string) =>
+      apiClient.post<ApiTypes.Envelope<ReviewTypes.AdminReviewDetail>>(`/transcripts/${id}/return`, { note }),
+    reopen: (id: string, note: string) =>
+      apiClient.post<ApiTypes.Envelope<ReviewTypes.AdminReviewDetail>>(`/transcripts/${id}/reopen`, { note }),
+    lock: (id: string) => apiClient.post<ApiTypes.Envelope<ReviewTypes.AdminReviewDetail>>(`/transcripts/${id}/lock`, {}),
     ask: (id: string, question: string) =>
       apiClient.post<ApiTypes.Envelope<TranscriptTypes.DialogueAnswer>>(
         `/transcripts/${id}/ask`,

@@ -28,6 +28,8 @@ import { ParticipantsService } from '../../participants/participants.service';
 import { ConsentsService } from '../../consents/consents.service';
 import { InterviewsService } from '../../interviews/interviews.service';
 import { TranscriptsService } from '../../transcripts/transcripts.service';
+import { TranscriptReviewService } from '../../transcripts/transcript-review.service';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 import {
   TranscriptionProviderService,
   TranscriptionResult,
@@ -108,6 +110,7 @@ describeDb('transcription pipeline (database)', () => {
   let consents: ConsentsService;
   let interviews: InterviewsService;
   let transcripts: TranscriptsService;
+  let review: TranscriptReviewService;
   let storage: StorageService;
   let fake: FakeProvider;
   let config: {
@@ -260,7 +263,21 @@ describeDb('transcription pipeline (database)', () => {
       new MediaService(prisma as any, storage),
     );
     transcripts = new TranscriptsService(prisma as any, consents);
+    review = new TranscriptReviewService(
+      prisma as any,
+      new AuditLogService(prisma as any),
+      storage,
+    );
   }, 60_000);
+
+  /** An administrator's correction of one segment's text. */
+  const editSegment = (
+    transcriptId: string,
+    segmentId: string,
+    text: string | null,
+    userId: string,
+    orgId: string,
+  ) => review.editAsAdmin(transcriptId, segmentId, { text }, userId, orgId);
 
   beforeEach(() => {
     config = {
@@ -280,6 +297,8 @@ describeDb('transcription pipeline (database)', () => {
     await prisma.quotation.deleteMany({ where });
     await prisma.finding.deleteMany({ where });
     await prisma.transcriptSegment.deleteMany({ where });
+    await prisma.transcriptReviewEvent.deleteMany({ where });
+    await prisma.transcriptRevision.deleteMany({ where });
     await prisma.transcript.deleteMany({ where });
     await prisma.media.deleteMany({ where });
     await prisma.interview.deleteMany({ where });
@@ -314,6 +333,7 @@ describeDb('transcription pipeline (database)', () => {
       'ha',
     );
     expect(transcript?.status).toBe('PENDING');
+    expect(transcript?.reviewStatus).toBe('RECORDING_SUBMITTED');
     expect(transcript?.requestedLanguage).toBe('ha');
 
     await jobs.drain({ organizationId: orgId });
@@ -327,6 +347,14 @@ describeDb('transcription pipeline (database)', () => {
     expect(done.provider).toBe('groq');
     expect(done.language).toBe('ha');
     expect(done.text).toBe('Sannu da zuwa. Muna noma dawa da gero.');
+    // Transcription hands over to human review: available to the enumerator,
+    // with the machine transcript kept as revision 1.
+    expect(done.reviewStatus).toBe('AVAILABLE_FOR_REVIEW');
+    const revisions = await prisma.transcriptRevision.findMany({
+      where: { transcriptId: done.id },
+    });
+    expect(revisions.map((r) => [r.number, r.kind])).toEqual([[1, 'MACHINE']]);
+    expect(JSON.stringify(revisions[0].segments)).toContain('Sannu da zuwa');
     expect(done.durationMs).toBeGreaterThan(39_000);
     expect(done.durationMs).toBeLessThan(41_000);
     expect(done.processingMs).toBeGreaterThanOrEqual(0);
@@ -653,7 +681,7 @@ describeDb('transcription pipeline (database)', () => {
     }, 60_000);
 
     it('stores a correction beside the machine text, and clears it again', async () => {
-      const edited = await transcripts.editSegment(
+      const edited = await editSegment(
         transcriptId,
         segmentId,
         '  Ruwan sha ya yi mana wahala.  ',
@@ -665,7 +693,7 @@ describeDb('transcription pipeline (database)', () => {
       expect(edited.editedById).toBe(userId);
 
       // Identical to the machine text counts as no correction.
-      const same = await transcripts.editSegment(
+      const same = await editSegment(
         transcriptId,
         segmentId,
         'Ruwan sha ya yi mana wuya.',
@@ -696,7 +724,7 @@ describeDb('transcription pipeline (database)', () => {
       });
 
       await expect(
-        transcripts.editSegment(
+        editSegment(
           transcriptId,
           segmentId,
           'Ruwa ya yi mana wuya.',
@@ -706,7 +734,7 @@ describeDb('transcription pipeline (database)', () => {
       ).rejects.toThrow(/keep those words unchanged/);
       // Keeping the quoted words is fine.
       await expect(
-        transcripts.editSegment(
+        editSegment(
           transcriptId,
           segmentId,
           'Ruwan sha ya yi mana wahala sosai.',
@@ -761,7 +789,7 @@ describeDb('transcription pipeline (database)', () => {
       expect(done.segments[0].text).toBe('Ruwan sha ya yi mana wuya.');
 
       // Changing the wording drops that segment's (now stale) translation.
-      const changed = await transcripts.editSegment(
+      const changed = await editSegment(
         transcriptId,
         done.segments[0].id,
         'Ruwan sha ya yi mana wahala kwarai.',

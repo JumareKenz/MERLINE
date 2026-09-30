@@ -93,6 +93,7 @@ describeDb('evidence integrity (database)', () => {
     const transcript = await prisma.transcript.create({
       data: {
         status: 'COMPLETED',
+        reviewStatus: 'APPROVED',
         organizationId: orgId,
         interviewId: interview.id,
         mediaId: media.id,
@@ -160,6 +161,12 @@ describeDb('evidence integrity (database)', () => {
       where: { organizationId: { in: [orgAId, orgBId] } },
     });
     await prisma.transcriptSegment.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
+    await prisma.transcriptReviewEvent.deleteMany({
+      where: { organizationId: { in: [orgAId, orgBId] } },
+    });
+    await prisma.transcriptRevision.deleteMany({
       where: { organizationId: { in: [orgAId, orgBId] } },
     });
     await prisma.transcript.deleteMany({

@@ -45,7 +45,7 @@ export function ProjectReportPanel({
             <p className="mt-2 text-[14px] leading-relaxed text-white/75">
               {latestDone
                 ? `Generated ${formatDateTime(latestDone.completedAt ?? latestDone.createdAt)} from ${latestDone.sourceCount} interview${latestDone.sourceCount === 1 ? '' : 's'}.`
-                : `Findings, how widely each is shared, divergent views, recommendations and verbatim quotations with timestamps, drawn from ${eligibleInterviews} transcribed interview${eligibleInterviews === 1 ? '' : 's'}. Interview reports are written first where missing.`}
+                : `Findings, how widely each is shared, divergent views, recommendations and verbatim quotations with timestamps, drawn from ${eligibleInterviews} approved, transcribed interview${eligibleInterviews === 1 ? '' : 's'}. Interview reports are written first where missing.`}
             </p>
             {busy && (
               <p className="mt-3 inline-flex items-center gap-2 text-[14px] text-lemon-500" role="status">
@@ -72,7 +72,7 @@ export function ProjectReportPanel({
                 <Sparkles className="h-4 w-4" aria-hidden /> {latestDone ? 'Generate a new version' : 'Generate project report'}
               </Button>
             )}
-            {eligibleInterviews === 0 && <p className="text-[13px] text-white/70">Needs at least one transcribed interview with consent to AI analysis.</p>}
+            {eligibleInterviews === 0 && <p className="text-[13px] text-white/70">Needs at least one approved transcript with consent to AI analysis.</p>}
           </div>
         </div>
         {latestDone && session.can('export.reports') && (

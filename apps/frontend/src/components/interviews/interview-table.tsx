@@ -8,6 +8,7 @@ import { AudioLines, ShieldCheck, ShieldOff } from 'lucide-react';
 import { CellMuted, DataTable } from '@/components/shared/data-table';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatDate } from '@/lib/utils';
+import { typeLabel } from '@/lib/interview-types';
 import type { Interview } from '@/types/interview';
 
 interface InterviewTableProps {
@@ -64,6 +65,12 @@ export function InterviewTable({
           {row.original.participant?.displayName ?? `Interview ${row.original.id.slice(0, 8)}`}
         </Link>
       ),
+    },
+    {
+      id: 'type',
+      accessorFn: (row) => typeLabel(row.type),
+      header: 'Type',
+      cell: ({ getValue }) => <CellMuted>{getValue() as string}</CellMuted>,
     },
     {
       accessorKey: 'status',

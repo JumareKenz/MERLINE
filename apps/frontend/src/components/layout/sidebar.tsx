@@ -15,15 +15,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/providers/auth-provider';
 import { useSession } from '@/hooks/use-session';
-import { ACCOUNT_NAV, PRIMARY_NAV, isActive, type NavItem } from '@/lib/navigation';
+import { ACCOUNT_NAV, PRIMARY_NAV, SETUP_NAV, isActive, visibleNav, type NavItem } from '@/lib/navigation';
 import { APP_HOME } from '@/lib/routes';
 import { cn, getInitials } from '@/lib/utils';
 
 /** Until /auth/me answers, show everything rather than flash items in and out. */
 function useVisibleNav() {
   const session = useSession();
-  const visible = (item: NavItem) => !session.isResolved || item.anyOf.length === 0 || session.canAny(...item.anyOf);
-  return { primary: PRIMARY_NAV.filter(visible), account: ACCOUNT_NAV.filter(visible), session };
+  const show = (items: NavItem[]) => visibleNav(items, session.canAny, session.isResolved);
+  return { primary: show(PRIMARY_NAV), setup: show(SETUP_NAV), account: show(ACCOUNT_NAV), session };
 }
 
 function NavLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
@@ -141,7 +141,7 @@ export function SidebarContent({
   onNavigate?: () => void;
   onToggleCollapsed?: () => void;
 }) {
-  const { primary } = useVisibleNav();
+  const { primary, setup } = useVisibleNav();
 
   return (
     <div className="flex h-full flex-col">
@@ -165,6 +165,16 @@ export function SidebarContent({
         {primary.map((item) => (
           <NavLink key={item.href} item={item} collapsed={collapsed} onNavigate={onNavigate} />
         ))}
+        {setup.length > 0 && (
+          <div className={cn('pt-4', collapsed && 'mt-3 border-t border-border-subtle')} role="group" aria-label="Set-up">
+            {!collapsed && <p className="type-eyebrow mb-1.5 px-3">Set-up</p>}
+            <div className="space-y-1">
+              {setup.map((item) => (
+                <NavLink key={item.href} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className={cn('shrink-0 space-y-1 border-t border-border-subtle', collapsed ? 'p-2' : 'p-3')}>

@@ -1,3 +1,4 @@
+import type { InterviewTypeDef } from '@/types/review';
 import type { FieldGuide } from '@/types/field';
 /**
  * Field app — offline recording and upload outbox.
@@ -84,6 +85,8 @@ export interface CachedProject {
   method?: string | null;
   /** The approved guide, kept on the phone so questions show offline. */
   guide?: FieldGuide | null;
+  /** Interview types the project collects, kept so a type can be chosen offline. */
+  interviewTypes?: InterviewTypeDef[];
 }
 
 /** One question marked during an interview (kept on the phone until sent). */
@@ -137,8 +140,11 @@ export interface PendingInterview {
     capturedAt: string;
   };
   location?: string;
-  /** Who is conducting it, as typed on the phone (codes may be shared). */
+  /** Who is conducting it, as typed on the phone (only for an older shared code). */
   enumeratorName?: string;
+  /** Interview type chosen on the phone (KII, FGD, …) and its extra details. */
+  type?: string;
+  typeMetadata?: Record<string, string | number>;
   /** The guide version shown on the phone when the interview began. */
   questionSetId?: string;
   /** Language spoken (e.g. "ha"): the transcription hint. */

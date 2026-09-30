@@ -59,14 +59,13 @@ async function adminLogin(page: Page) {
   await page.getByLabel('Email').fill(fx().adminEmail);
   await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_ADMIN_PASSWORD as string);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/projects');
+  await page.waitForURL('**/dashboard');
 }
 
 async function fieldLogin(page: Page) {
   const { code } = fx();
   await page.goto('/field-login');
-  await page.getByLabel('Access code, first 5 characters').fill(code.replace('-', '').slice(0, 5));
-  await page.getByLabel('Access code, last 5 characters').fill(code.replace('-', '').slice(5));
+  await page.getByLabel('Access code').fill(code);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/field');
 }
@@ -125,13 +124,15 @@ test.describe('admin workspace', () => {
 
     await adminLogin(page);
     const nav = page.getByRole('navigation', { name: 'Primary' });
-    await expect(nav.getByRole('link')).toHaveText(['Projects', 'Guides', 'Assignments', 'Results', 'Transcripts', 'Reports', 'AI Dialogue']);
+    await expect(nav.getByRole('link')).toHaveText(['Dashboard', 'Projects', 'Enumerators', 'Submissions', 'Transcripts', 'Reports', 'Guides', 'Self-interviews']);
     await expect(page.getByRole('link', { name: /Questionnaires|Organizations|Workspaces|Indicators/ })).toHaveCount(0);
 
     const logo = page.locator('aside img').first();
     await expect(logo).toHaveAttribute('src', /\/brand\/mark-64\.png/);
     expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
 
+    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+    await page.goto('/projects');
     await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
     expect(await axe(page), 'projects a11y').toEqual([]);
     await page.screenshot({ path: `${SHOTS}/admin-projects-desktop.png`, fullPage: true });
@@ -142,23 +143,26 @@ test.describe('admin workspace', () => {
     await expect(account.getByRole('link', { name: 'Settings' })).toBeVisible();
 
     await page.goto('/assignments');
-    await expect(page.getByRole('heading', { name: 'Assignments', level: 1 })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Field team', selected: true })).toBeVisible();
+    await page.waitForURL('**/enumerators');
+    await expect(page.getByRole('heading', { name: 'Enumerators', level: 1 })).toBeVisible();
     await expect(page.getByText('Amina Okafor').first()).toBeVisible();
-    expect(await axe(page), 'assignments a11y').toEqual([]);
-    await page.screenshot({ path: `${SHOTS}/admin-assignments-desktop.png`, fullPage: true });
+    expect(await axe(page), 'enumerators a11y').toEqual([]);
+    await page.screenshot({ path: `${SHOTS}/admin-enumerators-desktop.png`, fullPage: true });
 
-    // Add a field worker: projects + one-time code, no participants or consent.
-    await page.getByRole('button', { name: 'Add field worker' }).click();
+    // Add an enumerator: details + projects; the personal code is shown once.
+    await page.getByRole('button', { name: 'Add enumerator' }).click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByLabel('First name').fill('Tunde');
-    await dialog.getByLabel('Last name').fill('Bello');
+    await dialog.getByRole('button', { name: 'Create and get code' }).click();
+    await expect(dialog.getByText('Enter the enumerator’s full name.')).toBeVisible();
+    await dialog.getByLabel('Full name').fill('Tunde Bello');
+    await dialog.getByLabel('Phone number').fill('+234 811 222 3333');
+    await dialog.getByLabel('State').fill('Kano');
     await dialog.getByRole('button', { name: 'Select all projects' }).click();
-    await dialog.getByRole('button', { name: 'Add and issue code' }).click();
+    await dialog.getByRole('button', { name: 'Create and get code' }).click();
     await expect(page.getByRole('dialog', { name: /Access code for Tunde Bello/ })).toBeVisible();
-    await expect(page.getByRole('dialog').locator('code')).toHaveText(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/);
+    await expect(page.getByRole('dialog').locator('code')).toHaveText(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
     await page.screenshot({ path: `${SHOTS}/admin-field-code-desktop.png` });
-    await page.getByRole('button', { name: 'Done' }).click();
+    await page.getByRole('button', { name: 'I have passed it on' }).click();
 
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
@@ -173,8 +177,10 @@ test.describe('admin workspace', () => {
     await expect(page.getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
     await expect(page.getByText(/two-factor/i)).toHaveCount(0);
 
-    await page.goto('/ai');
-    await expect(page.getByRole('heading', { name: 'AI Dialogue', level: 1 })).toBeVisible();
+    await page.goto('/transcripts');
+    await expect(page.getByRole('heading', { name: 'Transcripts', level: 1 })).toBeVisible();
+    await page.goto('/analysis');
+    await expect(page.getByRole('heading', { name: 'Reports', level: 1 })).toBeVisible();
 
     for (const [name, size] of [['tablet', VIEWPORTS.tablet], ['phone', VIEWPORTS.phone]] as const) {
       await page.setViewportSize(size);
@@ -185,7 +191,7 @@ test.describe('admin workspace', () => {
       await page.screenshot({ path: `${SHOTS}/admin-projects-${name}.png`, fullPage: true });
     }
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    await expect(page.getByRole('dialog').getByRole('link', { name: 'Assignments' })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('link', { name: 'Enumerators' })).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/admin-nav-drawer-phone.png` });
 
     // "Failed to fetch RSC payload" is Next aborting its own link prefetches
@@ -208,11 +214,11 @@ test.describe('field app', () => {
 
     await fieldLogin(page);
     const { interviewId, otherInterviewId } = fx();
-    await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link')).toHaveText(['Projects', 'History']);
+    await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link')).toHaveText(['Projects', 'History', 'Transcripts']);
     await expect(page.getByRole('link', { name: 'Start an interview' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
     // No admin destinations; "Projects" here is the field app's own tab.
-    await expect(page.getByRole('link', { name: /Assignments|Results|Transcripts|Reports|AI Dialogue|Settings/ })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Enumerators|Submissions|Reports|AI Dialogue|Settings/ })).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: 'Field app' }).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/field');
     await expect(page.getByRole('link', { name: /Prepare interview|Continue interview/ })).toHaveAttribute('href', `/field/interview?id=${interviewId}`);
     await expect(page.getByText('Not for the field worker')).toHaveCount(0);

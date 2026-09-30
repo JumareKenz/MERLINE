@@ -64,30 +64,3 @@ export function useDeleteUser() {
     },
   });
 }
-
-export function useGenerateFieldAccessCode() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (userId: string) => API.users.generateFieldAccessCode(userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to generate access code');
-    },
-  });
-}
-
-export function useRevokeFieldAccessCode() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (userId: string) => API.users.revokeFieldAccessCode(userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-      toast.success('Access code revoked');
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to revoke access code');
-    },
-  });
-}

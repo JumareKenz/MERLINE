@@ -14,6 +14,7 @@ import type { AnalysisReport } from '@/types/analysis-report';
 import type { Interview } from '@/types/interview';
 import { interviewTypeLabel } from '@/types/research-project';
 import type { TranscriptSummary } from '@/types/transcript';
+import { ReviewStatusBadge } from '@/components/transcripts/review-status-badge';
 
 const ORDER = ['KII', 'IDI', 'FGD', 'OTHER', ''];
 
@@ -31,9 +32,12 @@ function TranscriptCell({ transcript }: { transcript?: TranscriptSummary }) {
   if (!transcript) return <span className="text-[13px] text-foreground-tertiary">No transcript</span>;
   if (transcript.status !== 'COMPLETED') return <StatusBadge status={transcript.status} size="sm" />;
   return (
-    <Link href={`/transcripts/${transcript.id}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-foreground-link hover:underline">
-      <FileText className="h-3.5 w-3.5" aria-hidden /> Transcript
-    </Link>
+    <span className="inline-flex flex-col items-start gap-1">
+      <Link href={`/transcripts/${transcript.id}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-foreground-link hover:underline">
+        <FileText className="h-3.5 w-3.5" aria-hidden /> Transcript
+      </Link>
+      <ReviewStatusBadge status={transcript.reviewStatus} size="sm" />
+    </span>
   );
 }
 
@@ -63,10 +67,12 @@ function ReportCell({
       </Link>
     );
   }
-  const ready = transcript?.status === 'COMPLETED' && (transcript._count?.segments ?? 1) > 0;
+  // Reports use approved transcripts only.
+  const approved = transcript?.reviewStatus === 'APPROVED' || transcript?.reviewStatus === 'LOCKED';
+  const ready = transcript?.status === 'COMPLETED' && approved && (transcript._count?.segments ?? 1) > 0;
   const aiAllowed = interview.consent?.allowAiAnalysis !== false && !interview.consent?.withdrawnAt;
   if (!ready || !canGenerate) {
-    return <span className="text-[13px] text-foreground-tertiary">{!aiAllowed ? 'No AI consent' : 'Needs transcript'}</span>;
+    return <span className="text-[13px] text-foreground-tertiary">{!aiAllowed ? 'No AI consent' : transcript?.status === 'COMPLETED' ? 'Needs approved transcript' : 'Needs transcript'}</span>;
   }
   if (!aiAllowed) return <span className="text-[13px] text-foreground-tertiary">No AI consent</span>;
   return (

@@ -10,6 +10,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
+  // Components are rendered to markup in Node; Next's tsconfig keeps JSX as-is, so tell esbuild to compile it.
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
     include: ['src/**/*.{test,spec}.{ts,tsx}'],

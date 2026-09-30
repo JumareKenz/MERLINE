@@ -8,6 +8,7 @@ import type { JobFailure } from '../jobs/jobs.service';
 import { TranscriptionProviderService } from '../transcripts/transcription-provider.service';
 import { TRANSCRIPTION_LANGUAGES } from '../transcripts/languages';
 import { segmentText } from '../transcripts/segment-text';
+import { EVIDENCE_TRANSCRIPT_WHERE } from '../transcripts/review-status';
 import {
   INTERVIEW_TYPE_LABELS,
   InterviewType,
@@ -21,7 +22,12 @@ import {
   buildProjectReport,
   parseModelJson,
 } from './report-builders';
-import { ReportDocument, formatTimestamp } from './report-document';
+import {
+  ReportDocument,
+  ReportSourceRef,
+  formatTimestamp,
+} from './report-document';
+import type { TypedInterview } from './evidence';
 import {
   CUSTOM_REPORT_PROMPT_VERSION,
   INTERVIEW_REPORT_PROMPT_VERSION,
@@ -149,6 +155,23 @@ export class AnalysisPipelineService {
         errorMessage: null,
       },
     });
+    // Record exactly which approved transcripts (and revisions) it was written from.
+    const sources = result.doc.sources ?? [];
+    await this.prisma.reportSource.deleteMany({
+      where: { reportId: report.id },
+    });
+    if (sources.length) {
+      await this.prisma.reportSource.createMany({
+        data: sources.map((x) => ({
+          reportId: report.id,
+          transcriptId: x.transcriptId,
+          revisionId: x.revisionId,
+          interviewId: x.interviewId,
+          interviewType: x.interviewType,
+        })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   async onFailure(reportId: string, failure: JobFailure) {
@@ -213,7 +236,8 @@ export class AnalysisPipelineService {
     return this.prisma.transcript.findFirst({
       where: {
         interviewId,
-        status: 'COMPLETED',
+        // Evidence gate: only approved transcripts feed analysis.
+        ...EVIDENCE_TRANSCRIPT_WHERE,
         media: { deletedAt: null },
         segments: { some: {} },
       },
@@ -230,7 +254,7 @@ export class AnalysisPipelineService {
     const transcript = await this.latestTranscript(interview.id);
     if (!transcript)
       throw new PermanentJobError(
-        'This interview has no completed transcript with speech',
+        'This interview has no approved transcript with speech',
       );
 
     const label = `Interview ${number} · ${interview.type ?? 'Interview'} · ${interview.participant.displayName}`;
@@ -248,7 +272,7 @@ export class AnalysisPipelineService {
       edited < transcript.segments.length / 2
     ) {
       quality.push(
-        `Machine transcription of Hausa is approximate and ${edited} of ${transcript.segments.length} segments have been corrected by a researcher. Treat details that are not quoted with caution.`,
+        `Machine transcription of Hausa is approximate and only ${edited} of ${transcript.segments.length} segments were corrected in review. Treat details that are not quoted with caution.`,
       );
     } else if (avgConfidence !== null && avgConfidence < 0.6 && edited === 0) {
       quality.push(
@@ -265,6 +289,10 @@ export class AnalysisPipelineService {
       interviewId: interview.id,
       transcriptId: transcript.id,
       sourceLabel: label,
+      interviewType: interview.type,
+      location: interview.location,
+      language: transcript.language,
+      revisionId: transcript.approvedRevisionId,
       facts: [
         { label: 'Project', value: interview.project?.name ?? 'No project' },
         { label: 'Interview type', value: typeLabel(interview.type) },
@@ -282,6 +310,10 @@ export class AnalysisPipelineService {
         { label: 'Participant', value: interview.participant.displayName },
         { label: 'Language', value: languageName(transcript.language) },
         {
+          label: 'Transcript status',
+          value: 'Approved by an administrator after enumerator review',
+        },
+        {
           label: 'Recording length',
           value: transcript.durationMs
             ? formatTimestamp(transcript.durationMs)
@@ -290,8 +322,8 @@ export class AnalysisPipelineService {
         {
           label: 'Transcript',
           value: edited
-            ? `${transcript.segments.length} segments, ${edited} corrected by a researcher`
-            : `${transcript.segments.length} segments, machine transcription`,
+            ? `${transcript.segments.length} segments, ${edited} corrected by reviewers`
+            : `${transcript.segments.length} segments, no wording changed in review`,
         },
       ],
       segments: transcript.segments,
@@ -299,9 +331,12 @@ export class AnalysisPipelineService {
       allowQuotes: !consentBlockReason(interview.consent, 'allowQuotation'),
     };
 
+    // Reviewer-flagged passages are shown to the model as uncertain so it
+    // does not lean on them; the builder also refuses to quote them.
     const text = transcript.segments
       .map(
-        (s) => `[${s.index}] (${formatTimestamp(s.startMs)}) ${segmentText(s)}`,
+        (s) =>
+          `[${s.index}] (${formatTimestamp(s.startMs)})${s.flagged ? ' [UNCERTAIN: do not quote or rely on]' : ''} ${segmentText(s)}`,
       )
       .join('\n');
     if (text.length > MAX_TRANSCRIPT_CHARS) {
@@ -354,6 +389,8 @@ export class AnalysisPipelineService {
       interview: InterviewRow;
       transcriptLanguage: string | null;
       durationMs: number | null;
+      transcriptId: string;
+      revisionId: string | null;
     })[] = [];
     let noConsent = 0;
     let noTranscript = 0;
@@ -385,11 +422,13 @@ export class AnalysisPipelineService {
         interview,
         transcriptLanguage: transcript.language,
         durationMs: transcript.durationMs,
+        transcriptId: transcript.id,
+        revisionId: transcript.approvedRevisionId,
       });
     }
     if (included.length === 0) {
       throw new PermanentJobError(
-        'No interview in this project has a completed transcript with consent to AI analysis yet',
+        'No interview in this project has an approved transcript with consent to AI analysis yet',
       );
     }
 
@@ -423,7 +462,15 @@ export class AnalysisPipelineService {
         deletedAt: null,
         transcriptId: transcript.id,
         language: parent.language,
-        ...(lastEdit && { completedAt: { gte: lastEdit } }),
+        // Must postdate the approval (and any later edit): a report written
+        // before approval was not written from the approved text.
+        completedAt: {
+          gte:
+            [lastEdit, transcript.approvedAt].reduce<Date | null>(
+              (max, d) => (d && (!max || d > max) ? d : max),
+              null,
+            ) ?? new Date(0),
+        },
       },
       orderBy: { completedAt: 'desc' },
     });
@@ -514,7 +561,7 @@ export class AnalysisPipelineService {
 
     const methodology = [
       `This report synthesises ${included.length} interview${included.length === 1 ? '' : 's'} (${typeSummary}) conducted for ${project.name} between ${fmtDate(dates[0])} and ${fmtDate(dates.at(-1))}, in ${languages.join(' and ')}. Participants gave recorded consent before each interview, including consent to AI-assisted analysis.`,
-      'Interviews were audio-recorded in the field, transcribed automatically and, where needed, corrected by researchers. Each interview was first analysed on its own; this report then compares those analyses to identify findings, how widely each is shared, and where views diverge. Every quotation is verbatim and linked to its interview and timestamp.',
+      'Interviews were audio-recorded in the field and transcribed automatically. Each transcript was then reviewed against the recording by the enumerator who conducted the interview and approved by an administrator; only approved transcripts are used here. Each interview was analysed on its own; this report then compares those analyses across interviews and interview types to identify findings, how widely and from how many kinds of source each is supported, and where views diverge. Every quotation is verbatim, checked against the approved transcript, and linked to its interview, speaker and timestamp.',
       ...(noConsent || noTranscript
         ? [
             `Not included: ${[
@@ -522,7 +569,7 @@ export class AnalysisPipelineService {
                 ? `${noConsent} interview${noConsent === 1 ? '' : 's'} without consent to AI analysis`
                 : '',
               noTranscript
-                ? `${noTranscript} without a completed transcript`
+                ? `${noTranscript} without an approved transcript`
                 : '',
             ]
               .filter(Boolean)
@@ -582,6 +629,8 @@ export class AnalysisPipelineService {
           };
         }),
         refLabels: Object.fromEntries(included.map((iv) => [iv.ref, iv.label])),
+        interviews: included.map((iv) => this.typed(iv)),
+        sources: included.map((iv) => this.sourceRef(iv)),
       },
       evidence.pool,
     );
@@ -589,6 +638,35 @@ export class AnalysisPipelineService {
       doc,
       promptVersion: PROJECT_REPORT_PROMPT_VERSION,
       sourceCount: included.length,
+    };
+  }
+
+  private typed(iv: { ref: string; interview: InterviewRow }): TypedInterview {
+    return {
+      ref: iv.ref,
+      type: iv.interview.type,
+      typeLabel: typeLabel(iv.interview.type),
+      location: iv.interview.location?.trim() || null,
+    };
+  }
+
+  private sourceRef(iv: {
+    ref: string;
+    label: string;
+    interview: InterviewRow;
+    transcriptId: string;
+    revisionId: string | null;
+    transcriptLanguage: string | null;
+  }): ReportSourceRef {
+    return {
+      ref: iv.ref,
+      label: iv.label,
+      interviewId: iv.interview.id,
+      transcriptId: iv.transcriptId,
+      revisionId: iv.revisionId,
+      interviewType: iv.interview.type,
+      location: iv.interview.location?.trim() || null,
+      language: iv.transcriptLanguage,
     };
   }
 
@@ -628,6 +706,7 @@ export class AnalysisPipelineService {
         { label: 'Requested', value: report.instructions ?? '' },
       ],
       evidence.pool,
+      included.map((iv) => this.sourceRef(iv)),
     );
     return {
       doc,
@@ -666,6 +745,8 @@ export class AnalysisPipelineService {
     const items: ProjectEvidenceInterview[] = [];
     for (const [i, interview] of interviews.entries()) {
       if (consentBlockReason(interview.consent, 'allowAiAnalysis')) continue;
+      const approved = await this.latestTranscript(interview.id);
+      if (!approved) continue; // nothing approved, nothing to draw on
       const report = await this.prisma.analysisReport.findFirst({
         where: {
           interviewId: interview.id,
@@ -673,6 +754,11 @@ export class AnalysisPipelineService {
           status: 'COMPLETED',
           deletedAt: null,
           language,
+          // Only a report written from the transcript as approved.
+          transcriptId: approved.id,
+          ...(approved.approvedAt && {
+            completedAt: { gte: approved.approvedAt },
+          }),
         },
         orderBy: { completedAt: 'desc' },
       });

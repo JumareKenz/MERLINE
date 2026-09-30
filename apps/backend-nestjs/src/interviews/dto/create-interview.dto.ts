@@ -1,6 +1,8 @@
 import {
   IsDateString,
   IsIn,
+  IsObject,
+  Matches,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -8,7 +10,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
-import { INTERVIEW_TYPES } from '../../common/research/interview-type';
+import { INTERVIEW_TYPE_KEY } from '../../common/research/interview-type';
 
 export class CreateInterviewDto {
   @IsUUID()
@@ -52,10 +54,15 @@ export class CreateInterviewDto {
   @IsUUID()
   questionSetId?: string;
 
-  /** KII, FGD, IDI or OTHER. Defaults to the project's method. */
+  /** One of the project's interview types (KII, FGD, IDI, HOUSEHOLD, OBSERVATION, OTHER or a custom key). Defaults to the project's method. */
   @IsOptional()
-  @IsIn(INTERVIEW_TYPES)
+  @Matches(INTERVIEW_TYPE_KEY, { message: 'Invalid interview type' })
   type?: string;
+
+  /** Answers to the interview type's own fields (e.g. group size for an FGD). */
+  @IsOptional()
+  @IsObject()
+  typeMetadata?: Record<string, unknown>;
 
   /** Language spoken, if known: used as the transcription hint. */
   @IsOptional()

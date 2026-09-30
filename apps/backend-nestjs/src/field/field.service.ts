@@ -4,12 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
 import { resolveFieldScope } from '../common/scoping/field-scope';
 import { jsonObject } from '../common/utils/prisma-json';
 import { CreateFieldInterviewDto } from './dto/field-interview.dto';
-import { defaultInterviewType } from '../common/research/interview-type';
+import {
+  availableInterviewTypes,
+  resolveInterviewType,
+} from '../common/research/interview-type';
 import { resolveQuestionSet } from '../guides/resolve-question-set';
 import { GuidesService } from '../guides/guides.service';
 
@@ -100,11 +104,20 @@ export class FieldService extends BaseService {
           p.id,
           method,
         );
+        const interviewTypes = (
+          await availableInterviewTypes(this.prisma, organizationId, p.id)
+        ).map((t) => ({
+          key: t.key,
+          label: t.label,
+          description: t.description,
+          fields: t.fields,
+        }));
         return {
           id: p.id,
           name: p.name,
           description: p.description,
           method,
+          interviewTypes,
           startDate: p.startDate,
           endDate: p.endDate,
           myInterviewCount: countByProject.get(p.id) ?? 0,
@@ -210,6 +223,31 @@ export class FieldService extends BaseService {
     }
   }
 
+  /**
+   * A personal account is one enumerator: the interview is credited to
+   * them whatever the device sends. Only a legacy shared code takes the
+   * typed name.
+   */
+  private async enumeratorNameFor(
+    db: Prisma.TransactionClient | PrismaService,
+    userId: string,
+    dto: CreateFieldInterviewDto,
+  ): Promise<string | undefined> {
+    const account = await (db as PrismaService).user.findUnique({
+      where: { id: userId },
+      select: {
+        firstName: true,
+        lastName: true,
+        fieldAccessCode: true,
+        enumeratorProfile: { select: { id: true } },
+      },
+    });
+    if (account?.enumeratorProfile && !account.fieldAccessCode) {
+      return `${account.firstName} ${account.lastName}`.trim();
+    }
+    return dto.enumeratorName?.trim() || undefined;
+  }
+
   private createInTransaction(
     dto: CreateFieldInterviewDto,
     userId: string,
@@ -252,7 +290,16 @@ export class FieldService extends BaseService {
           actorId: userId,
         },
       });
-      const type = await defaultInterviewType(tx, dto.projectId);
+      const resolved = await resolveInterviewType(
+        tx,
+        organizationId,
+        dto.projectId,
+        dto.type,
+        dto.typeMetadata,
+      );
+      // Never leave an interview without a type: it feeds per-type analysis.
+      const type = resolved.type ?? 'OTHER';
+      const enumeratorName = await this.enumeratorNameFor(tx, userId, dto);
       return tx.interview.create({
         data: {
           id: dto.interviewId,
@@ -263,9 +310,10 @@ export class FieldService extends BaseService {
           status: 'IN_PROGRESS',
           startedAt: grantedAt,
           location: dto.location?.trim() || undefined,
-          enumeratorName: dto.enumeratorName?.trim() || undefined,
+          enumeratorName,
           language: dto.language,
           type,
+          typeMetadata: resolved.metadata,
           questionSetId: await resolveQuestionSet(
             tx,
             organizationId,

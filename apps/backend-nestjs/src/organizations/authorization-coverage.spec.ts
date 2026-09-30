@@ -64,7 +64,9 @@ describe('authorization coverage (all active controllers)', () => {
         'ProjectTeamsController',
         'RolesController',
         'FieldController',
-        'FieldTeamController',
+        'EnumeratorsController',
+        'FieldTranscriptsController',
+        'InterviewTypesController',
         'AiController',
       ]),
     );

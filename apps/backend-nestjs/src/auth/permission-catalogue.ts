@@ -54,11 +54,34 @@ export const PERMISSION_CATALOGUE: PermissionDefinition[] = [
   ...crud('participants', 'Participants', ['view', 'create', 'edit', 'delete']),
   ...crud('consents', 'Consent Records', ['view', 'create', 'withdraw']),
   ...crud('interviews', 'Interviews', ['view', 'create', 'edit', 'delete']),
-  ...crud('guides', 'Interview Guides', ['view', 'create', 'edit', 'approve', 'delete']),
+  ...crud('guides', 'Interview Guides', [
+    'view',
+    'create',
+    'edit',
+    'approve',
+    'delete',
+  ]),
   // Self-interview links: a respondent opens one and interviews themselves.
-  ...crud('links', 'Self-interview Links', ['view', 'create', 'edit', 'delete']),
+  ...crud('links', 'Self-interview Links', [
+    'view',
+    'create',
+    'edit',
+    'delete',
+  ]),
   ...crud('recordings', 'Interview Recordings', ['view', 'upload', 'delete']),
-  ...crud('transcripts', 'Transcripts', ['view', 'create', 'edit']),
+  // `review` is the enumerator's own-submission review (scoped to their
+  // interviews in the service); `approve` is the administrator's gate that
+  // makes a transcript usable for analysis.
+  ...crud('transcripts', 'Transcripts', [
+    'view',
+    'create',
+    'edit',
+    'review',
+    'approve',
+  ]),
+  // Enumerator accounts, their project assignments and field-app codes.
+  ...crud('enumerators', 'Enumerators', ['view', 'create', 'edit', 'assign']),
+  ...crud('access-codes', 'Access Codes', ['manage']),
   ...crud('findings', 'Findings', [
     'view',
     'create',
@@ -194,9 +217,11 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'create.interviews',
       'edit.interviews',
       'upload.recordings',
-      // Upload only: no playback, transcript or finding access — a field
-      // device is the most likely thing to be lost or shared, so it carries
-      // the least authority once the interview leaves the field.
+      // Upload, plus review of their OWN transcripts only (the service
+      // scopes `review.transcripts` to interviews they conducted). No
+      // organization-wide transcript, recording or finding access — a
+      // field device is the most likely thing to be lost or shared.
+      'review.transcripts',
     ],
   },
   {

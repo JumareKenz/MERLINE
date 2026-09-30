@@ -1,14 +1,14 @@
 import {
   AudioLines,
-  ClipboardList,
   FileText,
   FolderKanban,
+  LayoutDashboard,
   Link2,
   ListChecks,
-  MessagesSquare,
-  Quote,
+  NotebookText,
   Settings,
   UserRound,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -25,25 +25,70 @@ export interface NavItem {
 }
 
 /**
- * The admin workspace's primary navigation — deliberately short. Each item
- * is a step in the research workflow; everything else (participants,
- * consent, recordings, quotations, members, roles…) lives inside the page
- * where it is needed.
+ * The admin workspace's primary navigation, in the order the work happens:
+ * plan (Projects) → who collects (Enumerators) → what came in (Submissions)
+ * → make it trustworthy (Transcripts: reviewed and approved) → use it
+ * (Reports). Everything else lives inside the page where it is needed.
  *
  * Not here, on purpose:
+ *  - Assignments: replaced by Enumerators (`/assignments` redirects there).
+ *    Booking an interview in advance is a button on Submissions.
+ *  - AI Dialogue: a question asked of one approved transcript, so it opens
+ *    from that transcript.
+ *  - Findings: a tab of Reports.
  *  - The legacy MERL questionnaires and translations (deregistered;
- *    LEGACY.md). Interview guides are the qualitative replacement.
- *  - Organizations / Workspaces: rarely used, and GET /organizations is not
- *    yet tenant-filtered (see DEPLOYMENT.md known gaps).
+ *    LEGACY.md), Organizations and Workspaces.
  */
 export const PRIMARY_NAV: NavItem[] = [
+  {
+    label: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    description: 'What needs your attention across projects, submissions and transcripts',
+    anyOf: ['view.projects'],
+  },
   {
     label: 'Projects',
     href: '/projects',
     icon: FolderKanban,
-    description: 'Research studies and what needs attention',
+    description: 'Research studies, their interview types and teams',
     anyOf: ['view.projects'],
   },
+  {
+    label: 'Enumerators',
+    href: '/enumerators',
+    icon: UsersRound,
+    description: 'Field staff: their projects, access codes and submissions',
+    anyOf: ['view.enumerators'],
+  },
+  {
+    label: 'Submissions',
+    href: '/interviews',
+    icon: AudioLines,
+    description: 'Interviews collected, with participants, consent and recordings',
+    anyOf: ['view.interviews'],
+    matches: ['/participants', '/assignments'],
+  },
+  {
+    label: 'Transcripts',
+    href: '/transcripts',
+    icon: FileText,
+    description: 'Review, compare and approve transcripts before they are used',
+    anyOf: ['view.transcripts'],
+    matches: ['/ai'],
+  },
+  {
+    label: 'Reports',
+    href: '/analysis',
+    icon: NotebookText,
+    description: 'Reports and findings built only from approved transcripts',
+    anyOf: ['view.reports', 'view.findings'],
+    matches: ['/findings'],
+  },
+];
+
+/** Secondary: set-up material rather than a step in the flow. */
+export const SETUP_NAV: NavItem[] = [
   {
     label: 'Guides',
     href: '/guides',
@@ -52,47 +97,11 @@ export const PRIMARY_NAV: NavItem[] = [
     anyOf: ['view.guides'],
   },
   {
-    label: 'Assignments',
-    href: '/assignments',
-    icon: ClipboardList,
-    description: 'Field team and the projects they collect interviews for',
-    anyOf: ['create.interviews'],
-  },
-  {
     label: 'Self-interviews',
     href: '/links',
     icon: Link2,
     description: 'Links key informants open to answer on their own, with no account',
     anyOf: ['view.links'],
-  },
-  {
-    label: 'Results',
-    href: '/interviews',
-    icon: AudioLines,
-    description: 'Collected interviews, participants, consent and recordings',
-    anyOf: ['view.interviews'],
-    matches: ['/participants'],
-  },
-  {
-    label: 'Transcripts',
-    href: '/transcripts',
-    icon: FileText,
-    description: 'Transcripts and their segments',
-    anyOf: ['view.transcripts'],
-  },
-  {
-    label: 'Reports',
-    href: '/findings',
-    icon: Quote,
-    description: 'Evidence-linked findings, review and publication',
-    anyOf: ['view.findings'],
-  },
-  {
-    label: 'AI Dialogue',
-    href: '/ai',
-    icon: MessagesSquare,
-    description: 'Ask grounded questions of a transcript',
-    anyOf: ['use.ai'],
   },
 ];
 
@@ -121,5 +130,10 @@ export function isActive(item: NavItem, pathname: string): boolean {
 }
 
 export function findArea(pathname: string): NavItem | undefined {
-  return [...PRIMARY_NAV, ...ACCOUNT_NAV].find((item) => isActive(item, pathname));
+  return [...PRIMARY_NAV, ...SETUP_NAV, ...ACCOUNT_NAV].find((item) => isActive(item, pathname));
+}
+
+/** Items a user may see, given their permissions (the API still enforces its own). */
+export function visibleNav(items: NavItem[], can: (...slugs: string[]) => boolean, resolved: boolean): NavItem[] {
+  return items.filter((item) => !resolved || item.anyOf.length === 0 || can(...item.anyOf));
 }

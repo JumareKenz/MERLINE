@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import type { FieldAccessCode, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,6 +19,12 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { FieldLoginDto } from './dto/field-login.dto';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import {
+  ACCESS_CODE_LENGTH,
+  hashAccessCode,
+  normalizeAccessCode,
+} from '../enumerators/access-code';
 import { expiresInSeconds, jwtSignOptions } from './jwt.constants';
 import { provisionOrganizationRoles } from './organization-provisioning';
 
@@ -174,38 +181,104 @@ export class AuthService {
   }
 
   /**
-   * Field-worker sign-in: exchange an admin-issued access code for a normal
-   * session. Same token shape as email/password login — the field app is
-   * still just a normal authenticated client afterward, subject to the same
-   * tenancy and permission guards as everyone else. Codes are 4 characters
-   * (older ones XXXXX-XXXXX, still accepted); spaces, dashes and case are
-   * ignored, so a field worker typing it on a phone isn't tripped up by
-   * formatting. One code may be shared by a whole team; each interview
-   * records who conducted it (enumeratorName).
+   * Field-app sign-in: exchange an access code for a normal session (same
+   * token shape as email/password login, same guards afterwards).
+   *
+   * A personal code (10 characters, stored only as a keyed hash) belongs to
+   * exactly one enumerator; whoever presents it is that enumerator. Older
+   * 4-character shared codes still work until an administrator issues a
+   * personal one. Every failure looks the same to the caller (unknown,
+   * revoked, expired, inactive account): the response never says which.
+   * Attempts are audited without the code that was tried.
    */
-  async fieldLogin(dto: FieldLoginDto) {
-    const normalized = dto.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const code =
-      normalized.length === 10
-        ? `${normalized.slice(0, 5)}-${normalized.slice(5)}`
-        : normalized;
-
-    const user = await this.prisma.user.findUnique({
-      where: { fieldAccessCode: code },
-      include: { roles: { include: { role: true } } },
-    });
-
-    if (!user || user.deletedAt) {
+  async fieldLogin(
+    dto: FieldLoginDto,
+    meta: { ip?: string; userAgent?: string } = {},
+  ) {
+    const audit = new AuditLogService(this.prisma);
+    const normalized = normalizeAccessCode(dto.code);
+    const fail = async (reason: string): Promise<never> => {
+      await audit
+        .log({
+          event: 'field_login.failed',
+          auditableType: 'FieldLogin',
+          auditableId: 'unknown',
+          newValues: { reason },
+          ipAddress: meta.ip,
+          userAgent: meta.userAgent,
+        })
+        .catch(() => undefined);
       throw new UnauthorizedException('Invalid or expired access code');
-    }
-    if (!user.isActive) {
-      throw new UnauthorizedException('Account is inactive');
+    };
+
+    const userInclude = {
+      roles: { include: { role: true } },
+      enumeratorProfile: { select: { uniqueId: true } },
+    } as const;
+
+    let personal: FieldAccessCode | null = null;
+    let user: Prisma.UserGetPayload<{ include: typeof userInclude }> | null =
+      null;
+
+    if (normalized.length === ACCESS_CODE_LENGTH) {
+      personal = await this.prisma.fieldAccessCode.findUnique({
+        where: { codeHash: hashAccessCode(normalized) },
+      });
+      if (personal) {
+        user = await this.prisma.user.findUnique({
+          where: { id: personal.userId },
+          include: userInclude,
+        });
+      }
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    if (!user) {
+      // Legacy plaintext codes: 4 characters, or the older XXXXX-XXXXX.
+      const legacy =
+        normalized.length === 10
+          ? `${normalized.slice(0, 5)}-${normalized.slice(5)}`
+          : normalized;
+      user = await this.prisma.user.findUnique({
+        where: { fieldAccessCode: legacy },
+        include: userInclude,
+      });
+      personal = null;
+    }
+
+    if (!user || user.deletedAt) return fail('unknown_code');
+    if (!user.isActive) return fail('account_inactive');
+    if (personal) {
+      if (personal.status !== 'ACTIVE') return fail('revoked');
+      if (personal.expiresAt && personal.expiresAt <= new Date())
+        return fail('expired');
+    }
+
+    await this.prisma.$transaction([
+      ...(personal
+        ? [
+            this.prisma.fieldAccessCode.update({
+              where: { id: personal.id },
+              data: { lastUsedAt: new Date(), useCount: { increment: 1 } },
+            }),
+          ]
+        : []),
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      }),
+    ]);
+    await audit
+      .log({
+        event: 'field_login.succeeded',
+        auditableType: 'Enumerator',
+        auditableId: user.id,
+        userId: user.id,
+        organizationId: user.organizationId,
+        newValues: { shared: !personal },
+        ipAddress: meta.ip,
+        userAgent: meta.userAgent,
+      })
+      .catch(() => undefined);
 
     const token = await this.generateToken(user);
 
@@ -216,6 +289,12 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         roles: user.roles.map((ru) => ru.role.name),
+        // Personal codes identify the enumerator; a legacy shared code does
+        // not, so the field app still asks who is conducting.
+        enumerator: {
+          uniqueId: user.enumeratorProfile?.uniqueId ?? null,
+          sharedCode: !personal,
+        },
       },
       token: {
         accessToken: token.accessToken,
@@ -227,13 +306,16 @@ export class AuthService {
   async logout(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { fieldAccessCode: true },
+      select: {
+        fieldAccessCode: true,
+        enumeratorProfile: { select: { id: true } },
+      },
     });
-    // An access code may be shared by a whole team on many phones. Ending
-    // every session on logout would sign all of them out because one
-    // person tapped "Log out"; that phone just discards its token. An
-    // administrator ends every session by reissuing or revoking the code.
-    if (user?.fieldAccessCode) {
+    // A field account may be on several phones (a legacy shared code, or one
+    // enumerator with two devices). One tap on "Log out" must not end the
+    // others; that phone just discards its token. An administrator ends every
+    // session by regenerating or revoking the code, or deactivating the account.
+    if (user?.fieldAccessCode || user?.enumeratorProfile) {
       return { message: 'Logged out successfully' };
     }
     await this.prisma.user.update({

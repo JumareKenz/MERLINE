@@ -3,10 +3,12 @@
 import { useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, History } from 'lucide-react';
+import { FileText, FolderKanban, History } from 'lucide-react';
 import { Logo } from '@/components/brand/logo';
 import { useAuthStore } from '@/stores/auth-store';
 import { summarizeOutbox, useFieldOutbox } from '@/stores/field-outbox-store';
+import { useFieldTranscripts } from '@/hooks/use-transcript-review';
+import { NEEDS_ENUMERATOR } from '@/types/review';
 import { cn } from '@/lib/utils';
 import { SyncPill } from './sync-status';
 import { AccountSheet } from './account-sheet';
@@ -19,6 +21,7 @@ const NAV = [
     match: (p: string) => p === '/field' || p.startsWith('/field/new') || p.startsWith('/field/interview'),
   },
   { href: '/field/history', label: 'History', icon: History, match: (p: string) => p.startsWith('/field/history') },
+  { href: '/field/review', label: 'Transcripts', icon: FileText, match: (p: string) => p.startsWith('/field/review') },
 ];
 
 /**
@@ -32,6 +35,9 @@ export function FieldShell({ children }: { children: ReactNode }) {
   const userId = useAuthStore((s) => s.user?.id);
   const start = useFieldOutbox((s) => s.start);
   const { pending } = summarizeOutbox(useFieldOutbox((s) => s.recordings));
+  // Transcripts waiting on this enumerator (a badge on the tab).
+  const reviewQuery = useFieldTranscripts();
+  const toReview = (reviewQuery.data ?? []).filter((t) => (NEEDS_ENUMERATOR as readonly string[]).includes(t.reviewStatus)).length;
 
   useEffect(() => {
     if (userId) start(userId);
@@ -74,7 +80,7 @@ export function FieldShell({ children }: { children: ReactNode }) {
         aria-label="Field app"
         className="pb-safe fixed inset-x-0 bottom-0 z-sticky border-t border-field-line bg-field-card shadow-[0_-1px_12px_hsl(var(--shadow-color)/0.06)]"
       >
-        <ul className="mx-auto grid h-[68px] max-w-xl grid-cols-2">
+        <ul className="mx-auto grid h-[68px] max-w-xl grid-cols-3">
           {NAV.map((item) => {
             const active = item.match(pathname);
             const Icon = item.icon;
@@ -92,6 +98,12 @@ export function FieldShell({ children }: { children: ReactNode }) {
                     <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
                   </span>
                   {item.label}
+                  {item.href === '/field/review' && toReview > 0 && (
+                    <span className="absolute right-[calc(50%-30px)] top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-navy px-1 text-[11px] font-bold text-white tabular-nums">
+                      {toReview}
+                      <span className="sr-only"> to review</span>
+                    </span>
+                  )}
                   {item.href === '/field/history' && pending > 0 && (
                     <span className="absolute right-[calc(50%-30px)] top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-navy px-1 text-[11px] font-bold text-white tabular-nums">
                       {pending}

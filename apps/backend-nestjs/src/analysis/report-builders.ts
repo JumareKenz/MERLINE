@@ -1,12 +1,23 @@
 import { locateExcerpt, segmentText } from '../transcripts/segment-text';
+import { spokenText } from '../transcripts/non-verbal-cues';
 import {
   AI_DISCLOSURE,
+  ClaimType,
   ReportBlock,
   ReportDocument,
   ReportQuote,
   ReportSection,
+  ReportSourceRef,
   formatTimestamp,
 } from './report-document';
+import {
+  TypedInterview,
+  evidenceStrength,
+  plural,
+  strengthBasis,
+  triangulationTable,
+  typeCounts,
+} from './evidence';
 
 /* ------------------------------------------------------------------ */
 /* Shared                                                             */
@@ -23,11 +34,13 @@ function section(
   heading: string,
   aiGenerated: boolean,
   blocks: ReportBlock[],
+  claimType?: ClaimType,
 ): ReportSection {
   return {
     id: `s${++sectionSeq}`,
     heading,
     aiGenerated,
+    ...(claimType && { claimType }),
     blocks: blocks.filter(nonEmpty),
   };
 }
@@ -46,8 +59,8 @@ function nonEmpty(b: ReportBlock): boolean {
       return true;
   }
 }
-const paragraphs = (texts: string[]): ReportBlock[] =>
-  texts.map((text) => ({ type: 'paragraph', text }));
+const paragraphs = (texts: string[], label?: string): ReportBlock[] =>
+  texts.map((text) => ({ type: 'paragraph', text, ...(label && { label }) }));
 
 /** Parses a model reply that should be one JSON object. */
 export function parseModelJson(content: string): Record<string, unknown> {
@@ -72,6 +85,11 @@ export interface InterviewReportSource {
   /** e.g. "Interview 2 · KII · Amina" (used on every quotation). */
   sourceLabel: string;
   facts: { label: string; value: string }[];
+  interviewType?: string | null;
+  location?: string | null;
+  language?: string | null;
+  /** The approved revision the transcript text was frozen at. */
+  revisionId?: string | null;
   segments: {
     id: string;
     index: number;
@@ -79,6 +97,10 @@ export interface InterviewReportSource {
     text: string;
     editedText?: string | null;
     speakerLabel?: string | null;
+    /** A reviewer's corrected speaker label (wins over the machine's). */
+    editedSpeakerLabel?: string | null;
+    /** Marked uncertain or inaudible: never quoted as evidence. */
+    flagged?: boolean;
   }[];
   /** Automatic data-quality notes (language, corrections, confidence). */
   qualityNotes: string[];
@@ -103,10 +125,13 @@ export function buildInterviewReport(
   const quote = (q: Record<string, unknown>): string | null => {
     if (!src.allowQuotes) return null;
     const segment = byIndex.get(Number(q.segmentIndex));
-    const text = segment
-      ? locateExcerpt(segmentText(segment), str(q.excerpt))
-      : null;
-    if (!segment || !text) {
+    // Uncertain passages are not verified evidence, and a bracketed cue
+    // such as [laughs] is an annotation, not something a participant said.
+    const text =
+      segment && !segment.flagged
+        ? locateExcerpt(spokenText(segmentText(segment)), str(q.excerpt))
+        : null;
+    if (!segment || !text || /\[[^\]]+\]/.test(text)) {
       discarded++;
       return null;
     }
@@ -123,7 +148,10 @@ export function buildInterviewReport(
       segmentId: segment.id,
       startMs: segment.startMs,
       source: src.sourceLabel,
-      speaker: segment.speakerLabel ?? null,
+      speaker: segment.editedSpeakerLabel ?? segment.speakerLabel ?? null,
+      interviewType: src.interviewType ?? null,
+      location: src.location ?? null,
+      revisionId: src.revisionId ?? null,
     };
     return id;
   };
@@ -137,6 +165,7 @@ export function buildInterviewReport(
       'Executive summary',
       true,
       paragraphs(strs(payload.executiveSummary)),
+      'summary',
     ),
   );
   sections.push(
@@ -144,11 +173,14 @@ export function buildInterviewReport(
       'Respondent and context',
       true,
       paragraphs(strs(payload.respondentContext)),
+      'summary',
     ),
   );
 
   arr(payload.keyThemes).forEach((t, i) => {
-    const blocks: ReportBlock[] = [...paragraphs(strs(t.analysis))];
+    const blocks: ReportBlock[] = [
+      ...paragraphs(strs(t.analysis), 'Interpretation'),
+    ];
     for (const q of arr(t.quotes)) {
       const id = quote(q);
       if (id) blocks.push({ type: 'quote', quoteId: id });
@@ -158,6 +190,7 @@ export function buildInterviewReport(
         `Theme ${i + 1}: ${str(t.theme) || 'Untitled theme'}`,
         true,
         blocks,
+        'theme',
       ),
     );
   });
@@ -172,7 +205,7 @@ export function buildInterviewReport(
         note: str(q.why) || undefined,
       });
   }
-  sections.push(section('Notable quotations', false, notable));
+  sections.push(section('Notable quotations', false, notable, 'evidence'));
 
   sections.push(
     section('Challenges and concerns', true, [
@@ -185,15 +218,20 @@ export function buildInterviewReport(
     ]),
   );
   sections.push(
-    section('Recommendations', true, [
-      {
-        type: 'table',
-        columns: ['Recommendation', 'Basis in the interview'],
-        rows: arr(payload.recommendations)
-          .map((r) => [str(r.recommendation), str(r.basis)])
-          .filter((r) => r[0]),
-      },
-    ]),
+    section(
+      'Recommendations',
+      true,
+      [
+        {
+          type: 'table',
+          columns: ['Recommendation', 'Basis in the interview'],
+          rows: arr(payload.recommendations)
+            .map((r) => [str(r.recommendation), str(r.basis)])
+            .filter((r) => r[0]),
+        },
+      ],
+      'recommendation',
+    ),
   );
   sections.push(
     section('Questions for follow-up', true, [
@@ -202,6 +240,15 @@ export function buildInterviewReport(
   );
   sections.push(
     section('Data quality', false, [
+      ...(src.segments.some((x) => x.flagged)
+        ? [
+            {
+              type: 'callout' as const,
+              tone: 'warning' as const,
+              text: `${plural(src.segments.filter((x) => x.flagged).length, 'passage')} in this transcript ${src.segments.filter((x) => x.flagged).length === 1 ? 'was' : 'were'} flagged as uncertain or inaudible by reviewers. They are not quoted, and statements drawn from them should be treated as unverified.`,
+            },
+          ]
+        : []),
       ...src.qualityNotes.map((text) => ({
         type: 'callout' as const,
         tone: 'warning' as const,
@@ -227,6 +274,18 @@ export function buildInterviewReport(
     meta: src.facts,
     sections: sections.filter((s) => s.blocks.length > 0),
     quotes,
+    sources: [
+      {
+        ref: 'Interview',
+        label: src.sourceLabel,
+        interviewId: src.interviewId,
+        transcriptId: src.transcriptId,
+        revisionId: src.revisionId ?? null,
+        interviewType: src.interviewType ?? null,
+        location: src.location ?? null,
+        language: src.language ?? null,
+      },
+    ],
     disclosure: AI_DISCLOSURE,
     generatedAt: new Date().toISOString(),
   };
@@ -334,8 +393,27 @@ export interface ProjectReportSource {
   limitations: string[];
   interviewSummaries: { label: string; summary: string }[];
   refLabels: Record<string, string>;
+  /** Every approved interview the report draws on, typed, for triangulation. */
+  interviews: TypedInterview[];
+  sources: ReportSourceRef[];
 }
 
+/** "Q-I2-3" → "I2". */
+function refOfQuote(quoteId: string): string | null {
+  return /^Q-(I\d+)-\d+$/.exec(quoteId)?.[1] ?? null;
+}
+
+/**
+ * The project report. Everything the model claims is re-derived or checked
+ * here before it is shown:
+ *  - quotations only from the verified pool;
+ *  - which interviews support a finding, and of which types, from the
+ *    interviews and quotations that actually exist (not the model's tally);
+ *  - evidence strength from evidenceStrength(), never from the model;
+ *  - findings with neither a verified quotation nor a real interview are
+ *    withheld and counted;
+ *  - contrary evidence and minority views are kept and shown.
+ */
 export function buildProjectReport(
   payload: Record<string, unknown>,
   src: ProjectReportSource,
@@ -343,118 +421,301 @@ export function buildProjectReport(
 ): ReportDocument {
   const used: Record<string, ReportQuote> = {};
   const sections: ReportSection[] = [];
+  const byRef = new Map(src.interviews.map((i) => [i.ref, i]));
+  const total = src.interviews.length;
+  const triangulated: {
+    title: string;
+    refs: string[];
+    strength: ReturnType<typeof evidenceStrength>;
+  }[] = [];
+  let withheld = 0;
+
+  const validPool = (ids: unknown) =>
+    [...new Set(strs(ids))].filter((id) => pool[id]);
 
   sections.push(
     section('At a glance', false, [{ type: 'facts', items: src.facts }]),
   );
+
+  const limited: ReportBlock[] =
+    total < 2
+      ? [
+          {
+            type: 'callout',
+            tone: 'warning',
+            text: `Evidence is limited: this report draws on ${plural(total, 'approved interview')}. Findings are indicative only and cannot show patterns across participants.`,
+          },
+        ]
+      : [];
   sections.push(
     section(
       'Executive summary',
       true,
-      paragraphs(strs(payload.executiveSummary)),
+      [...limited, ...paragraphs(strs(payload.executiveSummary))],
+      'summary',
     ),
   );
   sections.push(
-    section('Methodology', false, [
-      ...paragraphs(src.methodology),
-      {
-        type: 'table',
-        columns: src.interviewTable.columns,
-        rows: src.interviewTable.rows,
-      },
-    ]),
+    section(
+      'Methodology',
+      false,
+      [
+        ...paragraphs(src.methodology),
+        {
+          type: 'table',
+          columns: src.interviewTable.columns,
+          rows: src.interviewTable.rows,
+        },
+      ],
+      'evidence',
+    ),
   );
 
-  arr(payload.keyFindings).forEach((f, i) => {
-    const refs = strs(f.interviews).filter((r) => src.refLabels[r]);
+  let n = 0;
+  for (const f of arr(payload.keyFindings)) {
+    const claimed = [...new Set(strs(f.interviews))].filter((r) =>
+      byRef.has(r),
+    );
+    const quoteIds = validPool(f.quoteIds);
+    const quotedRefs = [
+      ...new Set(
+        quoteIds
+          .map(refOfQuote)
+          .filter((r): r is string => !!r && byRef.has(r)),
+      ),
+    ];
+    if (claimed.length === 0 && quotedRefs.length === 0) {
+      withheld++; // nothing real supports it
+      continue;
+    }
+    const refs = [...new Set([...claimed, ...quotedRefs])];
+    const contraryItems = arr(f.contraryEvidence);
+    const contraryIds = contraryItems.flatMap((c) => validPool(c.quoteIds));
+    const contraryRefs = [
+      ...new Set(contraryIds.map(refOfQuote).filter((r): r is string => !!r)),
+    ];
+    const quotedTypes = typeCounts(quotedRefs, byRef);
+    const strength = evidenceStrength({
+      quotedInterviews: quotedRefs.length,
+      quotedTypes: quotedTypes.types.length,
+      claimedInterviews: refs.length,
+      contrary: Math.max(contraryItems.length, contraryRefs.length),
+    });
+    const all = typeCounts(refs, byRef);
+    const title = str(f.finding) || 'Untitled finding';
+    n++;
+    triangulated.push({ title: `F${n}. ${title}`, refs, strength });
+
+    const contraryBlocks: ReportBlock[] = contraryItems.flatMap((c) => [
+      ...(str(c.summary)
+        ? [
+            {
+              type: 'paragraph' as const,
+              label: 'Contrary or qualifying evidence',
+              text: str(c.summary),
+            },
+          ]
+        : []),
+      ...poolQuotes(c.quoteIds, pool, used),
+    ]);
+
     sections.push(
       section(
-        `Finding ${i + 1}: ${str(f.finding) || 'Untitled finding'}`,
+        `Finding ${n}: ${title}`,
         true,
         [
-          ...(str(f.prevalence)
-            ? [
-                {
-                  type: 'callout' as const,
-                  tone: 'info' as const,
-                  text: `Prevalence: ${str(f.prevalence)}`,
-                },
-              ]
-            : []),
-          ...paragraphs(strs(f.narrative)),
-          ...poolQuotes(f.quoteIds, pool, used),
-          ...(refs.length
-            ? [
-                {
-                  type: 'paragraph' as const,
-                  text: `Evidence from: ${refs.map((r) => `${r} (${src.refLabels[r]})`).join('; ')}.`,
-                },
-              ]
-            : []),
+          {
+            type: 'facts',
+            items: [
+              {
+                label: 'Raised in',
+                value: `${refs.length} of ${total} interviews${all.summary ? ` (${all.summary})` : ''}`,
+              },
+              {
+                label: 'Evidence strength',
+                value: strengthBasis(
+                  strength,
+                  {
+                    quotedInterviews: quotedRefs.length,
+                    quotedTypes: quotedTypes.types.length,
+                    claimedInterviews: refs.length,
+                    contrary: Math.max(
+                      contraryItems.length,
+                      contraryRefs.length,
+                    ),
+                  },
+                  quotedTypes.summary,
+                ),
+              },
+            ],
+          },
+          ...paragraphs(
+            strs(f.whatParticipantsSaid ?? f.narrative),
+            'Summary of what participants said',
+          ),
+          ...paragraphs(strs(f.interpretation), 'Interpretation'),
+          ...poolQuotes(quoteIds, pool, used),
+          ...contraryBlocks,
+          {
+            type: 'paragraph' as const,
+            label: 'Sources',
+            text: `${refs.map((r) => `${r} (${src.refLabels[r]})`).join('; ')}.`,
+          },
         ],
+        'interpretation',
       ),
     );
-  });
+  }
+
+  // Triangulation is deterministic: it comes from which interviews of which
+  // type actually support each finding, not from the model.
+  if (triangulated.length && src.interviews.length) {
+    const tri = triangulationTable({
+      findings: triangulated,
+      interviews: src.interviews,
+    });
+    sections.push(
+      section(
+        'Triangulation across interview types',
+        false,
+        [
+          {
+            type: 'paragraph',
+            text: 'Each cell counts the interviews of that type that support the finding. A finding supported by more than one interview type is more robust than one that appears in a single source, but repetition across transcripts is not validation: interviewees may share a source, a location or a viewpoint. Findings supported by a single interview type or interview are marked as such and should be read as leads.',
+          },
+          { type: 'table', columns: tri.columns, rows: tri.rows },
+        ],
+        'evidence',
+      ),
+    );
+  }
 
   const themes = arr(payload.crossCuttingThemes);
   if (themes.length) {
     sections.push(
       section(
-        'Cross-cutting themes',
+        'Cross-cutting themes (analyst-generated)',
         true,
         themes.flatMap((t) => [
           {
             type: 'paragraph' as const,
+            label: 'Theme',
             text: `${str(t.theme)}. ${str(t.analysis)}`.trim(),
           },
         ]),
+        'theme',
       ),
     );
   }
+
+  const divergent = arr(payload.divergentViews)
+    .map((d) => [str(d.topic), str(d.views)])
+    .filter((r) => r[0]);
   sections.push(
-    section('Divergent views', true, [
-      {
-        type: 'table',
-        columns: ['Topic', 'How views differed'],
-        rows: arr(payload.divergentViews)
-          .map((d) => [str(d.topic), str(d.views)])
-          .filter((r) => r[0]),
-      },
-    ]),
+    section(
+      'Divergent views and contradictions',
+      true,
+      [
+        {
+          type: 'table',
+          columns: ['Topic', 'How views differed'],
+          rows: divergent,
+        },
+      ],
+      'interpretation',
+    ),
   );
+
+  const minority = arr(payload.minorityViews);
+  if (minority.length) {
+    sections.push(
+      section(
+        'Minority views and negative cases',
+        true,
+        minority.flatMap((m) => [
+          {
+            type: 'paragraph' as const,
+            label: 'Minority view',
+            text: str(m.view),
+          },
+          ...poolQuotes(m.quoteIds, pool, used),
+        ]),
+        'interpretation',
+      ),
+    );
+  }
+
+  const gaps = strs(payload.insufficientEvidence);
+  if (gaps.length) {
+    sections.push(
+      section(
+        'Where the evidence is insufficient',
+        true,
+        [{ type: 'bullets', items: gaps }],
+        'limitation',
+      ),
+    );
+  }
+
   const order = { High: 0, Medium: 1, Low: 2 } as Record<string, number>;
   sections.push(
-    section('Recommendations', true, [
-      {
-        type: 'table',
-        columns: ['Priority', 'Recommendation', 'Rationale', 'For'],
-        rows: arr(payload.recommendations)
-          .map((r) => [
-            str(r.priority) || 'Medium',
-            str(r.recommendation),
-            str(r.rationale),
-            str(r.audience),
-          ])
-          .filter((r) => r[1])
-          .sort((a, b) => (order[a[0]] ?? 1) - (order[b[0]] ?? 1)),
-      },
-    ]),
+    section(
+      'Recommendations',
+      true,
+      [
+        {
+          type: 'table',
+          columns: ['Priority', 'Recommendation', 'Rationale', 'For'],
+          rows: arr(payload.recommendations)
+            .map((r) => [
+              str(r.priority) || 'Medium',
+              str(r.recommendation),
+              str(r.rationale),
+              str(r.audience),
+            ])
+            .filter((r) => r[1])
+            .sort((a, b) => (order[a[0]] ?? 1) - (order[b[0]] ?? 1)),
+        },
+      ],
+      'recommendation',
+    ),
   );
   sections.push(
-    section('Limitations', false, [
-      {
-        type: 'bullets',
-        items: [...src.limitations, ...strs(payload.limitations)],
-      },
-    ]),
+    section(
+      'Limitations',
+      false,
+      [
+        {
+          type: 'bullets',
+          items: [
+            ...src.limitations,
+            ...(withheld
+              ? [
+                  `${plural(withheld, 'candidate finding')} proposed by the analysis ${withheld === 1 ? 'was' : 'were'} withheld because no verified quotation or interview supported ${withheld === 1 ? 'it' : 'them'}.`,
+                ]
+              : []),
+            ...strs(payload.limitations),
+          ],
+        },
+      ],
+      'limitation',
+    ),
   );
   sections.push(
-    section('Conclusion', true, paragraphs(strs(payload.conclusion))),
+    section(
+      'Conclusion',
+      true,
+      paragraphs(strs(payload.conclusion)),
+      'interpretation',
+    ),
   );
   sections.push(
-    section('Next steps', true, [
-      { type: 'bullets', items: strs(payload.nextSteps) },
-    ]),
+    section(
+      'Next steps',
+      true,
+      [{ type: 'bullets', items: strs(payload.nextSteps) }],
+      'recommendation',
+    ),
   );
   sections.push(
     section(
@@ -463,6 +724,7 @@ export function buildProjectReport(
       src.interviewSummaries.flatMap((s) => [
         { type: 'paragraph' as const, text: `${s.label}. ${s.summary}` },
       ]),
+      'summary',
     ),
   );
 
@@ -473,6 +735,7 @@ export function buildProjectReport(
     meta: src.facts,
     sections: sections.filter((s) => s.blocks.length > 0),
     quotes: used,
+    sources: src.sources,
     disclosure: AI_DISCLOSURE,
     generatedAt: new Date().toISOString(),
   };
@@ -487,6 +750,7 @@ export function buildCustomReport(
   projectName: string,
   facts: { label: string; value: string }[],
   pool: Record<string, ReportQuote>,
+  sources: ReportSourceRef[] = [],
 ): ReportDocument {
   const used: Record<string, ReportQuote> = {};
   const sections = arr(payload.sections).map((s) => {
@@ -522,6 +786,7 @@ export function buildCustomReport(
     meta: facts,
     sections: sections.filter((s) => s.blocks.length > 0),
     quotes: used,
+    sources,
     disclosure: AI_DISCLOSURE,
     generatedAt: new Date().toISOString(),
   };

@@ -1,3 +1,5 @@
+import type { ReviewStatus } from './review';
+
 export type TranscriptStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface TranscriptSegment {
@@ -12,6 +14,11 @@ export interface TranscriptSegment {
   confidence?: number | null;
   /** A human correction, shown in place of `text` when present. */
   editedText?: string | null;
+  /** A reviewer's corrected speaker label; `speakerLabel` stays as the machine wrote it. */
+  editedSpeakerLabel?: string | null;
+  flagged?: boolean;
+  flagReason?: string | null;
+  reviewNote?: string | null;
   editedAt?: string | null;
   editedBy?: { id: string; firstName: string; lastName: string } | null;
   translatedText?: string | null;
@@ -23,6 +30,8 @@ export interface TranscriptSegment {
 export interface Transcript {
   id: string;
   status: TranscriptStatus;
+  /** Where the transcript is in human review. Only approved transcripts feed analysis. */
+  reviewStatus?: ReviewStatus;
   provider?: string | null;
   language?: string | null;
   errorMessage?: string | null;
@@ -54,6 +63,9 @@ export interface Transcript {
   interview?: {
     id: string;
     projectId?: string | null;
+    /** KII, FGD, IDI, HOUSEHOLD, OBSERVATION or a project's own type. */
+    type?: string | null;
+    enumeratorName?: string | null;
     language?: string | null;
     participant?: { id: string; displayName: string };
     consent?: { allowAiAnalysis: boolean; allowQuotation: boolean; withdrawnAt?: string | null };

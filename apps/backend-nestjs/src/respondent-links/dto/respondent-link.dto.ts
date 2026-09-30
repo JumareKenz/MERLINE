@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsIn,
+  Matches,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -12,7 +13,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { INTERVIEW_TYPES } from '../../common/research/interview-type';
+import { INTERVIEW_TYPE_KEY } from '../../common/research/interview-type';
 import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
 
 export class CreateRespondentLinkDto {
@@ -38,7 +39,7 @@ export class CreateRespondentLinkDto {
   consentText?: string;
 
   @IsOptional()
-  @IsIn(INTERVIEW_TYPES)
+  @Matches(INTERVIEW_TYPE_KEY, { message: 'Invalid interview type' })
   interviewType?: string;
 
   @IsOptional()

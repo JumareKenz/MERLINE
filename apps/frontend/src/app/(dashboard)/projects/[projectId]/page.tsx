@@ -17,8 +17,8 @@ import { ProjectReportPanel } from '@/components/projects/project-report-panel';
 import { ProjectAskPanel } from '@/components/projects/project-ask-panel';
 import { useAnalysisReports } from '@/hooks/use-analysis-reports';
 import { useAllTranscripts } from '@/hooks/use-transcripts';
-import { FieldTeamPanel } from '@/components/field-team/field-team-panel';
-import { useFieldTeam } from '@/hooks/use-field-team';
+import { ProjectEnumeratorsPanel } from '@/components/enumerators/project-enumerators-panel';
+import { useEnumerators } from '@/hooks/use-enumerators';
 import { useResearchProject } from '@/hooks/use-research-projects';
 import { useSession } from '@/hooks/use-session';
 import { API } from '@/lib/api-client';
@@ -58,8 +58,8 @@ export default function ProjectOverviewPage() {
   const transcripts = useAllTranscripts(showAnalysis);
   const reports = useAnalysisReports({ projectId }, showAnalysis);
 
-  const team = useFieldTeam();
-  const teamOnProject = (team.data ?? []).filter((w) => w.projects.some((p) => p.id === projectId));
+  const team = useEnumerators({ projectId });
+  const teamOnProject = team.data ?? [];
 
   if (project.isLoading) return <LoadingState message="Loading project" />;
   if (project.isError || !project.data) {
@@ -79,13 +79,15 @@ export default function ProjectOverviewPage() {
     (i) =>
       i.consent?.allowAiAnalysis !== false &&
       !i.consent?.withdrawnAt &&
-      projectTranscripts.some((t) => t.interviewId === i.id && t.status === 'COMPLETED' && (t._count?.segments ?? 1) > 0),
+      projectTranscripts.some(
+        (t) => t.interviewId === i.id && t.status === 'COMPLETED' && (t.reviewStatus === 'APPROVED' || t.reviewStatus === 'LOCKED') && (t._count?.segments ?? 1) > 0,
+      ),
   ).length;
 
   // Setup: each step is derived from real data, and links to where it's done.
   const steps = [
     { label: 'Interview method chosen', done: !!p.settings?.method, href: `/projects/${projectId}/settings` },
-    { label: 'Access code created', done: teamOnProject.length > 0, href: '/assignments' },
+    { label: 'Enumerator assigned', done: teamOnProject.length > 0, href: '/enumerators' },
     { label: 'Interviews collected', done: interviewList.length > 0, href: '/interviews' },
     { label: 'Audio uploaded', done: recorded > 0, href: '/interviews' },
     { label: 'Findings drafted', done: findingList.length > 0, href: '/transcripts' },
@@ -110,8 +112,8 @@ export default function ProjectOverviewPage() {
             )}
             {session.can('create.interviews') && (
               <Button asChild>
-                <Link href="/assignments">
-                  <ClipboardList className="h-4 w-4" aria-hidden /> Access codes
+                <Link href="/enumerators">
+                  <ClipboardList className="h-4 w-4" aria-hidden /> Enumerators
                 </Link>
               </Button>
             )}
@@ -171,7 +173,7 @@ export default function ProjectOverviewPage() {
                   ['ask', 'Ask AI'],
                 ]
               : []),
-            ['team', `Access codes · ${teamOnProject.length}`],
+            ['team', `Enumerators · ${teamOnProject.length}`],
             ['participants', `Participants · ${participantList.length}`],
             ...(session.can('view.findings') ? [['findings', `Findings · ${findingList.length}`]] : []),
           ] as [Tab, string][]
@@ -207,7 +209,7 @@ export default function ProjectOverviewPage() {
 
         {tab === 'ask' && showAnalysis && <ProjectAskPanel projectId={projectId} />}
 
-        {tab === 'team' && <FieldTeamPanel projectId={projectId} />}
+        {tab === 'team' && <ProjectEnumeratorsPanel projectId={projectId} />}
 
         {tab === 'participants' &&
           (participants.isLoading ? (

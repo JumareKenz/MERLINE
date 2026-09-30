@@ -1,3 +1,5 @@
+import type { InterviewTypeDef } from './review';
+
 /** GET /field/projects — projects the caller can start interviews in. */
 export interface FieldProject {
   id: string;
@@ -7,6 +9,8 @@ export interface FieldProject {
   startDate?: string | null;
   endDate?: string | null;
   myInterviewCount: number;
+  /** The interview types this project collects; the enumerator picks one per interview. */
+  interviewTypes?: InterviewTypeDef[];
   /** The approved guide new interviews in this project use (cached offline). */
   guide?: FieldGuide | null;
 }
@@ -52,33 +56,13 @@ export interface CreateFieldInterviewInput {
   location?: string;
   language?: string;
   questionSetId?: string;
-  /** Who is conducting it: several enumerators may share one access code. */
+  /**
+   * Who is conducting it. Only used for an older shared code; a personal
+   * access code credits the interview to its enumerator on the server.
+   */
   enumeratorName?: string;
-}
-
-/**
- * GET /field-team rows: one per access code. A code is a field account
- * named for a team, place or person, opening one or more projects; any
- * number of enumerators can sign in with it.
- */
-export interface FieldWorker {
-  id: string;
-  /** The code's name, e.g. "Kano team A". */
-  name: string;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  isActive: boolean;
-  lastLoginAt: string | null;
-  accessCodeIssuedAt: string | null;
-  projects: { id: string; name: string; status: string }[];
-  interviews: { total: number; inProgress: number; completed: number };
-  /** Names typed on interviews made with this code, most active first. */
-  enumerators: { name: string; interviews: number }[];
-}
-
-export interface CreateAccessCodeInput {
-  name: string;
-  projectIds: string[];
+  /** One of the project's interview types (KII, FGD, …). */
+  type?: string;
+  /** Answers to that type's own fields. */
+  typeMetadata?: Record<string, string | number>;
 }

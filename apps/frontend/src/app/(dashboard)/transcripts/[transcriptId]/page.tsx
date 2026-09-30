@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Check, Languages, MessagesSquare, Pencil, Quote, Search, Undo2 } from 'lucide-react';
+import { AlertTriangle, Check, Flag, Languages, MessagesSquare, Pencil, Quote, Search, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,11 +12,14 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { LoadingState } from '@/components/shared/loading-state';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { ReviewPanel } from '@/components/transcripts/review-panel';
+import { ReviewStatusBadge } from '@/components/transcripts/review-status-badge';
 import { QuoteSegmentDialog } from '@/components/findings/quote-segment-dialog';
 import { AudioPlayer, type AudioPlayerHandle } from '@/components/interviews/audio-player';
 import { useEditSegment, useTranscript, useTranslateTranscript } from '@/hooks/use-transcripts';
 import { useSession } from '@/hooks/use-session';
 import { languageLabel } from '@/lib/languages';
+import { isEvidenceStatus } from '@/types/review';
 import { cn, formatDuration } from '@/lib/utils';
 import { segmentText, type TranscriptSegment } from '@/types/transcript';
 
@@ -38,6 +41,23 @@ function Highlight({ text, query }: { text: string; query: string }) {
           </mark>
         ) : (
           <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Bracketed cues such as [pause] are annotations, not speech: shown muted and italic. */
+function CuedText({ text, query }: { text: string; query: string }) {
+  return (
+    <>
+      {text.split(/(\[[^\]]+\])/g).map((part, i) =>
+        /^\[[^\]]+\]$/.test(part) ? (
+          <span key={i} className="mx-0.5 rounded bg-background-surface px-1 text-[13px] italic text-foreground-secondary">
+            {part}
+          </span>
+        ) : (
+          <Highlight key={i} text={part} query={query} />
         ),
       )}
     </>
@@ -113,12 +133,16 @@ export default function TranscriptPage() {
   const [showTranslation, setShowTranslation] = useState(true);
   const [follow, setFollow] = useState(true);
   const [positionMs, setPositionMs] = useState<number | null>(null);
+  const [attention, setAttention] = useState(false);
 
   const segments = useMemo(() => transcript?.segments ?? [], [transcript]);
   const q = query.trim().toLowerCase();
-  const visible = q
+  const needsAttention = (s: TranscriptSegment) => !!s.flagged || (s.confidence != null && s.confidence < LOW_CONFIDENCE && !s.editedText);
+  const attentionCount = segments.filter(needsAttention).length;
+  const searched = q
     ? segments.filter((s) => segmentText(s).toLowerCase().includes(q) || s.translatedText?.toLowerCase().includes(q))
     : segments;
+  const visible = attention ? searched.filter(needsAttention) : searched;
 
   const activeId = useMemo(() => {
     if (positionMs === null) return null;
@@ -157,9 +181,15 @@ export default function TranscriptPage() {
 
   const consent = transcript.interview?.consent;
   const active = !!consent && !consent.withdrawnAt;
-  const canQuote = session.can('create.findings') && active && !!consent?.allowQuotation;
-  const canAsk = session.can('use.ai') && active && !!consent?.allowAiAnalysis;
-  const canEdit = session.can('edit.transcripts') && transcript.status === 'COMPLETED';
+  // Only an approved transcript is evidence: quoting and AI questions wait for approval.
+  const evidence = !!transcript.reviewStatus && isEvidenceStatus(transcript.reviewStatus);
+  const canQuote = session.can('create.findings') && active && !!consent?.allowQuotation && evidence;
+  const canAsk = session.can('use.ai') && active && !!consent?.allowAiAnalysis && evidence;
+  // Mirrors the server: the administrator edits before the enumerator has it, or after they submit it.
+  const canEdit =
+    session.can('edit.transcripts') &&
+    transcript.status === 'COMPLETED' &&
+    (transcript.reviewStatus === 'AVAILABLE_FOR_REVIEW' || transcript.reviewStatus === 'SUBMITTED_FOR_ADMIN_REVIEW');
   const translating = transcript.translationStatus === 'PENDING' || transcript.translationStatus === 'PROCESSING';
   const hasTranslation = transcript.translationStatus === 'COMPLETED' && segments.some((s) => s.translatedText);
   const canTranslate =
@@ -172,7 +202,7 @@ export default function TranscriptPage() {
       <PageHeader
         eyebrow="Transcript"
         title={transcript.interview?.participant?.displayName ?? 'Transcript'}
-        meta={<StatusBadge status={transcript.status} />}
+        meta={transcript.status === 'COMPLETED' ? <ReviewStatusBadge status={transcript.reviewStatus} /> : <StatusBadge status={transcript.status} />}
         description={
           <>
             {[
@@ -208,13 +238,18 @@ export default function TranscriptPage() {
         }
       />
 
+      {transcript.status === 'COMPLETED' && <ReviewPanel transcriptId={transcriptId} />}
+
       {transcript.language === 'ha' && (
         <p className="mb-4 rounded-lg bg-info-bg px-4 py-3 text-[14px] text-foreground">
           Machine transcription of Hausa is approximate. Listen and correct segments before quoting them; segments marked
           “check” are the ones the model was least sure of.
         </p>
       )}
-      {consent && !canQuote && session.can('create.findings') && (
+      {consent && !evidence && session.can('create.findings') && transcript.status === 'COMPLETED' && (
+        <p className="mb-4 rounded-lg bg-info-bg px-4 py-3 text-[14px] text-foreground">Quoting and AI questions unlock once this transcript is approved.</p>
+      )}
+      {consent && evidence && !canQuote && session.can('create.findings') && (
         <p className="mb-4 rounded-lg bg-info-bg px-4 py-3 text-[14px] text-foreground">
           Quoting is unavailable: this participant&apos;s consent does not permit quotation{consent.withdrawnAt ? ' (withdrawn)' : ''}.
         </p>
@@ -251,6 +286,11 @@ export default function TranscriptPage() {
             <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--brand-navy))]" />
             Follow playback
           </label>
+          {attentionCount > 0 && (
+            <Button size="sm" variant={attention ? 'default' : 'secondary'} aria-pressed={attention} onClick={() => setAttention((v) => !v)}>
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> {attention ? 'Show all passages' : `Needs attention (${attentionCount})`}
+            </Button>
+          )}
           {hasTranslation && (
             <label className="inline-flex items-center gap-2 text-[13px] text-foreground-secondary">
               <input
@@ -319,7 +359,12 @@ export default function TranscriptPage() {
                   <span className="block">#{segment.index}</span>
                 </div>
                 <div className="min-w-0">
-                  {segment.speakerLabel && <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-foreground-tertiary">{segment.speakerLabel}</p>}
+                  {(segment.editedSpeakerLabel ?? segment.speakerLabel) && (
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-foreground-tertiary">
+                      {segment.editedSpeakerLabel ?? segment.speakerLabel}
+                      {segment.editedSpeakerLabel && segment.speakerLabel && <span className="ml-2 font-normal normal-case tracking-normal">(machine: {segment.speakerLabel})</span>}
+                    </p>
+                  )}
                   {isEditing ? (
                     <SegmentEditor
                       segment={segment}
@@ -332,8 +377,17 @@ export default function TranscriptPage() {
                   ) : (
                     <>
                       <p className={cn('text-[15px] leading-[1.7] text-foreground', low && 'decoration-warning decoration-dotted underline-offset-4 [text-decoration-line:underline]')}>
-                        <Highlight text={original ? segment.text : segmentText(segment)} query={q} />
+                        <CuedText text={original ? segment.text : segmentText(segment)} query={q} />
                       </p>
+                      {segment.flagged && (
+                        <p className="mt-1.5 flex items-start gap-1.5 text-[13px] text-warning">
+                          <Flag className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                          <span>
+                            Marked uncertain{segment.flagReason ? `: ${segment.flagReason}` : ''}. Not used as a quotation.
+                          </span>
+                        </p>
+                      )}
+                      {segment.reviewNote && <p className="mt-1 text-[13px] text-foreground-secondary">Reviewer’s note: {segment.reviewNote}</p>}
                       {showTranslation && segment.translatedText && (
                         <p className="mt-1 text-[14px] italic leading-[1.6] text-foreground-secondary">
                           <span className="sr-only">Translation: </span>
@@ -346,7 +400,7 @@ export default function TranscriptPage() {
                           {segment.editedText && (
                             <>
                               <span>
-                                Corrected
+                                Reviewed and corrected
                                 {segment.editedBy ? ` by ${segment.editedBy.firstName} ${segment.editedBy.lastName}` : ''}
                               </span>
                               <button

@@ -14,6 +14,8 @@ export interface AudioPlayerHandle {
 interface AudioPlayerProps {
   interviewId: string;
   mediaId: string;
+  /** Supplies the signed URL instead of the administrator's recording endpoint (the enumerator's own review). */
+  getUrl?: () => Promise<string>;
   label: string;
   /** Known length, shown before the audio has loaded. */
   durationMs?: number;
@@ -32,7 +34,7 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
  * mark.
  */
 export const AudioPlayer = forwardRef<AudioPlayerHandle, AudioPlayerProps>(function AudioPlayer(
-  { interviewId, mediaId, label, durationMs, onTimeChange, className },
+  { interviewId, mediaId, getUrl, label, durationMs, onTimeChange, className },
   ref,
 ) {
   const audio = useRef<HTMLAudioElement>(null);
@@ -47,9 +49,10 @@ export const AudioPlayer = forwardRef<AudioPlayerHandle, AudioPlayerProps>(funct
   const renewed = useRef(false);
 
   const signedUrl = useCallback(async () => {
+    if (getUrl) return getUrl();
     const res = await API.interviews.getRecordingDownloadUrl(interviewId, mediaId);
     return res.data.data.url;
-  }, [interviewId, mediaId]);
+  }, [getUrl, interviewId, mediaId]);
 
   const load = useCallback(
     async (at: number, play: boolean) => {

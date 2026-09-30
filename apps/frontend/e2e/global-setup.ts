@@ -48,21 +48,21 @@ export default async function globalSetup() {
     projectId: project.id,
     questions: [
       { text: { en: 'What is your role in the community?', ha: 'Mene ne matsayinka a cikin al\u2019umma?' }, type: 'OPEN', probes: { en: 'Ask how long.' }, required: true },
-      { text: { en: 'Main source of drinking water?' }, type: 'SINGLE', options: [{ en: 'Borehole' }, { en: 'River' }] },
+      { text: { en: 'Main source of drinking water?' }, type: 'OPEN' },
     ],
   });
   if (!existing) await call('POST', `/guides/${guide.id}/approve`, admin);
 
   const stamp = Date.now().toString(36);
   // How an admin adds a field worker now: one step, projects + code.
-  const worker = await call<{ id: string; code: string }>('POST', '/field-team', admin, {
-    firstName: 'Amina',
-    lastName: 'Okafor',
-    phone: '+234 800 000 0000',
+  const worker = await call<{ id: string; accessCode: { code: string } }>('POST', '/enumerators', admin, {
+    fullName: 'Amina Okafor',
+    phone: `+234 80${stamp.replace(/\D/g, '').padEnd(8, '7').slice(0, 8)}`,
+    state: 'Kano',
     projectIds: [project.id],
   });
   const fieldUserId = worker.id;
-  const code = worker.code;
+  const code = worker.accessCode.code;
 
   const participant = await call<{ id: string }>('POST', '/participants', admin, { displayName: `P-${stamp.toUpperCase()}` });
   const consent = await call<{ id: string }>('POST', '/consents', admin, {

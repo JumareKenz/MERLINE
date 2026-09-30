@@ -8,17 +8,24 @@ import { TranscriptionProviderService } from './transcription-provider.service';
 import { TranscriptionPipelineService } from './transcription-pipeline.service';
 import { TranscriptionJobs } from './transcription-jobs';
 import { TranscriptDialogueService } from './transcript-dialogue.service';
+import { TranscriptReviewService } from './transcript-review.service';
+import { FieldTranscriptsController } from './field-transcripts.controller';
 
 @Module({
   imports: [ConsentsModule, AiModule, JobsModule],
-  controllers: [TranscriptsController],
+  controllers: [TranscriptsController, FieldTranscriptsController],
   providers: [
     TranscriptsService,
     TranscriptionProviderService,
     TranscriptionPipelineService,
     TranscriptionJobs,
     TranscriptDialogueService,
+    TranscriptReviewService,
   ],
-  exports: [TranscriptsService, TranscriptionProviderService],
+  exports: [
+    TranscriptsService,
+    TranscriptionProviderService,
+    TranscriptReviewService,
+  ],
 })
 export class TranscriptsModule {}

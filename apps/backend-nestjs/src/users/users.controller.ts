@@ -99,22 +99,4 @@ export class UsersController {
   ) {
     return this.usersService.updateRoles(id, dto, user.organizationId);
   }
-
-  @Post(':id/field-access-code')
-  @Permissions('edit.users')
-  async generateFieldAccessCode(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.usersService.generateFieldAccessCode(id, user.organizationId);
-  }
-
-  @Delete(':id/field-access-code')
-  @Permissions('edit.users')
-  async revokeFieldAccessCode(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.usersService.revokeFieldAccessCode(id, user.organizationId);
-  }
 }

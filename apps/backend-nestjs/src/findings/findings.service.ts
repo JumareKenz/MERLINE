@@ -13,6 +13,7 @@ import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CreateFindingDto } from './dto/create-finding.dto';
 import { AddQuotationDto } from './dto/add-quotation.dto';
 import { locateExcerpt, segmentText } from '../transcripts/segment-text';
+import { isEvidence, NOT_EVIDENCE_MESSAGE } from '../transcripts/review-status';
 
 export { locateExcerpt };
 
@@ -196,6 +197,10 @@ export class FindingsService extends BaseService {
       if (!segment) {
         throw new NotFoundException('Transcript segment not found');
       }
+      // Evidence gate: a quotation must come from an approved transcript.
+      if (!isEvidence(segment.transcript.reviewStatus)) {
+        throw new BadRequestException(NOT_EVIDENCE_MESSAGE);
+      }
 
       const excerpt = dto.excerpt.trim();
       if (!segmentText(segment).includes(excerpt)) {
@@ -357,6 +362,9 @@ export class FindingsService extends BaseService {
       throw new BadRequestException(
         'Transcript must be COMPLETED with at least one segment before AI drafting',
       );
+    }
+    if (!isEvidence(transcript.reviewStatus)) {
+      throw new BadRequestException(NOT_EVIDENCE_MESSAGE);
     }
 
     this.consentsService.assertScope(

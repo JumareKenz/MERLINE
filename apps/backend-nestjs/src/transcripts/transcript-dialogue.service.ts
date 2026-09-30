@@ -1,3 +1,4 @@
+import { isEvidence, NOT_EVIDENCE_MESSAGE } from './review-status';
 import {
   BadRequestException,
   Injectable,
@@ -78,6 +79,10 @@ export class TranscriptDialogueService extends BaseService {
       throw new BadRequestException(
         'Only a completed transcript with segments can be questioned',
       );
+    }
+
+    if (!isEvidence(transcript.reviewStatus)) {
+      throw new BadRequestException(NOT_EVIDENCE_MESSAGE);
     }
 
     this.consentsService.assertScope(

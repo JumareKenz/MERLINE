@@ -87,10 +87,10 @@ describe('getModulePermissions', () => {
 });
 
 describe('routes', () => {
-  it('lands on projects, not the deregistered dashboard', () => {
-    // The dashboard reads only MERL metrics from DashboardsModule, which is
-    // deregistered, so it can no longer load. See LEGACY.md.
-    expect(APP_HOME).toBe('/projects');
+  it('lands on the review dashboard', () => {
+    // Home is the qualitative dashboard (review queue, enumerators); the old
+    // MERL executive dashboard read a deregistered module. See LEGACY.md.
+    expect(APP_HOME).toBe('/dashboard');
     expect(ROUTES.home).toBe(APP_HOME);
   });
 });

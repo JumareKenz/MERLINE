@@ -82,7 +82,7 @@ export default function NewAssignmentPage() {
         language: language || undefined,
       })
       .catch(() => null);
-    if (result) router.push('/assignments');
+    if (result) router.push('/interviews');
   };
 
   const chosenConsent = usableConsents.find((c) => c.id === consentId);
@@ -232,7 +232,7 @@ export default function NewAssignmentPage() {
         </Field>
 
         <div className="flex flex-col-reverse gap-2 border-t border-border-subtle pt-6 sm:flex-row sm:justify-end">
-          <Button type="button" variant="ghost" onClick={() => router.push('/assignments')}>
+          <Button type="button" variant="ghost" onClick={() => router.push('/interviews')}>
             Cancel
           </Button>
           <Button type="submit" loading={create.isPending}>

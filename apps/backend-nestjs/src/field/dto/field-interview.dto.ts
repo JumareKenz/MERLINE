@@ -5,6 +5,8 @@ import {
   IsEnum,
   IsNotEmpty,
   IsIn,
+  IsObject,
+  Matches,
   IsOptional,
   IsString,
   IsUUID,
@@ -13,6 +15,7 @@ import {
 } from 'class-validator';
 import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
 import { ConsentMethod } from '@prisma/client';
+import { INTERVIEW_TYPE_KEY } from '../../common/research/interview-type';
 
 export class FieldParticipantDto {
   @IsString()
@@ -85,6 +88,20 @@ export class CreateFieldInterviewDto {
   @IsOptional()
   @IsUUID()
   questionSetId?: string;
+
+  /**
+   * The interview type, chosen from the project's list (sent by the
+   * device). Optional only so interviews queued offline by an older app
+   * still sync; they get the project's default type.
+   */
+  @IsOptional()
+  @Matches(INTERVIEW_TYPE_KEY, { message: 'Invalid interview type' })
+  type?: string;
+
+  /** Answers to that type's own fields (e.g. group size for an FGD). */
+  @IsOptional()
+  @IsObject()
+  typeMetadata?: Record<string, unknown>;
 
   /** Language spoken, if known: used as the transcription hint. */
   @IsOptional()

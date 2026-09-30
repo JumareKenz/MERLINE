@@ -100,27 +100,32 @@ explicit permission and tenant scoping in the service.
 `AppModule` and fails on any route without `@Permissions` that is not in its
 explicit open-by-design list.
 
-**11. Field work model.** Admins create **access codes** (Assignments →
-Access codes): each is a field account (a User with the field-interviewer
-role, named for a team, place or person) assigned to one or more
-*projects* (ProjectTeam, role "field"). A code is **4 characters** (older
-10-character codes still sign in) and may be **shared by any number of
-enumerators**; every new interview asks the interviewer's name first and
-stores it in `Interview.enumeratorName` (shown in Results, reports and the
-code's "Used by" list). Because codes are short, `POST /auth/field-login`
-is throttled (10/min) and `FieldLoginLimiter` blocks an address after 8
-wrong codes in 15 minutes, doubling up to 24 h. Logging out of a code
-account does **not** bump `tokenVersion` (it would sign out the whole
-team); reissuing or revoking a code does. `configure-app.ts` sets
-`trust proxy` to loopback so rate limits are per client, not per nginx. Field workers meet participants on site
-and create participant + consent + interview in one idempotent call
-(`POST /field/interviews`, device-generated ids) — offline-capable. Scoping
-is server-side: a user whose only role is `field-interviewer` sees only their
-assigned projects, their own interviews, and participants they registered or
-are interviewing (`common/scoping/field-scope.ts`). Service methods take an
-optional trailing `viewerId`; controllers must pass `user.id`.
-**New organizations** get their permission catalogue and roles from
-`provisionOrganizationRoles()`; repair older ones with
+**11. Field work model.** Admins create **enumerators** (Enumerators page):
+a field account (User with the field-interviewer role) plus an
+`EnumeratorProfile` (unique id `ENU-…`, state) and a **personal access code**
+(10 characters, `crypto.randomInt`, stored only as an HMAC hash in
+`field_access_codes`, shown once). One ACTIVE code per enumerator (partial
+unique index); regenerate/revoke retire the old code and bump `tokenVersion`.
+Enumerators are assigned to *projects* (ProjectTeam, role "field").
+`POST /auth/field-login` is throttled (10/min), `FieldLoginLimiter` blocks an
+address after 8 wrong codes (doubling up to 24 h), every failure answers
+"Invalid or expired access code", attempts are audited (`field_login.*`).
+Logging out of a field account does **not** bump `tokenVersion`. A personal
+account's interviews are credited to the account's name server-side.
+**Legacy shared 4-character codes** (`users.field_access_code`, plaintext) still
+sign in until an admin issues a personal code; the old `/field-team` and
+`/users/:id/field-access-code` endpoints are gone. Details, including why,
+are in `docs/ENUMERATORS-AND-REVIEW.md`. `configure-app.ts` sets
+`trust proxy` to loopback so rate limits are per client, not per nginx. Field
+workers meet participants on site and create participant + consent +
+interview in one idempotent call (`POST /field/interviews`, device-generated
+ids, now with an interview `type` and its `typeMetadata`) — offline-capable.
+Scoping is server-side: a user whose only role is `field-interviewer` sees
+only their assigned projects, their own interviews, and participants they
+registered or are interviewing (`common/scoping/field-scope.ts`). Service
+methods take an optional trailing `viewerId`; controllers must pass
+`user.id`. **New organizations** get their permission catalogue and roles
+from `provisionOrganizationRoles()`; repair older ones with
 `npx ts-node prisma/provision-organizations.ts [slug]`.
 
 **12. Field offline recording** is documented in `docs/FIELD-OFFLINE.md`
@@ -147,8 +152,10 @@ so recordings over 25 min are split (`maxRequestSeconds`, and
 `planChunks` takes a hard `maxSec`); speaker labels are kept only when a
 recording went in one request, since labels do not match across parts.
 Chat, translation and reports stay on Groq.
-Recordings and transcripts are **administrator-only**; `/media` routes
-exclude interview recordings. Segment corrections go to `editedText` (the
+Recordings and transcripts are **administrator-only** except that an
+enumerator can review the transcript (and hear the recording) of interviews
+they conducted (`review.transcripts`, `/field/transcripts`, scoped in the
+service); `/media` routes exclude interview recordings. Segment corrections go to `editedText` (the
 machine `text` is never changed); read via `segmentText()`. Whisper on
 Hausa is phonetic, not accurate (~89% WER measured on FLEURS) — always
 pass the language hint; auto-detect misidentifies Hausa.
@@ -157,6 +164,23 @@ Run DB tests with no local API worker on the same database (or
 Browsers download recordings through `AWS_PUBLIC_ENDPOINT` (nginx proxies
 `/merline-media/` read-only to MinIO); signing for the internal
 `AWS_ENDPOINT` produces links only the server itself can open.
+
+**17. Transcript review and the evidence gate.** Every transcript has a
+`reviewStatus` (RECORDING_SUBMITTED → … → AVAILABLE_FOR_REVIEW →
+ENUMERATOR_EDITING → SUBMITTED_FOR_ADMIN_REVIEW → APPROVED/RETURNED → LOCKED)
+separate from machine `status`. Enumerator and admin edits live beside the
+machine text (`editedText`, `editedSpeakerLabel`, flags, notes); milestones
+are frozen as immutable `transcript_revisions`; every transition is a
+transaction with a `transcript_review_events` row (`TranscriptReviewService`).
+**Only APPROVED/LOCKED transcripts are evidence**: reports, project ask,
+findings drafting, quotations and AI Dialogue all use
+`EVIDENCE_TRANSCRIPT_WHERE`/`isEvidence()` from `transcripts/review-status.ts`,
+and `common/architecture/evidence-gate.spec.ts` fails if an analysis path
+reads transcripts without it. Reports compute prevalence, interview types and
+evidence strength themselves (`analysis/evidence.ts`), withhold findings with
+no verified support, keep contrary evidence, and record their approved
+sources (`report_sources`). A project can hold several interview types
+(`project_interview_types`, `common/research/interview-type.ts`).
 
 **14. Reports, deletion and the Trash.** `src/analysis` writes AI reports
 (`analysis_reports`, not the legacy `reports` table): per interview, per
@@ -276,8 +300,9 @@ AWS_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin AWS_BUCKET=merline-test \
 npx jest
 ```
-Expect **417 passing, 31 suites** (as of 2026-09-30; the transcription
-pipeline suite also needs `ffmpeg`). Anything less means
+Expect **548+ passing, 40 suites** (as of 2026-09-30; the transcription
+pipeline suite also needs `ffmpeg`, and the storage suites need an S3-compatible
+store with the credentials you pass — never the production MinIO). Anything less means
 something regressed. Use a separate database (`merline_test`); never point
 this at the production `merline` database.
 

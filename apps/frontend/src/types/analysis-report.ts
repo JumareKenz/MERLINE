@@ -8,10 +8,27 @@ export interface ReportQuote {
   startMs: number;
   source: string;
   speaker?: string | null;
+  interviewType?: string | null;
+  location?: string | null;
+  revisionId?: string | null;
 }
 
+/** An approved transcript (at its approved revision) a report was written from. */
+export interface ReportSourceRef {
+  ref: string;
+  label: string;
+  interviewId: string;
+  transcriptId: string;
+  revisionId: string | null;
+  interviewType: string | null;
+  location: string | null;
+  language: string | null;
+}
+
+export type ClaimType = 'summary' | 'interpretation' | 'theme' | 'recommendation' | 'evidence' | 'limitation';
+
 export type ReportBlock =
-  | { type: 'paragraph'; text: string }
+  | { type: 'paragraph'; text: string; label?: string }
   | { type: 'bullets'; items: string[] }
   | { type: 'numbered'; items: string[] }
   | { type: 'quote'; quoteId: string; note?: string }
@@ -23,6 +40,7 @@ export interface ReportSection {
   id: string;
   heading: string;
   aiGenerated: boolean;
+  claimType?: ClaimType;
   blocks: ReportBlock[];
 }
 
@@ -33,6 +51,8 @@ export interface ReportDocument {
   meta: { label: string; value: string }[];
   sections: ReportSection[];
   quotes: Record<string, ReportQuote>;
+  /** Approved transcripts the report drew on; absent on reports written before the review workflow. */
+  sources?: ReportSourceRef[];
   disclosure: string;
   generatedAt: string;
 }

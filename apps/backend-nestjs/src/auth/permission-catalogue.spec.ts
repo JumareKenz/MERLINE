@@ -10,6 +10,7 @@ const ADMIN_ONLY = [
   'view.transcripts',
   'create.transcripts',
   'edit.transcripts',
+  'approve.transcripts',
 ];
 
 describe('role definitions', () => {
@@ -55,11 +56,16 @@ describe('deletion', () => {
       'delete.users',
     ];
     for (const role of ROLE_DEFINITIONS) {
-      const granted = permissionsForRole(role).filter((p) => deletes.includes(p));
+      const granted = permissionsForRole(role).filter((p) =>
+        deletes.includes(p),
+      );
       if (role.slug === 'administrator') {
         expect(granted.sort()).toEqual([...deletes].sort());
       } else {
-        expect({ role: role.slug, granted }).toEqual({ role: role.slug, granted: [] });
+        expect({ role: role.slug, granted }).toEqual({
+          role: role.slug,
+          granted: [],
+        });
       }
     }
   });

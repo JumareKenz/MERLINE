@@ -108,7 +108,9 @@ describeDb('field access code (database)', () => {
       data: { isActive: false },
     });
 
-    await expect(auth.fieldLogin({ code })).rejects.toThrow(/inactive/i);
+    await expect(auth.fieldLogin({ code })).rejects.toThrow(
+      /invalid or expired/i,
+    );
 
     await prisma.user.update({
       where: { id: userAId },
@@ -144,12 +146,17 @@ describeDb('field access code (database)', () => {
   });
 
   it('still accepts an older 10-character code until it is reissued', async () => {
-    const legacy = `L${run.slice(0, 4).toUpperCase().replace(/[^A-Z]/g, 'Q')}-ZZZZ9`;
+    const legacy = `L${run
+      .slice(0, 4)
+      .toUpperCase()
+      .replace(/[^A-Z]/g, 'Q')}-ZZZZ9`;
     await prisma.user.update({
       where: { id: userAId },
       data: { fieldAccessCode: legacy, fieldAccessCodeIssuedAt: new Date() },
     });
-    const res = await auth.fieldLogin({ code: legacy.replace('-', '').toLowerCase() });
+    const res = await auth.fieldLogin({
+      code: legacy.replace('-', '').toLowerCase(),
+    });
     expect(res.user.id).toBe(userAId);
   });
 
@@ -168,14 +175,22 @@ describeDb('field access code (database)', () => {
 
   it('logging out on one phone does not sign out others sharing the code', async () => {
     await users.generateFieldAccessCode(userAId, orgAId);
-    const before = (await prisma.user.findUniqueOrThrow({ where: { id: userAId } })).tokenVersion;
+    const before = (
+      await prisma.user.findUniqueOrThrow({ where: { id: userAId } })
+    ).tokenVersion;
     await auth.logout(userAId);
-    const after = (await prisma.user.findUniqueOrThrow({ where: { id: userAId } })).tokenVersion;
+    const after = (
+      await prisma.user.findUniqueOrThrow({ where: { id: userAId } })
+    ).tokenVersion;
     expect(after).toBe(before);
 
     // A normal (email) account still ends every session on logout.
-    const b0 = (await prisma.user.findUniqueOrThrow({ where: { id: userBId } })).tokenVersion;
+    const b0 = (await prisma.user.findUniqueOrThrow({ where: { id: userBId } }))
+      .tokenVersion;
     await auth.logout(userBId);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: userBId } })).tokenVersion).toBe(b0 + 1);
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userBId } }))
+        .tokenVersion,
+    ).toBe(b0 + 1);
   });
 });

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Archive } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
+import { InterviewTypesEditor } from '@/components/projects/interview-types-editor';
 import { ResearchProjectForm } from '@/components/projects/research-project-form';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -41,6 +42,15 @@ export default function ProjectSettingsPage() {
           }}
         />
       </div>
+
+      <section aria-labelledby="types-h" className="mt-8 rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft sm:p-7">
+        <h2 id="types-h" className="type-section">
+          Interview types
+        </h2>
+        <div className="mt-2">
+          <InterviewTypesEditor projectId={projectId} />
+        </div>
+      </section>
 
       {project.status !== 'archived' && (!session.isResolved || session.can('edit.projects')) && (
         <section className="mt-8 rounded-xl border border-border-subtle p-5 sm:p-6">

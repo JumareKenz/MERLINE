@@ -16,10 +16,17 @@ import { TranscriptsService } from './transcripts.service';
 import { CreateTranscriptDto } from './dto/create-transcript.dto';
 import { AskTranscriptDto } from './dto/ask-transcript.dto';
 import {
-  EditSegmentDto,
   RetryTranscriptDto,
   TranslateTranscriptDto,
 } from './dto/transcript-actions.dto';
+import {
+  ApproveTranscriptDto,
+  CompareRevisionsQuery,
+  RenameSpeakerDto,
+  ReviewNoteDto,
+  ReviewSegmentDto,
+} from './dto/transcript-review.dto';
+import { TranscriptReviewService } from './transcript-review.service';
 import { TranscriptDialogueService } from './transcript-dialogue.service';
 
 /**
@@ -33,6 +40,7 @@ export class TranscriptsController {
   constructor(
     private readonly transcriptsService: TranscriptsService,
     private readonly dialogueService: TranscriptDialogueService,
+    private readonly review: TranscriptReviewService,
   ) {}
 
   /**
@@ -46,6 +54,10 @@ export class TranscriptsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('interviewId', new ParseUUIDPipe({ optional: true }))
     interviewId?: string,
+    @Query('type') type?: string,
+    @Query('reviewStatus') reviewStatus?: string,
+    @Query('projectId', new ParseUUIDPipe({ optional: true }))
+    projectId?: string,
   ) {
     if (interviewId) {
       return this.transcriptsService.findForInterview(
@@ -53,7 +65,25 @@ export class TranscriptsController {
         user.organizationId,
       );
     }
-    return this.transcriptsService.findAllForOrganization(user.organizationId);
+    return this.transcriptsService.findAllForOrganization(user.organizationId, {
+      type,
+      reviewStatus,
+      projectId,
+    });
+  }
+
+  /** Where transcripts stand in review: the dashboard's counts. */
+  @Get('review-summary')
+  @Permissions('view.transcripts')
+  async reviewSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('projectId', new ParseUUIDPipe({ optional: true }))
+    projectId?: string,
+  ) {
+    return this.transcriptsService.reviewSummary(
+      user.organizationId,
+      projectId,
+    );
   }
 
   @Post()
@@ -92,22 +122,119 @@ export class TranscriptsController {
     return this.transcriptsService.retry(id, user.organizationId, dto.language);
   }
 
-  /** Correct one segment; the machine text is kept alongside. */
+  /**
+   * The full review view for an administrator: segments with machine and
+   * reviewed text side by side, flags, confidence, events and revisions.
+   */
+  @Get(':id/review')
+  @Permissions('view.transcripts')
+  async reviewDetail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.adminDetail(id, user.organizationId);
+  }
+
+  /** Correct one segment (text, speaker, flag, note); the machine text is kept alongside. */
   @Patch(':id/segments/:segmentId')
   @Permissions('edit.transcripts')
   async editSegment(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('segmentId', ParseUUIDPipe) segmentId: string,
-    @Body() dto: EditSegmentDto,
+    @Body() dto: ReviewSegmentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.transcriptsService.editSegment(
+    return this.review.editAsAdmin(
       id,
       segmentId,
-      dto.text,
+      dto,
       user.id,
       user.organizationId,
     );
+  }
+
+  @Post(':id/speakers/rename')
+  @HttpCode(200)
+  @Permissions('edit.transcripts')
+  async renameSpeaker(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RenameSpeakerDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.renameSpeakerAsAdmin(
+      id,
+      dto.from,
+      dto.to,
+      user.id,
+      user.organizationId,
+    );
+  }
+
+  @Post(':id/approve')
+  @HttpCode(200)
+  @Permissions('approve.transcripts')
+  async approve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApproveTranscriptDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.approve(id, dto, user.id, user.organizationId);
+  }
+
+  @Post(':id/return')
+  @HttpCode(200)
+  @Permissions('approve.transcripts')
+  async returnForCorrection(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReviewNoteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.returnForCorrection(
+      id,
+      dto.note,
+      user.id,
+      user.organizationId,
+    );
+  }
+
+  @Post(':id/reopen')
+  @HttpCode(200)
+  @Permissions('approve.transcripts')
+  async reopen(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReviewNoteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.reopen(id, dto.note, user.id, user.organizationId);
+  }
+
+  @Post(':id/lock')
+  @HttpCode(200)
+  @Permissions('approve.transcripts')
+  async lock(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.lock(id, user.id, user.organizationId);
+  }
+
+  @Get(':id/revisions')
+  @Permissions('view.transcripts')
+  async revisions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.revisions(id, user.organizationId);
+  }
+
+  @Get(':id/revisions/compare')
+  @Permissions('view.transcripts')
+  async compare(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: CompareRevisionsQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.review.compare(id, user.organizationId, query.from, query.to);
   }
 
   /** Queue a machine translation (needs consent to AI analysis). */

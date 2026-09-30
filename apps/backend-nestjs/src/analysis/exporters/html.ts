@@ -28,7 +28,7 @@ function fontFace(
 function block(b: ReportBlock, doc: ReportDocument): string {
   switch (b.type) {
     case 'paragraph':
-      return `<p>${esc(b.text)}</p>`;
+      return `<p>${b.label ? `<strong class="lbl">${esc(b.label)}:</strong> ` : ''}${esc(b.text)}</p>`;
     case 'bullets':
       return `<ul>${b.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`;
     case 'numbered':
@@ -143,6 +143,7 @@ td.prio.high{color:#B42318;} td.prio.medium{color:#${c.warning};} td.prio.low{co
 .quote figcaption{margin-top:6px;font-size:8pt;color:#${c.muted};}
 .verbatim{font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#${c.lemonInk};margin-right:4px;}
 .quote .note{margin:6px 0 0;font-size:9pt;color:#${c.ink};}
+.lbl{font-weight:600;color:#${c.lemonInk};}
 .callout{border-radius:8px;padding:9px 12px;margin:0 0 10px;font-size:9.5pt;}
 .callout.info{background:#${c.infoBg};color:#${c.navyDeep};}
 .callout.warning{background:#${c.warningBg};color:#${c.warning};}

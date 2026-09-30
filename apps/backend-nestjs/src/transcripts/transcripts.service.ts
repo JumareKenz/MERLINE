@@ -4,12 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Transcript } from '@prisma/client';
+import { Transcript, TranscriptReviewStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
 import { ConsentsService } from '../consents/consents.service';
 import { queueTranscription, queueTranslation } from './transcription-queue';
-import { segmentText } from './segment-text';
 
 @Injectable()
 export class TranscriptsService extends BaseService {
@@ -64,11 +63,25 @@ export class TranscriptsService extends BaseService {
     return transcript;
   }
 
-  async findAllForOrganization(organizationId: string) {
+  async findAllForOrganization(
+    organizationId: string,
+    filter: { type?: string; reviewStatus?: string; projectId?: string } = {},
+  ) {
+    const reviewStatus = Object.values(TranscriptReviewStatus).find(
+      (s) => s === filter.reviewStatus,
+    );
+    if (filter.reviewStatus && !reviewStatus) {
+      throw new BadRequestException('Unknown review status');
+    }
     return this.prisma.transcript.findMany({
       where: {
         organizationId,
-        interview: { deletedAt: null },
+        ...(reviewStatus && { reviewStatus }),
+        interview: {
+          deletedAt: null,
+          ...(filter.type && { type: filter.type }),
+          ...(filter.projectId && { projectId: filter.projectId }),
+        },
         media: { deletedAt: null },
       },
       omit: { text: true },
@@ -77,6 +90,8 @@ export class TranscriptsService extends BaseService {
           select: {
             id: true,
             projectId: true,
+            type: true,
+            enumeratorName: true,
             participant: { select: { id: true, displayName: true } },
           },
         },
@@ -85,6 +100,44 @@ export class TranscriptsService extends BaseService {
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
+  }
+
+  /** Counts for the dashboard: where every transcript is in the review lifecycle. */
+  async reviewSummary(organizationId: string, projectId?: string) {
+    const where = {
+      organizationId,
+      interview: { deletedAt: null, ...(projectId && { projectId }) },
+      media: { deletedAt: null },
+    };
+    const [byStatus, byType] = await Promise.all([
+      this.prisma.transcript.groupBy({
+        by: ['reviewStatus'],
+        where,
+        _count: { _all: true },
+      }),
+      this.prisma.transcript.findMany({
+        where,
+        select: { reviewStatus: true, interview: { select: { type: true } } },
+      }),
+    ]);
+    const status = Object.fromEntries(
+      Object.values(TranscriptReviewStatus).map((s) => [s, 0]),
+    ) as Record<TranscriptReviewStatus, number>;
+    for (const row of byStatus) status[row.reviewStatus] = row._count._all;
+
+    const types = new Map<string, { total: number; approved: number }>();
+    for (const t of byType) {
+      const key = t.interview.type ?? 'OTHER';
+      const entry = types.get(key) ?? { total: 0, approved: 0 };
+      entry.total++;
+      if (t.reviewStatus === 'APPROVED' || t.reviewStatus === 'LOCKED')
+        entry.approved++;
+      types.set(key, entry);
+    }
+    return {
+      byStatus: status,
+      byType: [...types.entries()].map(([type, v]) => ({ type, ...v })),
+    };
   }
 
   async findForInterview(interviewId: string, organizationId: string) {
@@ -194,63 +247,6 @@ export class TranscriptsService extends BaseService {
       });
       await queueTranscription(tx, updated);
       return updated;
-    });
-  }
-
-  /**
-   * Stores a human correction next to the machine text (which is never
-   * changed). `null`, blank, or text identical to the machine version
-   * clears the correction. A correction may not remove words that a
-   * finding quotes from this segment: the evidence must stay verbatim.
-   */
-  async editSegment(
-    transcriptId: string,
-    segmentId: string,
-    text: string | null,
-    userId: string,
-    organizationId: string,
-  ) {
-    const segment = await this.prisma.transcriptSegment.findFirst({
-      where: { id: segmentId, transcriptId, organizationId },
-      include: {
-        transcript: { select: { status: true } },
-        quotations: { select: { excerpt: true } },
-      },
-    });
-    if (!segment) {
-      throw new NotFoundException('Transcript segment not found');
-    }
-    if (segment.transcript.status !== 'COMPLETED') {
-      throw new BadRequestException(
-        'Only a completed transcript can be edited',
-      );
-    }
-
-    const corrected = text?.trim() || null;
-    const editedText = corrected === segment.text ? null : corrected;
-    const effective = editedText ?? segment.text;
-
-    const broken = segment.quotations.find(
-      (q) => !effective.includes(q.excerpt),
-    );
-    if (broken) {
-      throw new BadRequestException(
-        `A finding quotes "${broken.excerpt.slice(0, 80)}" from this segment; keep those words unchanged`,
-      );
-    }
-
-    return this.prisma.transcriptSegment.update({
-      where: { id: segment.id },
-      data: {
-        ...(editedText
-          ? { editedText, editedById: userId, editedAt: new Date() }
-          : { editedText: null, editedById: null, editedAt: null }),
-        // A translation of the old wording would now be misleading.
-        ...(effective !== segmentText(segment) && { translatedText: null }),
-      },
-      include: {
-        editedBy: { select: { id: true, firstName: true, lastName: true } },
-      },
     });
   }
 

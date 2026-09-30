@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { UserTable } from '@/components/users/user-table';
 import { UserForm } from '@/components/users/user-form';
 import { UserRoleSelector } from '@/components/users/user-role-selector';
-import { FieldAccessCodeDialog } from '@/components/users/field-access-code-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/use-users';
 import { useCurrentOrganizationId } from '@/hooks/use-organizations';
@@ -20,7 +19,6 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showRoleChange, setShowRoleChange] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
-  const [showFieldAccess, setShowFieldAccess] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Member | null>(null);
 
   const { data: orgId } = useCurrentOrganizationId();
@@ -97,10 +95,6 @@ export default function UsersPage() {
           setSelectedUser(user);
           setShowDelete(true);
         }}
-        onFieldAccess={(user) => {
-          setSelectedUser(user);
-          setShowFieldAccess(true);
-        }}
       />
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -129,12 +123,6 @@ export default function UsersPage() {
         confirmLabel="Remove"
         loading={deleteUser.isPending}
         onConfirm={handleDelete}
-      />
-
-      <FieldAccessCodeDialog
-        open={showFieldAccess}
-        onOpenChange={setShowFieldAccess}
-        user={selectedUser}
       />
     </div>
   );

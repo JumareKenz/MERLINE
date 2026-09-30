@@ -104,7 +104,8 @@ function DialogueWorkspace() {
   const params = useSearchParams();
   const router = useRouter();
   const transcripts = useAllTranscripts();
-  const completed = (transcripts.data ?? []).filter((t) => t.status === 'COMPLETED');
+  // Only approved transcripts can be questioned: the API refuses the rest.
+  const completed = (transcripts.data ?? []).filter((t) => t.status === 'COMPLETED' && (t.reviewStatus === 'APPROVED' || t.reviewStatus === 'LOCKED'));
   const [transcriptId, setTranscriptId] = useState(params.get('transcript') ?? '');
   const [question, setQuestion] = useState('');
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -160,8 +161,8 @@ function DialogueWorkspace() {
       {completed.length === 0 ? (
         <EmptyState
           icon={<FileText />}
-          title="No completed transcripts yet"
-          description="AI Dialogue works on a finished transcript whose participant consented to AI analysis."
+          title="No approved transcripts yet"
+          description="AI Dialogue works only on a transcript that has been reviewed and approved, and whose participant consented to AI analysis."
           action={
             <Button variant="secondary" asChild>
               <Link href="/transcripts">Go to transcripts</Link>

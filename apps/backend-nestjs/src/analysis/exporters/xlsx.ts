@@ -200,6 +200,14 @@ export async function renderReportXlsx(
         const src = s.aiGenerated ? 'AI analysis' : 'Record';
         switch (b.type) {
           case 'paragraph':
+            return [
+              [
+                i + 1,
+                s.heading,
+                b.label ? `${b.label}: ${b.text}` : b.text,
+                src,
+              ],
+            ];
           case 'callout':
             return [[i + 1, s.heading, b.text, src]];
           case 'bullets':
