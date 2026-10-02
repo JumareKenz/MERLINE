@@ -36,6 +36,31 @@ const INTERVIEW_INCLUDE = {
   },
 } as const;
 
+type ApprovedGuide = NonNullable<
+  Awaited<ReturnType<typeof GuidesService.approvedFor>>
+>;
+
+/** A guide as the device receives it: always open questions, no options. */
+function toFieldGuide(guide: ApprovedGuide) {
+  return {
+    id: guide.id,
+    version: guide.version,
+    title: guide.title,
+    languages: guide.languages,
+    questions: guide.questions.map((q) => ({
+      id: q.id,
+      order: q.order,
+      section: q.section,
+      text: q.text,
+      // Every question is asked out loud. A guide written before that rule
+      // may still hold options in the database; they are never sent.
+      type: 'OPEN' as const,
+      probes: q.probes,
+      required: q.required,
+    })),
+  };
+}
+
 /**
  * PHASE 2 — the field worker's own API.
  *
@@ -98,12 +123,6 @@ export class FieldService extends BaseService {
       projects.map(async (p) => {
         const method =
           (p.settings as { method?: string } | null)?.method ?? null;
-        const guide = await GuidesService.approvedFor(
-          this.prisma,
-          organizationId,
-          p.id,
-          method,
-        );
         const interviewTypes = (
           await availableInterviewTypes(this.prisma, organizationId, p.id)
         ).map((t) => ({
@@ -112,33 +131,36 @@ export class FieldService extends BaseService {
           description: t.description,
           fields: t.fields,
         }));
+        // One approved guide per interview type, so a focus group and an
+        // in-depth interview in the same project each get their own questions.
+        const typeKeys = [
+          ...new Set([
+            ...interviewTypes.map((t) => t.key),
+            ...(method ? [method] : []),
+          ]),
+        ];
+        const guides: Record<string, ReturnType<typeof toFieldGuide>> = {};
+        for (const key of typeKeys) {
+          const g = await GuidesService.approvedFor(
+            this.prisma,
+            organizationId,
+            p.id,
+            key,
+          );
+          if (g) guides[key] = toFieldGuide(g);
+        }
         return {
           id: p.id,
           name: p.name,
           description: p.description,
           method,
           interviewTypes,
+          guides,
           startDate: p.startDate,
           endDate: p.endDate,
           myInterviewCount: countByProject.get(p.id) ?? 0,
-          guide: guide && {
-            id: guide.id,
-            version: guide.version,
-            title: guide.title,
-            languages: guide.languages,
-            questions: guide.questions.map((q) => ({
-              id: q.id,
-              order: q.order,
-              section: q.section,
-              text: q.text,
-              // Every question is asked out loud. A guide written before
-              // that rule may still hold options in the database; they
-              // are never sent to a device.
-              type: 'OPEN' as const,
-              probes: q.probes,
-              required: q.required,
-            })),
-          },
+          // Older apps read this single guide (the project's method).
+          guide: method ? (guides[method] ?? null) : null,
         };
       }),
     );

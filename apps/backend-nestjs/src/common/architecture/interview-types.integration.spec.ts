@@ -334,7 +334,12 @@ describeDb('interview types per project (application)', () => {
       expect.arrayContaining([
         { type: 'KII', interviews: 1, awaitingApproval: 0, approved: 0 },
         { type: 'FGD', interviews: 1, awaitingApproval: 0, approved: 0 },
-        { type: 'WATER_POINT_VISIT', interviews: 1, awaitingApproval: 0, approved: 0 },
+        {
+          type: 'WATER_POINT_VISIT',
+          interviews: 1,
+          awaitingApproval: 0,
+          approved: 0,
+        },
       ]),
     );
   });
@@ -462,6 +467,55 @@ describeDb('interview types per project (application)', () => {
     expect(
       field[0].interviewTypes.map((t: { key: string }) => t.key),
     ).toContain('IDI');
+    // Each type gets its own guide: a focus group and an in-depth interview differ.
+    const q = (en: string) => ({
+      create: [
+        { order: 1, text: { en }, type: 'OPEN', probes: {}, required: true },
+      ],
+    });
+    await prisma.questionSet.updateMany({
+      where: { organizationId: orgA },
+      data: { title: 'IDI guide' },
+    });
+    const idi = await prisma.questionSet.findFirstOrThrow({
+      where: { organizationId: orgA, interviewType: 'IDI' },
+    });
+    await prisma.guideQuestion.create({
+      data: {
+        questionSetId: idi.id,
+        order: 1,
+        text: { en: 'Individual question' },
+        type: 'OPEN',
+        probes: {},
+        required: true,
+      },
+    });
+    await prisma.questionSet.create({
+      data: {
+        familyId: randomUUID(),
+        title: 'FGD guide',
+        interviewType: 'FGD',
+        status: 'APPROVED',
+        projectId: project,
+        organizationId: orgA,
+        createdById: admin,
+        languages: ['en'],
+        questions: q('Group question'),
+      },
+    });
+    const both = data(
+      await http
+        .get('/api/v1/field/projects')
+        .set(bearer(T.enumerator))
+        .expect(200),
+    )[0];
+    expect(Object.keys(both.guides).sort()).toEqual(['FGD', 'IDI']);
+    expect(both.guides.FGD.id).not.toBe(both.guides.IDI.id);
+    expect(both.guides.FGD.questions[0].text.en).toBe('Group question');
+    expect(both.guides.IDI.questions[0].text.en).toBe('Individual question');
+    await prisma.guideQuestion.deleteMany({
+      where: { questionSet: { organizationId: orgA } },
+    });
     await prisma.questionSet.deleteMany({ where: { organizationId: orgA } });
   });
 

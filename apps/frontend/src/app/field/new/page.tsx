@@ -403,7 +403,7 @@ function StartInterview() {
               typeMetadata: chosenType && chosenType.fields.length > 0 ? validateTypeMetadata(chosenType, typeAnswers).values : undefined,
               language: language || undefined,
               // The guide shown on this phone; kept even if a newer one is approved later.
-              questionSetId: chosenProject.guide?.id,
+              questionSetId: (chosenType && chosenProject.guides?.[chosenType.key]?.id) ?? (chosenType ? undefined : chosenProject.guide?.id),
               createdAt: new Date().toISOString(),
               status: 'pending',
               attempts: 0,

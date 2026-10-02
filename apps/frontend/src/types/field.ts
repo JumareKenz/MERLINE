@@ -13,6 +13,8 @@ export interface FieldProject {
   interviewTypes?: InterviewTypeDef[];
   /** The approved guide new interviews in this project use (cached offline). */
   guide?: FieldGuide | null;
+  /** The approved guide for each interview type of the project, by type key. */
+  guides?: Record<string, FieldGuide>;
 }
 
 /** An approved interview guide as the field app receives it. */

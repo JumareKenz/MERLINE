@@ -85,6 +85,8 @@ export interface CachedProject {
   method?: string | null;
   /** The approved guide, kept on the phone so questions show offline. */
   guide?: FieldGuide | null;
+  /** The approved guide for each interview type, by type key. */
+  guides?: Record<string, FieldGuide>;
   /** Interview types the project collects, kept so a type can be chosen offline. */
   interviewTypes?: InterviewTypeDef[];
 }

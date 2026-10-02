@@ -122,7 +122,8 @@ function InterviewWorkflow() {
   // The guide: from the phone's cache when it is the project's current one,
   // otherwise (an older version) from the server when online.
   const questionSetId = interview?.questionSetId ?? null;
-  const cachedGuide = projects.find((p) => p.guide?.id === questionSetId)?.guide ?? null;
+  const cachedGuide =
+    projects.flatMap((p) => [p.guide, ...Object.values(p.guides ?? {})]).find((g) => g?.id === questionSetId) ?? null;
   const guideQuery = useQuery({
     queryKey: ['field', 'guide', id, questionSetId],
     queryFn: async () => (await API.interviews.questionLog(id)).data.data.guide as unknown as FieldGuideData | null,

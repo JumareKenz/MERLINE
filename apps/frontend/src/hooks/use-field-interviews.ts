@@ -84,7 +84,7 @@ export function useFieldInterviews() {
       userId,
       savedAt: new Date().toISOString(),
       items: query.data.map(toCached),
-      projects: projectsQuery.data.map((p) => ({ id: p.id, name: p.name, method: p.method, guide: p.guide ?? null, interviewTypes: p.interviewTypes })),
+      projects: projectsQuery.data.map((p) => ({ id: p.id, name: p.name, method: p.method, guide: p.guide ?? null, guides: p.guides, interviewTypes: p.interviewTypes })),
     };
     saveSnapshot(snapshot)
       .then(() => setCached({ items: snapshot.items, projects: snapshot.projects, savedAt: snapshot.savedAt }))
@@ -92,7 +92,7 @@ export function useFieldInterviews() {
   }, [query.data, projectsQuery.data, userId]);
 
   const live = query.data ? query.data.map(toCached) : null;
-  const liveProjects = projectsQuery.data?.map((p) => ({ id: p.id, name: p.name, method: p.method, guide: p.guide ?? null, interviewTypes: p.interviewTypes })) ?? null;
+  const liveProjects = projectsQuery.data?.map((p) => ({ id: p.id, name: p.name, method: p.method, guide: p.guide ?? null, guides: p.guides, interviewTypes: p.interviewTypes })) ?? null;
 
   return {
     projects: liveProjects ?? cached?.projects ?? [],
