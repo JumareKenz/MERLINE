@@ -79,9 +79,16 @@ export function InterviewTypesEditor({ projectId }: { projectId: string }) {
                   id={`type-label-${i}`}
                   value={d.label}
                   maxLength={100}
+                  // A standard type keeps its name: renaming KII to "IDI" made two
+                  // different types look alike. Use "Add your own type" for a new name.
+                  readOnly={d.key in STANDARD_TYPE_LABELS}
+                  aria-describedby={d.key in STANDARD_TYPE_LABELS ? `type-label-${i}-note` : undefined}
                   onChange={(e) => update(i, { label: e.target.value, ...(!d.locked && { key: typeKeyFromLabel(e.target.value) }) })}
                 />
-                <p className="mt-1 text-[12px] text-foreground-tertiary">Identifier: {d.key || '—'}</p>
+                <p id={`type-label-${i}-note`} className="mt-1 text-[12px] text-foreground-tertiary">
+                  Identifier: {d.key || '—'}
+                  {d.key in STANDARD_TYPE_LABELS ? ' · standard type, name fixed' : ''}
+                </p>
               </div>
               <Button variant="ghost" size="sm" aria-label={`Remove ${d.label || 'type'}`} onClick={() => change(drafts.filter((_, j) => j !== i))}>
                 <Trash2 className="h-4 w-4" aria-hidden />

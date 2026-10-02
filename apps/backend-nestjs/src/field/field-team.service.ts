@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
@@ -103,7 +100,10 @@ export class FieldTeamService extends BaseService {
         // Who has used this code, by the names typed on each interview.
         enumerators: byEnumerator
           .filter((e) => e.interviewerId === u.id && e.enumeratorName)
-          .map((e) => ({ name: e.enumeratorName as string, interviews: e._count._all }))
+          .map((e) => ({
+            name: e.enumeratorName as string,
+            interviews: e._count._all,
+          }))
           .sort((a, b) => b.interviews - a.interviews),
         interviews: {
           total: count(),

@@ -267,6 +267,7 @@ export const API = {
     projects: () => apiClient.get<ApiTypes.Envelope<FieldTypes.FieldProject[]>>('/field/projects'),
     createInterview: (data: FieldTypes.CreateFieldInterviewInput) =>
       apiClient.post<ApiTypes.Envelope<InterviewTypes.Interview>>('/field/interviews', data, { timeout: 60_000 }),
+    discardDraft: (id: string) => apiClient.delete<ApiTypes.Envelope<{ discarded: boolean }>>(`/field/interviews/${id}`),
   },
   /** Admin: enumerators, their projects and personal field-app access codes. */
   enumerators: {

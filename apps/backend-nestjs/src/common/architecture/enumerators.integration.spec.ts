@@ -864,6 +864,99 @@ describeDb('enumerator management and access codes (application)', () => {
       expect(none).toEqual([]);
     });
 
+    it('lets an enumerator discard only their own unsent drafts', async () => {
+      const draft = randomUUID();
+      await http
+        .post('/api/v1/field/interviews')
+        .set(bearer(a.token))
+        .send(interviewBody(draft, projectA))
+        .expect(201);
+      // Someone else's discard is a harmless no-op: it must not delete it.
+      await http
+        .delete(`/api/v1/field/interviews/${draft}`)
+        .set(bearer(b.token))
+        .expect(200);
+      expect(
+        (await prisma.interview.findUniqueOrThrow({ where: { id: draft } }))
+          .deletedAt,
+      ).toBeNull();
+      // Their own: gone from their list, kept in the database (soft delete), repeatable.
+      await http
+        .delete(`/api/v1/field/interviews/${draft}`)
+        .set(bearer(a.token))
+        .expect(200);
+      expect(
+        (await prisma.interview.findUniqueOrThrow({ where: { id: draft } }))
+          .deletedAt,
+      ).not.toBeNull();
+      await http
+        .delete(`/api/v1/field/interviews/${draft}`)
+        .set(bearer(a.token))
+        .expect(200);
+      const mine = await http
+        .get('/api/v1/interviews')
+        .set(bearer(a.token))
+        .expect(200);
+      expect(JSON.stringify(mine.body)).not.toContain(draft);
+      // The consent record is never deleted.
+      expect(
+        await prisma.consent.count({
+          where: { interviews: { some: { id: draft } } },
+        }),
+      ).toBe(1);
+      // An unknown id is a no-op too, so a phone can clear its own copy.
+      await http
+        .delete(`/api/v1/field/interviews/${randomUUID()}`)
+        .set(bearer(a.token))
+        .expect(200);
+    });
+
+    it('refuses to discard an interview that has a recording or was submitted', async () => {
+      const id = randomUUID();
+      await http
+        .post('/api/v1/field/interviews')
+        .set(bearer(a.token))
+        .send(interviewBody(id, projectA))
+        .expect(201);
+      await prisma.media.create({
+        data: {
+          filename: 'x',
+          originalName: 'x',
+          mimeType: 'audio/webm',
+          size: 1,
+          type: 'AUDIO',
+          path: `t/${randomUUID()}`,
+          uploadedById: a.id,
+          organizationId: orgA,
+          interviewId: id,
+        },
+      });
+      const refused = await http
+        .delete(`/api/v1/field/interviews/${id}`)
+        .set(bearer(a.token))
+        .expect(409);
+      expect(JSON.stringify(refused.body)).toMatch(/already has a recording/);
+      const done = randomUUID();
+      await http
+        .post('/api/v1/field/interviews')
+        .set(bearer(a.token))
+        .send(interviewBody(done, projectA))
+        .expect(201);
+      await prisma.interview.update({
+        where: { id: done },
+        data: { status: 'COMPLETED' },
+      });
+      await http
+        .delete(`/api/v1/field/interviews/${done}`)
+        .set(bearer(a.token))
+        .expect(409);
+      await http
+        .delete(`/api/v1/field/interviews/${id}`)
+        .set(bearer(adminToken))
+        .expect(200); // admin account: not their interview, no-op
+      await prisma.media.deleteMany({ where: { interviewId: id } });
+    });
+
     it('loses access to a project the moment it is unassigned', async () => {
       await http
         .delete(`/api/v1/enumerators/${b.id}/projects/${projectB}`)

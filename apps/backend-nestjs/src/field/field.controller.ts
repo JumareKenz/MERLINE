@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import type { AuthenticatedUser } from '../common/interfaces';
@@ -28,5 +36,15 @@ export class FieldController {
       user.id,
       user.organizationId,
     );
+  }
+
+  /** Discard a draft this user started (no recording on the server yet). */
+  @Delete('interviews/:id')
+  @Permissions('create.interviews')
+  discardDraft(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.fieldService.discardDraft(id, user.id, user.organizationId);
   }
 }

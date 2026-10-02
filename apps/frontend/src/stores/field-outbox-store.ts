@@ -33,6 +33,8 @@ interface OutboxState {
   kick: () => Promise<void>;
   retry: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /** Forget a draft on this phone: its unsent recordings and its on-site start. */
+  discardLocal: (interviewId: string) => Promise<void>;
   /** Called by the recorder so the list updates while it writes. */
   upsertLocal: (recording: LocalRecording) => void;
   /** Save an interview started on site (works offline). */
@@ -185,6 +187,13 @@ export const useFieldOutbox = create<OutboxState>()((set, get) => ({
 
   remove: async (id) => {
     await idbRecordingRepo.delete(id);
+    await get().refresh();
+  },
+
+  discardLocal: async (interviewId) => {
+    const mine = (await idbRecordingRepo.list()).filter((r) => r.interviewId === interviewId && r.status !== 'uploaded');
+    for (const r of mine) await idbRecordingRepo.delete(r.id);
+    await idbPendingRepo.delete(interviewId);
     await get().refresh();
   },
 

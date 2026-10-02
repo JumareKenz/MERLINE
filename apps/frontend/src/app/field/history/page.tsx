@@ -1,10 +1,14 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, CheckCircle2, CloudOff, CloudUpload, FileClock, HardDrive, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, CloudOff, CloudUpload, FileClock, HardDrive, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { API } from '@/lib/api-client';
+import { describeError } from '@/lib/errors';
+import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RecordingRow } from '@/components/field/recording-row';
 import { useSyncState } from '@/components/field/sync-status';
@@ -54,7 +58,26 @@ function History() {
   const pathname = usePathname();
   const view = (useSearchParams().get('view') as View) || 'all';
   const { items, isLoading, source, savedAt } = useFieldWork();
-  const { recordings, online, running, kick, storage, lastRunAt, available } = useFieldOutbox();
+  const { recordings, online, running, kick, storage, lastRunAt, available, discardLocal } = useFieldOutbox();
+  const [discarding, setDiscarding] = useState<WorkItem | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const discard = async (item: WorkItem) => {
+    setBusy(true);
+    try {
+      // On the server too, unless it never got there. A draft with a recording
+      // already uploaded is refused by the server and kept.
+      if (!item.notSynced) await API.field.discardDraft(item.interview.id);
+      await discardLocal(item.interview.id);
+      toast.success('Draft discarded');
+      setDiscarding(null);
+      void kick();
+    } catch (err) {
+      toast.error(describeError(err, 'The draft could not be discarded'));
+    } finally {
+      setBusy(false);
+    }
+  };
   const sync = useSyncState();
 
   const counts = {
@@ -158,6 +181,17 @@ function History() {
                 </span>
                 <ArrowRight className="h-5 w-5 shrink-0 text-foreground-tertiary" aria-hidden />
               </Link>
+              {item.state === 'draft' && (item.interview.recordingCount ?? 0) === 0 && (
+                <div className="border-t border-field-line px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setDiscarding(item)}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-lg px-1 text-[14px] font-semibold text-foreground-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden /> Discard draft
+                  </button>
+                </div>
+              )}
               {view === 'pending' && item.unsentRecordings.length > 0 && (
                 <ul className="space-y-2 border-t border-field-line bg-field-paper/60 p-2">
                   {item.unsentRecordings.map((r) => (
@@ -193,6 +227,16 @@ function History() {
           {lastRunAt && <p>Last checked {formatDateTime(lastRunAt)}</p>}
         </footer>
       )}
+      <ConfirmDialog
+        open={!!discarding}
+        onOpenChange={(o) => !o && setDiscarding(null)}
+        title="Discard this draft?"
+        description={`${discarding?.interview.participantName ?? 'This interview'} will be removed from your list, along with any recording still on this phone that has not been sent. This cannot be undone.`}
+        confirmLabel="Discard draft"
+        variant="danger"
+        loading={busy}
+        onConfirm={() => discarding && void discard(discarding)}
+      />
     </div>
   );
 }

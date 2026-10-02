@@ -166,6 +166,40 @@ export class FieldService extends BaseService {
     );
   }
 
+  /**
+   * Discards a draft: an interview this enumerator started that has no
+   * recording on the server and was not submitted. It is soft-deleted (an
+   * administrator can restore it from the Trash). Consent records are never
+   * deleted. Idempotent: an interview that never reached the server, or is
+   * already gone, answers success so the phone can clear its own copy.
+   */
+  async discardDraft(id: string, userId: string, organizationId: string) {
+    const interview = await this.prisma.interview.findFirst({
+      where: { id, organizationId, interviewerId: userId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        _count: { select: { recordings: { where: { deletedAt: null } } } },
+      },
+    });
+    if (!interview) return { discarded: true };
+    if (interview.status === 'COMPLETED') {
+      throw new ConflictException(
+        'This interview was submitted, so it cannot be discarded here. Ask an administrator.',
+      );
+    }
+    if (interview._count.recordings > 0) {
+      throw new ConflictException(
+        'This interview already has a recording on the server, so it cannot be discarded here. Ask an administrator.',
+      );
+    }
+    await this.prisma.interview.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    return { discarded: true };
+  }
+
   async createFieldInterview(
     dto: CreateFieldInterviewDto,
     userId: string,
