@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { LoadingState } from '@/components/shared/loading-state';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { DownloadTranscript } from '@/components/transcripts/download-transcript';
 import { ReviewPanel } from '@/components/transcripts/review-panel';
 import { ReviewStatusBadge } from '@/components/transcripts/review-status-badge';
 import { QuoteSegmentDialog } from '@/components/findings/quote-segment-dialog';
@@ -222,6 +223,7 @@ export default function TranscriptPage() {
         }
         actions={
           <>
+            {transcript.status === 'COMPLETED' && segments.length > 0 && session.can('view.transcripts') && <DownloadTranscript transcriptId={transcript.id} />}
             {canTranslate && (
               <Button variant="secondary" loading={translate.isPending} onClick={() => translate.mutate('en')}>
                 <Languages className="h-4 w-4" aria-hidden /> {hasTranslation ? 'Translate again' : 'Translate to English'}

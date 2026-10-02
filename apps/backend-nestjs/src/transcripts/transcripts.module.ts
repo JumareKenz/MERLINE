@@ -9,6 +9,7 @@ import { TranscriptionPipelineService } from './transcription-pipeline.service';
 import { TranscriptionJobs } from './transcription-jobs';
 import { TranscriptDialogueService } from './transcript-dialogue.service';
 import { TranscriptReviewService } from './transcript-review.service';
+import { TranscriptExportService } from './transcript-export.service';
 import { FieldTranscriptsController } from './field-transcripts.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { FieldTranscriptsController } from './field-transcripts.controller';
     TranscriptionJobs,
     TranscriptDialogueService,
     TranscriptReviewService,
+    TranscriptExportService,
   ],
   exports: [
     TranscriptsService,

@@ -7,6 +7,7 @@ import { ArrowRight, FileText, Loader2, RotateCw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/status-badge';
 import type { Recording } from '@/types/interview';
+import { DownloadTranscript } from '@/components/transcripts/download-transcript';
 import type { Transcript } from '@/types/transcript';
 import { useRequestTranscript, useRetryTranscript } from '@/hooks/use-transcripts';
 import { useAiDraftFinding } from '@/hooks/use-findings';
@@ -156,6 +157,7 @@ export function TranscriptStatus({
                   <Sparkles className="h-3.5 w-3.5" aria-hidden /> Draft findings
                 </Button>
               )}
+              {!noSpeech && <DownloadTranscript transcriptId={transcript.id} size="sm" />}
               <Button size="sm" variant="secondary" asChild>
                 <Link href={`/transcripts/${transcript.id}`}>
                   Open transcript <ArrowRight className="h-3.5 w-3.5" aria-hidden />

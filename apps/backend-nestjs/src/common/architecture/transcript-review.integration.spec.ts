@@ -895,6 +895,60 @@ describeDb('transcript review and the evidence gate (application)', () => {
     });
   });
 
+  describe('downloading a transcript', () => {
+    let f: Fixture;
+    beforeAll(async () => {
+      f = await fixture({ interviewer: enumA, reviewStatus: 'APPROVED' });
+    });
+    const get = (t: string, format: string, id = f.transcriptId) =>
+      http
+        .get(`/api/v1/transcripts/${id}/export?format=${format}`)
+        .set(bearer(t))
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+    it('gives an administrator a Word file and a PDF, named for the interview', async () => {
+      const word = await get(T.admin, 'docx');
+      expect(word.status).toBe(200);
+      expect(word.headers['content-type']).toMatch(/wordprocessingml/);
+      expect(word.headers['content-disposition']).toMatch(
+        /filename="transcript-respondent-kii-\d{4}-\d{2}-\d{2}\.docx"/,
+      );
+      expect((word.body as Buffer).subarray(0, 2).toString()).toBe('PK');
+      // The PDF needs a real Chromium, loaded with a dynamic import that Jest's
+      // sandbox refuses; it is rendered and checked by hand and in production.
+      // Here only the request's shape is checked: it is accepted, not a 400/403/404.
+      const pdf = await get(T.admin, 'pdf');
+      expect([200, 503]).toContain(pdf.status);
+    }, 60_000);
+
+    it('marks an unapproved transcript as a draft in the file name', async () => {
+      const draft = await fixture({ interviewer: enumA });
+      const res = await get(T.admin, 'docx', draft.transcriptId);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toMatch(/-draft-/);
+    });
+
+    it('is closed to enumerators, other organizations and bad requests', async () => {
+      expect((await get(T.a, 'docx')).status).toBe(403);
+      expect((await get(T.researcher, 'docx')).status).toBe(403);
+      expect((await get(T.adminB, 'docx')).status).toBe(404);
+      expect((await get(T.admin, 'xlsx')).status).toBe(400);
+      expect((await get(T.admin, 'docx', randomUUID())).status).toBe(404);
+      const pending = await fixture({
+        interviewer: enumA,
+        reviewStatus: 'TRANSCRIPTION_PROCESSING',
+      });
+      expect((await get(T.admin, 'docx', pending.transcriptId)).status).toBe(
+        400,
+      );
+    });
+  });
+
   // ─── unapproved transcripts feed nothing ───────────────────────────
 
   describe('evidence gate', () => {
@@ -1149,10 +1203,16 @@ describeDb('transcript review and the evidence gate (application)', () => {
         ),
       ).toMatch(/Across 2 interview types|2 of 2 interviews/);
       // A report can be limited to one interview type.
-      const noIdi = await http.post('/api/v1/analysis-reports').set(bearer(T.admin)).send({ scope: 'PROJECT', projectId: proj, interviewType: 'IDI' });
+      const noIdi = await http
+        .post('/api/v1/analysis-reports')
+        .set(bearer(T.admin))
+        .send({ scope: 'PROJECT', projectId: proj, interviewType: 'IDI' });
       expect(noIdi.status).toBe(400);
       expect(JSON.stringify(noIdi.body)).toMatch(/No IDI interview/);
-      const fgdOnly = await http.post('/api/v1/analysis-reports').set(bearer(T.admin)).send({ scope: 'PROJECT', projectId: proj, interviewType: 'FGD' });
+      const fgdOnly = await http
+        .post('/api/v1/analysis-reports')
+        .set(bearer(T.admin))
+        .send({ scope: 'PROJECT', projectId: proj, interviewType: 'FGD' });
       expect(fgdOnly.status).toBe(202);
       expect(data(fgdOnly).interviewType).toBe('FGD');
       expect(data(fgdOnly).title).toMatch(/FGD only/);

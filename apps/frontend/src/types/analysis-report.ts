@@ -45,7 +45,7 @@ export interface ReportSection {
 }
 
 export interface ReportDocument {
-  kind: 'Interview report' | 'Project report' | 'Research brief';
+  kind: 'Interview report' | 'Project report' | 'Research brief' | 'Interview transcript';
   title: string;
   subtitle?: string;
   meta: { label: string; value: string }[];

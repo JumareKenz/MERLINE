@@ -736,6 +736,9 @@ export const API = {
     reviewSummary: (projectId?: string) =>
       apiClient.get<ApiTypes.Envelope<ReviewTypes.ReviewSummary>>('/transcripts/review-summary', { params: projectId ? { projectId } : undefined }),
     review: (id: string) => apiClient.get<ApiTypes.Envelope<ReviewTypes.AdminReviewDetail>>(`/transcripts/${id}/review`),
+    /** A branded Word or PDF copy of the transcript (PDF rendering can take a few seconds). */
+    export: (id: string, format: 'docx' | 'pdf') =>
+      apiClient.get<Blob>(`/transcripts/${id}/export`, { params: { format }, responseType: 'blob', timeout: 120_000 }),
     compare: (id: string, from?: number, to?: number) =>
       apiClient.get<ApiTypes.Envelope<ReviewTypes.RevisionComparison>>(`/transcripts/${id}/revisions/compare`, { params: { from, to } }),
     reviewEdit: (id: string, segmentId: string, patch: ReviewTypes.ReviewSegmentPatch) =>

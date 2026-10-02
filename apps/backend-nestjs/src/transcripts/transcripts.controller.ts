@@ -1,4 +1,6 @@
+import type { Response } from 'express';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -27,6 +30,7 @@ import {
   ReviewSegmentDto,
 } from './dto/transcript-review.dto';
 import { TranscriptReviewService } from './transcript-review.service';
+import { TranscriptExportService } from './transcript-export.service';
 import { TranscriptDialogueService } from './transcript-dialogue.service';
 
 /**
@@ -41,6 +45,7 @@ export class TranscriptsController {
     private readonly transcriptsService: TranscriptsService,
     private readonly dialogueService: TranscriptDialogueService,
     private readonly review: TranscriptReviewService,
+    private readonly exporter: TranscriptExportService,
   ) {}
 
   /**
@@ -126,6 +131,31 @@ export class TranscriptsController {
    * The full review view for an administrator: segments with machine and
    * reviewed text side by side, flags, confidence, events and revisions.
    */
+  /**
+   * A branded Word or PDF copy of the transcript. Works for any completed
+   * transcript; one that is not approved is clearly marked as a working draft.
+   */
+  @Get(':id/export')
+  @Permissions('view.transcripts')
+  async export(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('format') format: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    if (format !== 'docx' && format !== 'pdf') {
+      throw new BadRequestException('format must be docx or pdf');
+    }
+    const file = await this.exporter.export(id, user.organizationId, format);
+    res.set({
+      'Content-Type': file.mime,
+      'Content-Disposition': `attachment; filename="${file.filename}"`,
+      'Content-Length': String(file.buffer.length),
+      'Cache-Control': 'no-store',
+    });
+    res.end(file.buffer);
+  }
+
   @Get(':id/review')
   @Permissions('view.transcripts')
   async reviewDetail(
