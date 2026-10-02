@@ -42,6 +42,26 @@ export function useGuideAction(action: 'approve' | 'archive' | 'delete') {
   });
 }
 
+/** Draft the missing Hausa with a model, or confirm a person has reviewed it. */
+export function useGuideTranslation(id: string) {
+  const qc = useQueryClient();
+  const done = (message: string) => {
+    qc.invalidateQueries({ queryKey: ['guides'] });
+    toast.success(message);
+  };
+  const translate = useMutation({
+    mutationFn: async () => (await API.guides.translate(id)).data.data,
+    onSuccess: () => done('Hausa drafted. Read it, correct it if needed, then mark it reviewed.'),
+    onError: (e: { message?: string }) => toast.error(e.message || 'The Hausa could not be drafted'),
+  });
+  const review = useMutation({
+    mutationFn: async () => (await API.guides.reviewTranslation(id)).data.data,
+    onSuccess: () => done('Hausa marked as reviewed. You can approve the guide now.'),
+    onError: (e: { message?: string }) => toast.error(e.message || 'That did not work'),
+  });
+  return { translate, review };
+}
+
 export function useInterviewQuestionLog(interviewId: string, enabled = true) {
   return useQuery({
     queryKey: ['interviews', 'question-log', interviewId],

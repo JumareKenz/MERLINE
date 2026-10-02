@@ -68,13 +68,40 @@ export async function availableInterviewTypes(
       })
     : [];
   if (configured.length) {
-    return configured.map((t) => ({
+    const out: AvailableInterviewType[] = configured.map((t) => ({
       key: t.key,
       label: t.label,
       description: t.description,
       fields: (t.fields as unknown as TypeField[]) ?? [],
       custom: !INTERVIEW_TYPES.includes(t.key as InterviewType),
     }));
+    // A type with an approved guide in this project is always offered, even
+    // if the list was saved without it: otherwise the guide could never be used.
+    const guided = projectId
+      ? await db.questionSet.findMany({
+          where: {
+            organizationId,
+            projectId,
+            status: 'APPROVED',
+            linkOnly: false,
+            deletedAt: null,
+          },
+          select: { interviewType: true },
+          distinct: ['interviewType'],
+        })
+      : [];
+    for (const g of guided) {
+      const key = g.interviewType;
+      if (out.some((t) => t.key === key)) continue;
+      out.push({
+        key,
+        label: INTERVIEW_TYPE_LABELS[key as InterviewType] ?? key,
+        description: null,
+        fields: [],
+        custom: !INTERVIEW_TYPES.includes(key as InterviewType),
+      });
+    }
+    return out;
   }
   return INTERVIEW_TYPES.map((key) => ({
     key,

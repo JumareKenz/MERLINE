@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { AudioLines, ShieldCheck, ShieldOff } from 'lucide-react';
 import { CellMuted, DataTable } from '@/components/shared/data-table';
+import { ReviewStatusBadge } from '@/components/transcripts/review-status-badge';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatDate } from '@/lib/utils';
 import { typeLabel } from '@/lib/interview-types';
@@ -105,6 +106,17 @@ export function InterviewTable({
             {n === 0 ? 'None' : `${n} file${n === 1 ? '' : 's'}`}
           </span>
         );
+      },
+    },
+    {
+      id: 'transcript',
+      accessorFn: (row) => row.transcripts?.[0]?.reviewStatus ?? '',
+      header: 'Transcript',
+      cell: ({ row }) => {
+        const t = row.original.transcripts?.[0];
+        if (!t) return <CellMuted>{(row.original._count?.recordings ?? 0) > 0 ? 'Not requested' : '—'}</CellMuted>;
+        if (t.status === 'FAILED') return <StatusBadge status="failed" label="Transcription failed" size="sm" />;
+        return <ReviewStatusBadge status={t.reviewStatus} size="sm" />;
       },
     },
     {

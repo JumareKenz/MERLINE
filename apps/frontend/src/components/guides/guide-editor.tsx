@@ -17,6 +17,7 @@ import { useGuideAction, useSaveGuide } from '@/hooks/use-guides';
 import { useResearchProjects } from '@/hooks/use-research-projects';
 import { useSession } from '@/hooks/use-session';
 import { INTERVIEW_LANGUAGES } from '@/lib/languages';
+import { useGuideTranslation } from '@/hooks/use-guides';
 import { formatDate } from '@/lib/utils';
 import { wasClosedQuestion, type Guide, type GuideQuestionInput, type SaveGuideInput } from '@/types/guide';
 import { INTERVIEW_TYPE_LABELS } from '@/types/research-project';
@@ -48,6 +49,7 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
   const save = useSaveGuide();
   const approve = useGuideAction('approve');
   const archive = useGuideAction('archive');
+  const { translate, review } = useGuideTranslation(guide?.id ?? '');
   const remove = useGuideAction('delete');
   const { data: projectPage } = useResearchProjects();
   const projects = projectPage?.items ?? [];
@@ -70,6 +72,10 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
       ),
     [form],
   );
+
+  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(toInput(guide)), [form, guide]);
+  const machineHausa = guide?.status === 'DRAFT' && guide.translationStatus === 'MACHINE_DRAFT';
+  const canTranslate = guide?.status === 'DRAFT' && form.languages.includes('ha') && missing > 0 && !machineHausa && session.can('edit.guides');
 
   // Questions of an older guide that had answer options or a rating scale.
   const legacyCount = useMemo(() => guide?.questions?.filter(wasClosedQuestion).length ?? 0, [guide]);
@@ -111,7 +117,7 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
           guide && (
             <>
               {guide.status === 'DRAFT' && session.can('approve.guides') && (
-                <Button onClick={() => setConfirm('approve')} disabled={editing && save.isPending}>
+                <Button onClick={() => setConfirm('approve')} disabled={(editing && save.isPending) || machineHausa}>
                   <CheckCircle2 className="h-4 w-4" aria-hidden /> Approve
                 </Button>
               )}
@@ -143,6 +149,31 @@ export function GuideEditor({ guide }: { guide?: Guide }) {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="space-y-6">
+          {machineHausa && (
+            <section role="status" className="rounded-xl border border-warning bg-warning-bg p-4 text-[14px] text-foreground">
+              <h2 className="font-semibold">Hausa translation needs your review</h2>
+              <p className="mt-1">
+                The Hausa below was written by a machine. Read every question, correct anything that is wrong, and save. Then confirm it is reviewed; the guide cannot be
+                approved for the field until you do.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button onClick={() => review.mutate()} loading={review.isPending} disabled={dirty} variant="secondary">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden /> I have reviewed the Hausa
+                </Button>
+                {dirty && <span className="text-[13px]">Save your changes first.</span>}
+              </div>
+            </section>
+          )}
+          {canTranslate && (
+            <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-subtle bg-background-elevated p-4 text-[14px]">
+              <p className="text-foreground-secondary">
+                {missing} Hausa translation{missing === 1 ? ' is' : 's are'} missing. A machine can draft them; you review before approval.
+              </p>
+              <Button variant="secondary" onClick={() => translate.mutate()} loading={translate.isPending} disabled={dirty}>
+                Draft the Hausa
+              </Button>
+            </section>
+          )}
           <section className="grid gap-4 rounded-xl border border-border-subtle bg-background-elevated p-5 shadow-soft sm:grid-cols-2">
             <Field id="g-title" label="Title" className="sm:col-span-2">
               <Input id="g-title" value={form.title} disabled={readOnly} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Water access key informant guide" />

@@ -1359,6 +1359,8 @@ model AnalysisReport {
   model          String?
   promptVersion  String?             @map("prompt_version")
   errorMessage   String?             @map("error_message")
+  /// Set when the report covers one interview type only (e.g. "FGD").
+  interviewType  String?             @map("interview_type")
   /// How many interviews the report drew on.
   sourceCount    Int                 @default(0) @map("source_count")
   projectId      String?             @map("project_id")
@@ -1395,29 +1397,35 @@ enum QuestionSetStatus {
 }
 
 model QuestionSet {
-  id             String            @id @default(uuid())
+  id                      String            @id @default(uuid())
   /// Shared by every version of the same guide (the first version's id).
-  familyId       String            @map("family_id")
-  version        Int               @default(1)
-  title          String
-  description    String?
+  familyId                String            @map("family_id")
+  version                 Int               @default(1)
+  title                   String
+  description             String?
   /// KII, FGD, IDI or OTHER.
-  interviewType  String            @map("interview_type")
+  interviewType           String            @map("interview_type")
   /// Language codes the questions are written in, e.g. ["en", "ha"].
-  languages      String[]          @default(["en"])
-  status         QuestionSetStatus @default(DRAFT)
+  languages               String[]          @default(["en"])
+  status                  QuestionSetStatus @default(DRAFT)
   /// Made for self-interview links only: approving it never replaces the
   /// field teams' guide, and field phones never receive it.
-  linkOnly       Boolean           @default(false) @map("link_only")
+  linkOnly                Boolean           @default(false) @map("link_only")
+  /// "MACHINE_DRAFT" while a machine-written Hausa translation has not been
+  /// checked by a person; "REVIEWED" once an administrator confirmed it.
+  /// Approval is refused while MACHINE_DRAFT. Null: no machine translation.
+  translationStatus       String?           @map("translation_status")
+  translationReviewedAt   DateTime?         @map("translation_reviewed_at")
+  translationReviewedById String?           @map("translation_reviewed_by_id")
   /// Null: available to every project of this interview type.
-  projectId      String?           @map("project_id")
-  organizationId String            @map("organization_id")
-  createdById    String            @map("created_by_id")
-  approvedById   String?           @map("approved_by_id")
-  approvedAt     DateTime?         @map("approved_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-  deletedAt      DateTime?         @map("deleted_at")
+  projectId               String?           @map("project_id")
+  organizationId          String            @map("organization_id")
+  createdById             String            @map("created_by_id")
+  approvedById            String?           @map("approved_by_id")
+  approvedAt              DateTime?         @map("approved_at")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+  deletedAt               DateTime?         @map("deleted_at")
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   project         Project?         @relation(fields: [projectId], references: [id])

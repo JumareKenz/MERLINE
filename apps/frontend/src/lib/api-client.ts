@@ -307,6 +307,8 @@ export const API = {
   },
   /** Interview types a project collects. */
   interviewTypes: {
+    usage: (projectId: string) =>
+      apiClient.get<ApiTypes.Envelope<ReviewTypes.TypeUsage[]>>(`/projects/${projectId}/interview-types/usage`),
     list: (projectId: string) =>
       apiClient.get<ApiTypes.Envelope<ReviewTypes.ProjectInterviewTypes>>(`/projects/${projectId}/interview-types`),
     replace: (projectId: string, types: { key: string; label: string; description?: string; fields?: ReviewTypes.TypeField[] }[]) =>
@@ -792,6 +794,10 @@ export const API = {
       apiClient.put<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}`, data),
     approve: (id: string) => apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}/approve`),
     archive: (id: string) => apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}/archive`),
+    translate: (id: string) =>
+      apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}/translate`, {}, { timeout: 90_000 }),
+    reviewTranslation: (id: string) =>
+      apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>(`/guides/${id}/translation-review`, {}),
     delete: (id: string) => apiClient.delete(`/guides/${id}`),
     import: (data: FormData) =>
       apiClient.post<ApiTypes.Envelope<GuideTypes.Guide>>('/guides/import', data, {

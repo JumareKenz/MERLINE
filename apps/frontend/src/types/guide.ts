@@ -46,6 +46,9 @@ export interface Guide {
   status: GuideStatus;
   /** Made for self-interview links: never shown to field teams. */
   linkOnly?: boolean;
+  /** MACHINE_DRAFT: Hausa written by a model, not yet reviewed (approval is blocked). */
+  translationStatus?: 'MACHINE_DRAFT' | 'REVIEWED' | null;
+  translationReviewedAt?: string | null;
   projectId?: string | null;
   project?: { id: string; name: string } | null;
   approvedAt?: string | null;

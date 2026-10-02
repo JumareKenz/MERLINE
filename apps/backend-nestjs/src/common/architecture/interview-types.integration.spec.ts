@@ -332,9 +332,9 @@ describeDb('interview types per project (application)', () => {
     );
     expect(usage).toEqual(
       expect.arrayContaining([
-        { type: 'KII', interviews: 1 },
-        { type: 'FGD', interviews: 1 },
-        { type: 'WATER_POINT_VISIT', interviews: 1 },
+        { type: 'KII', interviews: 1, awaitingApproval: 0, approved: 0 },
+        { type: 'FGD', interviews: 1, awaitingApproval: 0, approved: 0 },
+        { type: 'WATER_POINT_VISIT', interviews: 1, awaitingApproval: 0, approved: 0 },
       ]),
     );
   });
@@ -428,6 +428,41 @@ describeDb('interview types per project (application)', () => {
     });
     expect(back.isActive).toBe(true);
     expect(back.label).toBe('Focus group');
+  });
+
+  it('always offers a type that has an approved guide, even if the saved list left it out', async () => {
+    // The list was saved with KII and FGD only; an approved IDI guide exists.
+    await prisma.questionSet.create({
+      data: {
+        familyId: randomUUID(),
+        title: 'IDI guide',
+        interviewType: 'IDI',
+        status: 'APPROVED',
+        projectId: project,
+        organizationId: orgA,
+        createdById: admin,
+        languages: ['en'],
+      },
+    });
+    const list = data(
+      await http
+        .get(`/api/v1/projects/${project}/interview-types`)
+        .set(bearer(T.admin))
+        .expect(200),
+    );
+    expect(list.types.map((t: { key: string }) => t.key)).toEqual(
+      expect.arrayContaining(['KII', 'FGD', 'IDI']),
+    );
+    const field = data(
+      await http
+        .get('/api/v1/field/projects')
+        .set(bearer(T.enumerator))
+        .expect(200),
+    );
+    expect(
+      field[0].interviewTypes.map((t: { key: string }) => t.key),
+    ).toContain('IDI');
+    await prisma.questionSet.deleteMany({ where: { organizationId: orgA } });
   });
 
   it('filters the administrator’s transcript list by interview type, review status and project', async () => {

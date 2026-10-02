@@ -56,6 +56,8 @@ export const INTERVIEW_TYPE_LABELS: Record<string, string> = {
   KII: 'Key informant interview',
   FGD: 'Focus group discussion',
   IDI: 'In-depth interview',
+  HOUSEHOLD: 'Household interview',
+  OBSERVATION: 'Observation session',
   OTHER: 'Other interview',
 };
 

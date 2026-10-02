@@ -1148,6 +1148,14 @@ describeDb('transcript review and the evidence gate (application)', () => {
           doc.sections.find((s) => s.heading.startsWith('Finding 1')),
         ),
       ).toMatch(/Across 2 interview types|2 of 2 interviews/);
+      // A report can be limited to one interview type.
+      const noIdi = await http.post('/api/v1/analysis-reports').set(bearer(T.admin)).send({ scope: 'PROJECT', projectId: proj, interviewType: 'IDI' });
+      expect(noIdi.status).toBe(400);
+      expect(JSON.stringify(noIdi.body)).toMatch(/No IDI interview/);
+      const fgdOnly = await http.post('/api/v1/analysis-reports').set(bearer(T.admin)).send({ scope: 'PROJECT', projectId: proj, interviewType: 'FGD' });
+      expect(fgdOnly.status).toBe(202);
+      expect(data(fgdOnly).interviewType).toBe('FGD');
+      expect(data(fgdOnly).title).toMatch(/FGD only/);
       // And it says which were left out.
       expect(JSON.stringify(doc)).toMatch(/2 of 3/);
     });

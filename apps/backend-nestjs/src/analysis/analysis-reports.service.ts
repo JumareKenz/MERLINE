@@ -89,6 +89,7 @@ export class AnalysisReportsService {
         projectId: project.id,
         organizationId,
         deletedAt: null,
+        ...(dto.interviewType && { type: dto.interviewType }),
         consent: { allowAiAnalysis: true, withdrawnAt: null },
         transcripts: {
           some: {
@@ -101,7 +102,9 @@ export class AnalysisReportsService {
     });
     if (eligible === 0) {
       throw new BadRequestException(
-        'No interview in this project has an approved transcript with consent to AI analysis yet. Reports use only approved transcripts.',
+        dto.interviewType
+          ? `No ${dto.interviewType} interview in this project has an approved transcript with consent to AI analysis yet. Reports use only approved transcripts.`
+          : 'No interview in this project has an approved transcript with consent to AI analysis yet. Reports use only approved transcripts.',
       );
     }
     return this.createAndQueue(
@@ -109,8 +112,9 @@ export class AnalysisReportsService {
         scope: dto.scope,
         title:
           dto.scope === 'PROJECT'
-            ? `Project report: ${project.name}`
-            : `Brief: ${(dto.instructions ?? '').slice(0, 80)}`,
+            ? `Project report${dto.interviewType ? ` (${dto.interviewType} only)` : ''}: ${project.name}`
+            : `Brief${dto.interviewType ? ` (${dto.interviewType} only)` : ''}: ${(dto.instructions ?? '').slice(0, 80)}`,
+        interviewType: dto.interviewType,
         instructions: dto.scope === 'CUSTOM' ? dto.instructions : undefined,
         language,
         projectId: project.id,
@@ -128,6 +132,7 @@ export class AnalysisReportsService {
       projectId?: string | null;
       interviewId?: string;
       instructions?: string;
+      interviewType?: string;
     },
     userId: string,
     organizationId: string,
@@ -143,6 +148,7 @@ export class AnalysisReportsService {
           ...(data.interviewId
             ? { interviewId: data.interviewId }
             : { projectId: data.projectId }),
+          interviewType: data.interviewType ?? null,
         },
         omit: { content: true },
       });

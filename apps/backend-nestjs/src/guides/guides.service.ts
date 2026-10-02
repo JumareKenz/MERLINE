@@ -5,6 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { Logger, Optional } from '@nestjs/common';
+import { TranscriptionProviderService } from '../transcripts/transcription-provider.service';
+import {
+  GUIDE_TRANSLATION_SYSTEM,
+  parseTranslation,
+  questionsNeedingHausa,
+} from './guide-translation';
 import { PrismaService } from '../database/prisma.service';
 import { ImportGuideDto, SaveGuideDto } from './dto/guide.dto';
 import { OPEN_ONLY_MESSAGE, parseGuideFile } from './guide-import';
@@ -23,7 +31,13 @@ type Db = PrismaService | Prisma.TransactionClient;
  */
 @Injectable()
 export class GuidesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(GuidesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly provider?: TranscriptionProviderService,
+    @Optional() private readonly config?: ConfigService,
+  ) {}
 
   async list(
     organizationId: string,
@@ -73,6 +87,15 @@ export class GuidesService {
   }
 
   async create(dto: SaveGuideDto, userId: string, organizationId: string) {
+    const created = await this.createDraft(dto, userId, organizationId);
+    return this.afterWrite(created.id, organizationId, created);
+  }
+
+  private async createDraft(
+    dto: SaveGuideDto,
+    userId: string,
+    organizationId: string,
+  ) {
     this.validate(dto);
     await this.assertProject(dto.projectId, organizationId);
     return this.prisma.$transaction(async (tx) => {
@@ -104,6 +127,16 @@ export class GuidesService {
    * the next version (unless a newer draft already exists).
    */
   async save(
+    id: string,
+    dto: SaveGuideDto,
+    userId: string,
+    organizationId: string,
+  ) {
+    const saved = await this.saveDraft(id, dto, userId, organizationId);
+    return this.afterWrite(saved.id, organizationId, saved);
+  }
+
+  private async saveDraft(
     id: string,
     dto: SaveGuideDto,
     userId: string,
@@ -172,6 +205,10 @@ export class GuidesService {
       throw new BadRequestException(
         'Add at least one question before approving',
       );
+    if (set.translationStatus === 'MACHINE_DRAFT')
+      throw new BadRequestException(
+        'The Hausa translation was written by a machine and has not been reviewed. Read it, correct it if needed, and mark it as reviewed before approving.',
+      );
 
     await this.prisma.$transaction([
       // One approved guide per slot (project or organization-wide, and
@@ -209,6 +246,145 @@ export class GuidesService {
       }),
     ]);
     return this.findById(id, organizationId);
+  }
+
+  /**
+   * Drafts the missing Hausa for a DRAFT guide with a model. The result is
+   * flagged MACHINE_DRAFT: approval stays blocked until an administrator
+   * marks it reviewed. Existing Hausa text is never replaced unless asked.
+   */
+  async translateToHausa(
+    id: string,
+    organizationId: string,
+    opts: { overwrite?: boolean } = {},
+  ) {
+    const set = await this.prisma.questionSet.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: { questions: { orderBy: { order: 'asc' } } },
+    });
+    if (!set) throw new NotFoundException('Guide not found');
+    if (set.status !== 'DRAFT')
+      throw new BadRequestException(
+        'Only a draft can be translated. Edit the guide to start a new draft version.',
+      );
+    if (!this.provider)
+      throw new BadRequestException('Translation is not available');
+
+    const asked = questionsNeedingHausa(
+      set.questions.map((q) => ({
+        id: q.id,
+        text: q.text as Record<string, string>,
+        probes: q.probes as Record<string, string>,
+      })),
+      opts.overwrite,
+    );
+    if (asked.length === 0) return this.findById(id, organizationId);
+
+    let reply: string;
+    try {
+      reply = await this.provider.chat({
+        system: GUIDE_TRANSLATION_SYSTEM,
+        user: JSON.stringify({ items: asked }),
+        model: this.config?.get<string>('reports.model', 'openai/gpt-oss-120b'),
+        maxTokens: 8000,
+        json: true,
+      });
+    } catch (err) {
+      throw new BadRequestException(
+        `The translation service did not answer (${err instanceof Error ? err.message : 'error'}). Try again in a moment, or write the Hausa by hand.`,
+      );
+    }
+    let translated: ReturnType<typeof parseTranslation>;
+    try {
+      translated = parseTranslation(reply, asked);
+    } catch {
+      throw new BadRequestException(
+        'The translation came back in an unusable form. Try again.',
+      );
+    }
+    if (translated.size === 0)
+      throw new BadRequestException('No translation was returned. Try again.');
+
+    await this.prisma.$transaction([
+      ...set.questions.flatMap((q) => {
+        const t = translated.get(q.id);
+        if (!t) return [];
+        return [
+          this.prisma.guideQuestion.update({
+            where: { id: q.id },
+            data: {
+              text: { ...(q.text as object), ha: t.text },
+              probes: {
+                ...(q.probes as object),
+                ...(t.probes ? { ha: t.probes } : {}),
+              },
+            },
+          }),
+        ];
+      }),
+      this.prisma.questionSet.update({
+        where: { id },
+        data: {
+          languages: set.languages.includes('ha')
+            ? set.languages
+            : [...set.languages, 'ha'],
+          translationStatus: 'MACHINE_DRAFT',
+          translationReviewedAt: null,
+          translationReviewedById: null,
+        },
+      }),
+    ]);
+    return this.findById(id, organizationId);
+  }
+
+  /** An administrator confirms they read the Hausa; this unblocks approval. */
+  async markTranslationReviewed(
+    id: string,
+    userId: string,
+    organizationId: string,
+  ) {
+    const set = await this.prisma.questionSet.findFirst({
+      where: { id, organizationId, deletedAt: null },
+    });
+    if (!set) throw new NotFoundException('Guide not found');
+    if (set.status !== 'DRAFT')
+      throw new BadRequestException('Only a draft can be reviewed');
+    if (set.translationStatus !== 'MACHINE_DRAFT')
+      throw new BadRequestException(
+        'There is no machine translation to review',
+      );
+    await this.prisma.questionSet.update({
+      where: { id },
+      data: {
+        translationStatus: 'REVIEWED',
+        translationReviewedAt: new Date(),
+        translationReviewedById: userId,
+      },
+    });
+    return this.findById(id, organizationId);
+  }
+
+  /**
+   * After every create/save: a draft that lists Hausa but has English-only
+   * questions gets a machine draft of the Hausa. A failure never blocks
+   * saving; the editor offers a retry.
+   */
+  private async afterWrite<T extends { status: string; languages: string[] }>(
+    id: string,
+    organizationId: string,
+    written: T,
+  ): Promise<T> {
+    if (written.status !== 'DRAFT' || !written.languages.includes('ha'))
+      return written;
+    try {
+      await this.translateToHausa(id, organizationId);
+      return (await this.findById(id, organizationId)) as unknown as T;
+    } catch (err) {
+      this.logger.warn(
+        `Auto-translation of guide ${id} skipped: ${err instanceof Error ? err.message : err}`,
+      );
+      return written;
+    }
   }
 
   async archive(id: string, organizationId: string) {

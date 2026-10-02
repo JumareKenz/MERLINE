@@ -191,3 +191,13 @@ export interface ProjectInterviewTypes {
   configured: boolean;
   types: InterviewTypeDef[];
 }
+
+/** GET /projects/:id/interview-types/usage: where each interview type stands. */
+export interface TypeUsage {
+  type: string;
+  interviews: number;
+  /** Enumerator has submitted a transcript; waiting for the administrator. */
+  awaitingApproval: number;
+  /** Has an approved transcript: usable in reports. */
+  approved: number;
+}

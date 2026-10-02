@@ -380,6 +380,8 @@ export class AnalysisPipelineService {
         projectId: project.id,
         organizationId: report.organizationId,
         deletedAt: null,
+        // A report may cover one interview type (e.g. FGD only).
+        ...(report.interviewType && { type: report.interviewType }),
       },
       orderBy: [{ startedAt: 'asc' }, { createdAt: 'asc' }],
       include: INTERVIEW_INCLUDE,
@@ -561,6 +563,11 @@ export class AnalysisPipelineService {
 
     const methodology = [
       `This report synthesises ${included.length} interview${included.length === 1 ? '' : 's'} (${typeSummary}) conducted for ${project.name} between ${fmtDate(dates[0])} and ${fmtDate(dates.at(-1))}, in ${languages.join(' and ')}. Participants gave recorded consent before each interview, including consent to AI-assisted analysis.`,
+      ...(report.interviewType
+        ? [
+            `This report covers ${typeLabel(report.interviewType)} interviews only; other interview types in the project are not included and no comparison across types is made.`,
+          ]
+        : []),
       'Interviews were audio-recorded in the field and transcribed automatically. Each transcript was then reviewed against the recording by the enumerator who conducted the interview and approved by an administrator; only approved transcripts are used here. Each interview was analysed on its own; this report then compares those analyses across interviews and interview types to identify findings, how widely and from how many kinds of source each is supported, and where views diverge. Every quotation is verbatim, checked against the approved transcript, and linked to its interview, speaker and timestamp.',
       ...(noConsent || noTranscript
         ? [

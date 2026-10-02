@@ -31,6 +31,8 @@ export interface Interview {
   interviewer?: { id: string; firstName: string; lastName: string };
   consent?: InterviewConsentScope;
   _count?: { recordings: number; transcripts: number };
+  /** Newest transcript only: its machine status and where it is in human review. */
+  transcripts?: { id: string; status: string; reviewStatus: import('./review').ReviewStatus }[];
 }
 
 export interface InterviewConsentScope {

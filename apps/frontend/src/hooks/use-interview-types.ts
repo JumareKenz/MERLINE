@@ -26,3 +26,11 @@ export function useSetInterviewTypes(projectId: string) {
     onError: (err) => toast.error(describeError(err, 'The interview types could not be saved')),
   });
 }
+
+export function useTypeUsage(projectId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['interview-types', projectId, 'usage'],
+    queryFn: async () => (await API.interviewTypes.usage(projectId)).data.data,
+    enabled: enabled && !!projectId,
+  });
+}

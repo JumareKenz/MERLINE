@@ -45,6 +45,13 @@ const INTERVIEW_SUMMARY_INCLUDE = {
       expiresAt: true,
     },
   },
+  // The newest transcript's review state: lets an administrator see at a
+  // glance whether the enumerator has reviewed and submitted it.
+  transcripts: {
+    select: { id: true, status: true, reviewStatus: true },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+  },
   _count: {
     select: {
       recordings: { where: { deletedAt: null } },

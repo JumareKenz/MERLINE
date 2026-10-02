@@ -108,6 +108,29 @@ export class GuidesController {
     return this.guides.approve(id, user.id, user.organizationId);
   }
 
+  /** Drafts the missing Hausa with a model; it must be reviewed before approval. */
+  @Post(':id/translate')
+  @Permissions('edit.guides')
+  translate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.guides.translateToHausa(id, user.organizationId);
+  }
+
+  @Post(':id/translation-review')
+  @Permissions('approve.guides')
+  reviewTranslation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.guides.markTranslationReviewed(
+      id,
+      user.id,
+      user.organizationId,
+    );
+  }
+
   @Post(':id/archive')
   @Permissions('edit.guides')
   archive(

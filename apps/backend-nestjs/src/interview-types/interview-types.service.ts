@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { BaseService } from '../common/base/base.service';
-import {
-  availableInterviewTypes,
-} from '../common/research/interview-type';
+import { availableInterviewTypes } from '../common/research/interview-type';
 import { SetProjectInterviewTypesDto } from './interview-types.dto';
 
 @Injectable()
@@ -20,7 +22,11 @@ export class InterviewTypesService extends BaseService {
       })) > 0;
     return {
       configured,
-      types: await availableInterviewTypes(this.prisma, organizationId, projectId),
+      types: await availableInterviewTypes(
+        this.prisma,
+        organizationId,
+        projectId,
+      ),
     };
   }
 
@@ -29,11 +35,17 @@ export class InterviewTypesService extends BaseService {
    * be dropped (their `type` would point at nothing): it is kept, inactive
    * types simply stop being offered.
    */
-  async replace(projectId: string, dto: SetProjectInterviewTypesDto, organizationId: string) {
+  async replace(
+    projectId: string,
+    dto: SetProjectInterviewTypesDto,
+    organizationId: string,
+  ) {
     await this.requireProject(projectId, organizationId);
     const keys = dto.types.map((t) => t.key);
     if (new Set(keys).size !== keys.length) {
-      throw new BadRequestException('Each interview type key can appear only once');
+      throw new BadRequestException(
+        'Each interview type key can appear only once',
+      );
     }
     if (!dto.types.length) {
       throw new BadRequestException(
@@ -43,7 +55,9 @@ export class InterviewTypesService extends BaseService {
     for (const t of dto.types) {
       for (const f of t.fields ?? []) {
         if (f.kind === 'select' && !f.options?.length) {
-          throw new BadRequestException(`"${f.label}" needs at least one option`);
+          throw new BadRequestException(
+            `"${f.label}" needs at least one option`,
+          );
         }
       }
     }
@@ -71,15 +85,43 @@ export class InterviewTypesService extends BaseService {
     return this.list(projectId, organizationId);
   }
 
-  /** Counts per type, for filters and the project overview. */
+  /**
+   * Per interview type: how many interviews, how many have a transcript the
+   * enumerator has submitted (waiting for approval), and how many have an
+   * approved transcript (usable for analysis and reports).
+   */
   async usage(projectId: string, organizationId: string) {
     await this.requireProject(projectId, organizationId);
-    const rows = await this.prisma.interview.groupBy({
-      by: ['type'],
+    const interviews = await this.prisma.interview.findMany({
       where: { projectId, organizationId, deletedAt: null },
-      _count: { _all: true },
+      select: {
+        type: true,
+        transcripts: {
+          where: { media: { deletedAt: null } },
+          select: { reviewStatus: true },
+        },
+      },
     });
-    return rows.map((r) => ({ type: r.type ?? 'OTHER', interviews: r._count._all }));
+    const by = new Map<
+      string,
+      { interviews: number; awaitingApproval: number; approved: number }
+    >();
+    for (const iv of interviews) {
+      const key = iv.type ?? 'OTHER';
+      const row = by.get(key) ?? {
+        interviews: 0,
+        awaitingApproval: 0,
+        approved: 0,
+      };
+      row.interviews++;
+      const states = iv.transcripts.map((t) => t.reviewStatus);
+      if (states.some((s) => s === 'APPROVED' || s === 'LOCKED'))
+        row.approved++;
+      else if (states.includes('SUBMITTED_FOR_ADMIN_REVIEW'))
+        row.awaitingApproval++;
+      by.set(key, row);
+    }
+    return [...by.entries()].map(([type, v]) => ({ type, ...v }));
   }
 
   private async requireProject(projectId: string, organizationId: string) {
@@ -90,4 +132,3 @@ export class InterviewTypesService extends BaseService {
     if (!p) throw new NotFoundException('Project not found');
   }
 }
-

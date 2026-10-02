@@ -74,6 +74,8 @@ export interface AnalysisReport {
   sourceCount: number;
   projectId?: string | null;
   interviewId?: string | null;
+  /** Set when the report covers one interview type only. */
+  interviewType?: string | null;
   transcriptId?: string | null;
   completedAt?: string | null;
   createdAt: string;
@@ -89,6 +91,8 @@ export interface RequestReportInput {
   interviewId?: string;
   projectId?: string;
   instructions?: string;
+  /** Limit a project report to one interview type, e.g. FGD. */
+  interviewType?: string;
   language?: string;
 }
 

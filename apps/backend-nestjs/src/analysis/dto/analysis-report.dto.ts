@@ -4,10 +4,12 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { INTERVIEW_TYPE_KEY } from '../../common/research/interview-type';
 import { TRANSCRIPTION_LANGUAGE_CODES } from '../../transcripts/languages';
 
 export class RequestReportDto {
@@ -28,6 +30,11 @@ export class RequestReportDto {
   @MinLength(5)
   @MaxLength(2000)
   instructions?: string;
+
+  /** Limit a project report or brief to one interview type, e.g. "FGD". */
+  @IsOptional()
+  @Matches(INTERVIEW_TYPE_KEY, { message: 'Invalid interview type' })
+  interviewType?: string;
 
   /** Language the report is written in (quotations keep their own). */
   @IsOptional()

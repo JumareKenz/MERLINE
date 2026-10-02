@@ -15,7 +15,9 @@ import { INTERVIEW_TYPE_KEY } from '../common/research/interview-type';
 
 export class TypeFieldDto {
   @IsString()
-  @Matches(/^[a-z][a-zA-Z0-9]{0,29}$/, { message: 'Field key must be camelCase letters and digits' })
+  @Matches(/^[a-z][a-zA-Z0-9]{0,29}$/, {
+    message: 'Field key must be camelCase letters and digits',
+  })
   key: string;
 
   @IsString()
@@ -39,7 +41,8 @@ export class TypeFieldDto {
 
 export class ProjectInterviewTypeDto {
   @Matches(INTERVIEW_TYPE_KEY, {
-    message: 'Key must be 2–30 capital letters, digits or underscores, e.g. FGD or WATER_POINT_VISIT',
+    message:
+      'Key must be 2–30 capital letters, digits or underscores, e.g. FGD or WATER_POINT_VISIT',
   })
   key: string;
 
